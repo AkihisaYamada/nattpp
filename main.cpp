@@ -20,39 +20,40 @@ public:
 			if( !e.has_value() ) {
 				break;
 			}
-			vector<Exp> const& es = [&](){
-				try { return e->app(); }
-				catch( Exp::ExpectsApp err ) {
-					throw SyntaxError({Exp("malformed-command"),*e});
-				}
-			}();
-			auto it = es.begin();
-			if( it == es.end() ) {
-				throw SyntaxError({Exp("malformed-command"),*e});
+			auto es = e->app();
+			if( !es ) {
+				throw SyntaxError({Exp("#malformed-command"),*e});
 			}
-			String const& cmd = it->sym();
+			auto it = es->begin();
+			if( it == es->end() ) {
+				throw SyntaxError({Exp("#malformed-command"),*e});
+			}
+			auto cmd = it->sym();
+			if( !cmd ) {
+				throw SyntaxError({Exp("#malformed-command"),*e});
+			}
 			it++;
 			static map<String,function<void(void)>> _map = {
 				{RULE,[&](){
-					if( it == es.end() ) {
-						throw SyntaxError({Exp("too-few-arguments"),*e});
+					if( it == es->end() ) {
+						throw SyntaxError({Exp("#too-few-arguments"),*e});
 					}
 					Exp const& l = *it;
 					it++;
-					if( it == es.end() ) {
-						throw SyntaxError({Exp("too-few-arguments"),*e});
+					if( it == es->end() ) {
+						throw SyntaxError({Exp("#too-few-arguments"),*e});
 					}
 					Exp const& r = *it;
 					it++;
-					if( it != es.end() ) {
+					if( it != es->end() ) {
 						throw SyntaxError({Exp("#too-many-arguments"),*e});
 					}
 					trs.push_back({l,r});
 				}}
 			};
-			auto fit = _map.find(cmd);
+			auto fit = _map.find(*cmd);
 			if(  fit == _map.end() ) {
-				throw SyntaxError({Exp("unknown-command"),*e});
+				throw SyntaxError({Exp("#unknown-command"),*e});
 			}
 			fit->second();
 		}

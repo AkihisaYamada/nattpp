@@ -7,7 +7,7 @@
 #include"ref.hpp"
 
 class String {
-	Ref<std::string const> _ref;
+	Ptr<std::string const> _ref;
 	void operator*() = delete;
 	static std::string const EMPTY;
 public:
@@ -17,7 +17,7 @@ public:
 	String(std::string&& str) : _ref(str) {}
 	String(String const& other) : _ref(other._ref) {}
 	String& operator=(char const* str) {
-		_ref = Ref<std::string const>(str);
+		_ref = Ptr<std::string const>(str);
 		return *this;
 	}
 	String& operator=(String const& other) {

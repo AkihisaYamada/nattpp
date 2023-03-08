@@ -38,19 +38,21 @@ std::optional<Exp> Dict::reads_exp(std::istream& is) {
 }
 
 std::ostream& operator<<(std::ostream& os, Exp const& e) {
-	e.cases<void>([&](String const& sym){
-		os << sym;
-	}, [&](auto const& app) {
+	if( auto sym = e.sym() ) {
+		os << *sym;
+	} else if( auto app = e.app() ) {
 		os << '(';
-		if( auto it = app.begin(); it != app.end() ) {
+		if( auto it = app->begin(); it != app->end() ) {
 			os << *it;
 			it++;
-			for( ; it != app.end(); it++ ) {
+			for( ; it != app->end(); it++ ) {
 				os << ' ' << *it;
 			}
 		}
 		os << ')';
-	});
+	} else {
+		assert(false);
+	}
 	return os;
 }
 

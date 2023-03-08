@@ -4,7 +4,7 @@
 #include<ostream>
 
 template<typename T>
-class Ref {
+class Ptr {
 	struct Body {
 		unsigned int nref;
 		T body;
@@ -13,23 +13,23 @@ class Ref {
 		Body(T&& body) : nref(0), body(body) {}
 	};
 	Body* ptr;
-	Ref(Body* ptr) : ptr(ptr) {}
+	Ptr(Body* ptr) : ptr(ptr) {}
 public:
-	Ref() : ptr(new Body()) {}
-	Ref(T const& body) : ptr(new Body(body)) {}
-	Ref(T&& body) : ptr(new Body(body)) {}
-	Ref(Ref const& org) : ptr(org.ptr) {
+	Ptr() : ptr(new Body()) {}
+	Ptr(T const& body) : ptr(new Body(body)) {}
+	Ptr(T&& body) : ptr(new Body(body)) {}
+	Ptr(Ptr const& org) : ptr(org.ptr) {
 		ptr->nref++;
 	}
-	~Ref() {
+	~Ptr() {
 		if( ptr->nref == 0 ) {
 			delete ptr;
 		} else {
 			ptr->nref--;
 		}
 	}
-	Ref& operator=(Ref const& other) {
-		this->~Ref<T>();
+	Ptr& operator=(Ptr const& other) {
+		this->~Ptr<T>();
 		ptr = other.ptr;
 		ptr->nref++;
 		return *this;
@@ -45,7 +45,7 @@ public:
 	 * 
 	 * @return Ref& 
 	 */
-	Ref& fork() {
+	Ptr& fork() {
 		if( ptr->nref == 0 ) {// not shared, one can modify the object
 			return *this;
 		}
@@ -54,17 +54,17 @@ public:
 		return *this;
 	}
 	template<typename S>
-	friend bool operator==(Ref<S> const& l, Ref<S> const& r);
+	friend bool operator==(Ptr<S> const& l, Ptr<S> const& r);
 };
 
 template<typename T>
-bool operator==(Ref<T> const& l, Ref<T> const& r) {
+bool operator==(Ptr<T> const& l, Ptr<T> const& r) {
 	return l.ptr == r.ptr || *l == *r;
 };
 
 template<class T>
 class Safe {
-	Ref<T> _ref;
+	Ptr<T> _ref;
 public:
 	Safe(T&& body) : _ref(body) {}
 	operator T const& () const {

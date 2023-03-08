@@ -14,7 +14,20 @@
 #include"string.hpp"
 
 class Exp {
-	std::variant<String,Ref<std::vector<Exp>const>> _un;
+	std::variant<String,Ptr<std::vector<Exp>const>> _un;
+	/**
+	 * @brief optional reference.
+	 * 
+	 */
+	template<typename T>
+	class OptRef {
+		T* ptr;
+	public:
+		OptRef(T* ptr) : ptr(ptr) {}
+		T& operator*() const { return *ptr; }
+		T* operator->() const { return ptr; }
+		operator bool() const { return ptr; }
+	};
 public:
 	struct ParseError : std::exception {
 		std::string const& str;
@@ -27,37 +40,17 @@ public:
 	Exp( String const& str ) : _un(str) {}
 	Exp( std::vector<Exp> const&& vec ) : _un(vec) {}
 	Exp( std::initializer_list<Exp> list ) : _un(std::vector<Exp>(list)) {}
-	String const& sym() const {
-		if( auto const& p = std::get_if<String>(&_un) ) {
-			return *p;
-		}
-		throw ExpectsSym();
+	OptRef<String const> sym() const {
+		return OptRef(std::get_if<String>(&_un));
 	}
-	std::vector<Exp> const& app() const {
-		if( auto const& p = std::get_if<Ref<std::vector<Exp> const>>(&_un) ) {
-			return **p;
-		}
-		throw ExpectsApp();
-	}
-	template<class T>
-	T cases(
-		std::function<T(String const&)> sym,
-		std::function<T(std::vector<Exp> const&)> app
-	) const {
-		if( auto const& p = std::get_if<String>(&_un) ) {
-			return sym(*p);
-		}
-		if( auto const& p = std::get_if<Ref<std::vector<Exp> const>>(&_un) ) {
-			return app(**p);
-		}
-		assert(false);
+	OptRef<std::vector<Exp> const> app() const {
+		auto const& p = std::get_if<Ptr<std::vector<Exp> const>>(&_un);
+		return OptRef( p ? &**p : nullptr );
 	}
 };
 inline bool operator==( Exp const& l, std::string_view r ) {
-	return l.cases<bool>(
-		[&](String const& l2){ return l2 == r; },
-		[&](std::vector<Exp> const& l2){ return false; }
-	);
+	auto sym = l.sym();
+	return sym && *sym == r;
 }
 class Dict {
 	std::set<String,std::less<>> _set;

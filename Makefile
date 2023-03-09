@@ -1,11 +1,15 @@
-SRCS=exp.cpp main.cpp
+SRCS=exp.cpp term.cpp main.cpp
 CPP=g++ -O0 -ggdb3 -std=c++20 -Wfatal-errors
 BUILD=_build
 OBJS=$(SRCS:%.cpp=$(BUILD)/%.o)
 DEPS=$(OBJS:%.o=%.d)
+TGT=./terma
 
-a.exe: ${OBJS}
+${TGT}: ${OBJS}
 	${CPP} $^ -o $@
+
+test: ${TGT} test.ari
+	${TGT} test.ari
 
 $(BUILD)/%.d: %.cpp
 	@mkdir -p $(@D)

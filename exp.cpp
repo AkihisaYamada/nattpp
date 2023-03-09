@@ -3,51 +3,77 @@
 
 using namespace std;
 
-std::optional<Exp> Dict::reads_exp(std::istream& is) {
-	is >> std::ws;
-	switch( is.peek() ) {
-	case '(':
-		is.get();
-		for(std::vector<Exp> list;;) {
-			auto e = reads_exp(is);
-			if( e.has_value() ) {
-				list.push_back(*e);
-			} else if( is.peek() == ')' ) {
-				is.get();
-				return Exp(std::move(list));
-			} else {
-				std::string what;
-				is >> what;
-				throw Exp::ParseError(std::move(what));
-			}
-		}
-	case ')': case EOF:
-		return std::optional<Exp>();
+bool ExpReader::opens() {
+	_is >> ws;
+	if( _is.peek() == '(' ) {
+		_is.get();
+		return true;
+	}
+	return false;
+}
+bool ExpReader::closes() {
+	_is >> ws;
+	if( _is.peek() == ')' ) {
+		_is.get();
+		return true;
+	}
+	return false;
+}
+void ExpReader::close() {
+	if( !closes() ) {
+		throw ParseError("expected close");
+	}
+}
+optional<String> ExpReader::reads_sym() {
+	_is >> ws;
+	switch( _is.peek() ) {
+	case '(': case ')': case ':': case '"': case '\'':
+		return nullopt;
 	default:
-		for( std::string str(1,is.get()); ; ) {
-			switch( is.peek() ) {
-			case ' ': case '\t': case '\n': case '\r': case '(': case ')': case EOF:
-				return Exp(touch(str));
+		for( string str(1,_is.get()); ; ) {
+			switch( _is.peek() ) {
+			case ' ': case '\t': case '\n': case '\r':
+			case '(': case ')': case EOF:
+				return _dict.touch(str);
 			default:
-				str.push_back(is.get());
+				str.push_back(_is.get());
 				continue;
 			}
 		}
 	}
-	return std::optional<Exp>();
+}
+
+optional<Exp> ExpReader::reads_exp() {
+	if( auto sym = reads_sym() ) {
+		return *sym;
+	}
+	if( _is.peek() == '(' ) {
+		_is.get();
+		Exp fun = read_exp();
+		vector<Exp> args;
+		for(;;) {
+			if( auto e = reads_exp() ) {
+				args.push_back(*e);
+			} else if( _is.peek() == ')' ) {
+				_is.get();
+				return App(fun,std::move(args));
+			} else {
+				std::string what;
+				_is >> what;
+				throw ParseError(std::move(what));
+			}
+		}
+	}
+	return nullopt;
 }
 
 std::ostream& operator<<(std::ostream& os, Exp const& e) {
 	if( auto sym = e.sym() ) {
 		os << *sym;
 	} else if( auto app = e.app() ) {
-		os << '(';
-		if( auto it = app->begin(); it != app->end() ) {
-			os << *it;
-			it++;
-			for( ; it != app->end(); it++ ) {
-				os << ' ' << *it;
-			}
+		os << '(' << app->fun;
+		for( auto arg : app->args ) {
+			os << ' ' << arg;
 		}
 		os << ')';
 	} else {

@@ -1,0 +1,5 @@
+(fun a 1)
+(fun e 0)
+
+(rule (a   b) c)
+(rule d e)

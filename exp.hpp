@@ -13,8 +13,9 @@
 
 #include"string.hpp"
 
+class App;
 class Exp {
-	std::variant<String,Ptr<std::vector<Exp>const>> _un;
+	std::variant<String,Ptr<App const>> _un;
 	/**
 	 * @brief optional reference.
 	 * 
@@ -29,25 +30,23 @@ class Exp {
 		operator bool() const { return ptr; }
 	};
 public:
-	struct ParseError : std::exception {
-		std::string const& str;
-		ParseError(std::string const&& str) : str(str) {}
-	};
-	struct ExpectsSym : std::exception {
-	};
-	struct ExpectsApp : std::exception {
-	};
 	Exp( String const& str ) : _un(str) {}
-	Exp( std::vector<Exp> const&& vec ) : _un(vec) {}
-	Exp( std::initializer_list<Exp> list ) : _un(std::vector<Exp>(list)) {}
+	Exp( App&& app ) : _un(app) {}
 	OptRef<String const> sym() const {
 		return OptRef(std::get_if<String>(&_un));
 	}
-	OptRef<std::vector<Exp> const> app() const {
-		auto const& p = std::get_if<Ptr<std::vector<Exp> const>>(&_un);
+	OptRef<App const> app() const {
+		auto const& p = std::get_if<Ptr<App const>>(&_un);
 		return OptRef( p ? &**p : nullptr );
 	}
 };
+struct App {
+	Exp fun;
+	std::vector<Exp> args;
+	App( Exp const& fun, std::vector<Exp>&& args ) : fun(fun), args(args) {}
+	App( Exp const& fun, std::initializer_list<Exp> args ) : fun(fun), args(std::vector<Exp>(args)) {}
+};
+
 inline bool operator==( Exp const& l, std::string_view r ) {
 	auto sym = l.sym();
 	return sym && *sym == r;
@@ -64,8 +63,43 @@ public:
 	String const& touch( char const* str ) {
 		return *_set.insert(str).first;
 	}
+};
 
-	std::optional<Exp> reads_exp(std::istream& is);
+class ExpReader {
+	Dict& _dict;
+	std::istream& _is;
+public:
+	ExpReader(std::istream& is, Dict& dict) : _is(is), _dict(dict) {}
+	struct ParseError : std::exception {
+		std::string const& str;
+		ParseError(std::string const&& str) : str(str) {}
+	};
+	struct ExpectsSym : std::exception {
+	};
+	struct ExpectsApp : std::exception {
+	};
+	bool opens();
+	bool closes();
+	void close();
+	std::optional<String> reads_sym();
+	String read_sym() {
+		auto sym = reads_sym();
+		if( !sym ) {
+			throw ParseError("missing symbol");
+		}
+		return *sym;
+	}
+	int read_int() {
+		return std::stoi(read_sym());
+	}
+	std::optional<Exp> reads_exp();
+	Exp read_exp() {
+		auto exp = reads_exp();
+		if( !exp ) {
+			throw ParseError("missing expression");
+		}
+		return *exp;
+	}
 };
 
 std::ostream& operator<<(std::ostream& os, Exp const& e);

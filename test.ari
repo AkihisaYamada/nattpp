@@ -1,5 +1,5 @@
-(fun a 1)
-(fun e 0)
+(fun a :arity 1)
+(fun e :arity 0)
 
-(rule (a   b) c)
+(rule (a   b c  ) c)
 (rule d e)

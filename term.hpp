@@ -16,7 +16,8 @@ public:
 class FunInfo {
 	unsigned char _arity;
 public:
-	FunInfo(unsigned char arity) : _arity(arity) {}
+	FunInfo() {}
+	void set_arity( unsigned char arity ) { _arity = arity; }
 	unsigned char arity() const { return _arity; }
 };
 class Sig {
@@ -40,8 +41,8 @@ public:
 	static Exp const MISSING_TERM;
 	static Exp const UNAPPLIED_FUN;
 	static Exp const UNIT;
-	void insert( String const& name, unsigned char arity ) {
-		_map.insert({name,FunInfo(arity)});
+	void insert( String const& name, FunInfo const& info ) {
+		_map.insert({name,info});
 	}
 	FunInfoOpt find( String const& name ) const {
 		auto it = _map.find(name);

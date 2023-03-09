@@ -21,7 +21,25 @@ bool ExpReader::closes() {
 }
 void ExpReader::close() {
 	if( !closes() ) {
-		throw ParseError("expected close");
+		throw ParseError(Exp("#expected_close"));
+	}
+}
+optional<String> ExpReader::reads_key() {
+	_is >> ws;
+	if( _is.peek() != ':' ) {
+		return nullopt;
+	}
+	_is.get();
+	string str = ":";
+	for(;;) {
+		switch( _is.peek() ) {
+		case ' ': case '\t': case '\n': case '\r':
+		case '(': case ')': case EOF:
+			return _dict.touch(str);
+		default:
+			str.push_back(_is.get());
+			continue;
+		}
 	}
 }
 optional<String> ExpReader::reads_sym() {
@@ -60,7 +78,7 @@ optional<Exp> ExpReader::reads_exp() {
 			} else {
 				std::string what;
 				_is >> what;
-				throw ParseError(std::move(what));
+				throw ParseError(Exp(std::move(what)));
 			}
 		}
 	}

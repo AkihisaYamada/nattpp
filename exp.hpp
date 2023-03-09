@@ -71,21 +71,18 @@ class ExpReader {
 public:
 	ExpReader(std::istream& is, Dict& dict) : _is(is), _dict(dict) {}
 	struct ParseError : std::exception {
-		std::string const& str;
-		ParseError(std::string const&& str) : str(str) {}
-	};
-	struct ExpectsSym : std::exception {
-	};
-	struct ExpectsApp : std::exception {
+		Exp const& msg;
+		ParseError(Exp const& msg) : msg(msg) {}
 	};
 	bool opens();
 	bool closes();
 	void close();
+	std::optional<String> reads_key();
 	std::optional<String> reads_sym();
 	String read_sym() {
 		auto sym = reads_sym();
 		if( !sym ) {
-			throw ParseError("missing symbol");
+			throw ParseError(Exp("#missing_symbol"));
 		}
 		return *sym;
 	}
@@ -96,7 +93,7 @@ public:
 	Exp read_exp() {
 		auto exp = reads_exp();
 		if( !exp ) {
-			throw ParseError("missing expression");
+			throw ParseError(Exp("#missing_expression"));
 		}
 		return *exp;
 	}

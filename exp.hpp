@@ -46,7 +46,7 @@ class App {
 public:
 	Exp fun;
 	std::vector<Exp> args;
-	App( Exp const& fun, std::vector<Exp>&& args ) : fun(fun), args(std::move(args)) {}
+	App( Exp const& fun, std::vector<Exp>&& args ) : fun(fun), args(args) {}
 	App( Exp const& fun, std::initializer_list<Exp> args ) : fun(fun), args(std::vector<Exp>(args)) {}
 };
 
@@ -74,26 +74,88 @@ public:
 	}
 };
 
-extern Exp const MISSING_SYMBOL;
+extern Exp const MISSING_SYM;
 extern Exp const MISSING_EXP;
-extern Exp const MISSING_CLOSE;
+extern Exp const MISSING_LPAR;
+extern Exp const MISSING_RPAR;
 
 class ExpReader {
 	Dict& _dict;
 	std::istream& _is;
+	class LPar {};
+	class RPar {};
+	class None {};
+	struct Key { String const& str; };
+	struct Sym { String const& str; };
+	std::variant<None,LPar,RPar,Key,Sym> _fetched;
+	void _fetch();
 public:
-	ExpReader( std::istream& is, Dict& dict ) : _is(is), _dict(dict) {}
-	bool opens();
-	bool closes();
-	void close();
-	std::optional<String> reads_key();
-	std::optional<String> reads_sym();
+	ExpReader( std::istream& is, Dict& dict ) : _is(is), _dict(dict), _fetched(None()) {}
+	bool opens() {
+		_fetch();
+		if( std::get_if<LPar>(&_fetched) ) {
+			_fetched.emplace<None>();
+			return true;
+		}
+		return false;
+	}
+	void open() {
+		if( !opens() ) {
+			throw ExpError(MISSING_LPAR);
+		}
+	}
+	bool closes() {
+		_fetch();
+		if( std::get_if<RPar>(&_fetched) ) {
+			_fetched.emplace<None>();
+			return true;
+		}
+		return false;
+	}
+	void close() {
+		if( !closes() ) {
+			throw ExpError(MISSING_RPAR);
+		}
+	}
+	std::optional<String> reads_key() {
+		_fetch();
+		if( auto key = std::get_if<Key>(&_fetched) ) {
+			String str = key->str;
+			_fetched.emplace<None>();
+			return str;
+		}
+		return std::nullopt;
+	}
+	std::optional<String> reads_sym() {
+		_fetch();
+		if( auto sym = std::get_if<Sym>(&_fetched) ) {
+			String str = sym->str;
+			_fetched.emplace<None>();
+			return str;
+		}
+		return std::nullopt;
+	}
 	String read_sym() {
 		auto sym = reads_sym();
 		if( !sym ) {
-			throw ExpError(MISSING_SYMBOL);
+			throw ExpError(MISSING_SYM);
 		}
 		return *sym;
+	}
+	bool reads_sym( String const& str ) {
+		_fetch();
+		if( auto sym = std::get_if<Sym>(&_fetched) ) {
+			if( str == sym->str ) {
+				_fetched.emplace<None>();
+				return true;
+			}
+		}
+		return false;
+	}
+	void read_sym( String const& str ) {
+		if( !reads_sym(str) ) {
+			throw ExpError(App{MISSING_SYM,{str}});
+		}
 	}
 	int read_int() {
 		return std::stoi(read_sym());

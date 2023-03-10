@@ -3,63 +3,61 @@
 
 using namespace std;
 
-Exp const MISSING_SYMBOL = Exp("#missing_symbol");
+Exp const MISSING_SYM = Exp("#missing_symbol");
 Exp const MISSING_EXP = Exp("#missing_expression");
-Exp const MISSING_CLOSE = Exp("#missing_close");
+Exp const MISSING_LPAR = Exp("#missing_left_paren");
+Exp const MISSING_RPAR = Exp("#missing_right_paren");
 
-bool ExpReader::opens() {
-	_is >> ws;
-	if( _is.peek() == '(' ) {
-		_is.get();
-		return true;
-	}
-	return false;
-}
-bool ExpReader::closes() {
-	_is >> ws;
-	if( _is.peek() == ')' ) {
-		_is.get();
-		return true;
-	}
-	return false;
-}
-void ExpReader::close() {
-	if( !closes() ) {
-		throw ExpError(MISSING_CLOSE);
-	}
-}
-optional<String> ExpReader::reads_key() {
-	_is >> ws;
-	if( _is.peek() != ':' ) {
-		return nullopt;
-	}
-	_is.get();
-	string str = ":";
+static void skip_comment_line( istream& is ) {
+	is.get();
 	for(;;) {
-		switch( _is.peek() ) {
-		case ' ': case '\t': case '\n': case '\r':
-		case '(': case ')': case EOF:
-			return _dict.touch(str);
+		switch( is.get() ) {
+		case '\n': case '\r': case EOF:
+			break;
 		default:
-			str.push_back(_is.get());
 			continue;
 		}
 	}
 }
-optional<String> ExpReader::reads_sym() {
-	_is >> ws;
-	switch( _is.peek() ) {
-	case '(': case ')': case ':': case '"': case '\'':
-		return nullopt;
-	default:
-		for( string str(1,_is.get()); ; ) {
+static String const& read_sym_rest( istream& is, Dict& dict ) {
+	string str = string(1,is.get());
+	for(;;) {
+		switch( is.peek() ) {
+		case ' ': case '\t': case '\n': case '\r': case ';':
+		case '(': case ')': case EOF:
+			return dict.touch(str);
+		default:
+			str.push_back(is.get());
+			continue;
+		}
+	}
+}
+void ExpReader::_fetch() {
+	if( get_if<None>(&_fetched) ) {
+		for(;;) {
 			switch( _is.peek() ) {
-			case ' ': case '\t': case '\n': case '\r':
-			case '(': case ')': case EOF:
-				return _dict.touch(str);
-			default:
-				str.push_back(_is.get());
+			case ' ': case '\t': case '\n': case '\r':// skip white spaces
+				_is.get();
 				continue;
+			case ';':// skip comment line
+				skip_comment_line(_is);
+				continue;
+			case '(':
+				_is.get();
+				_fetched.emplace<LPar>();
+				return;
+			case ')':
+				_is.get();
+				_fetched.emplace<RPar>();
+				return;
+			case '"': case '\'':
+				return;
+			case ':':
+				_fetched.emplace<Key>(read_sym_rest(_is,_dict));
+				return;
+			default:
+				_fetched.emplace<Sym>(read_sym_rest(_is,_dict));
+				return;
 			}
 		}
 	}

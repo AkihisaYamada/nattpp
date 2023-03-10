@@ -4,15 +4,6 @@
 #include<istream>
 #include "exp.hpp"
 
-class Term {
-public:
-	String fun;
-	std::vector<Term> args;
-	Term( String const& fun ) : fun(fun) {}
-	Term( String const& fun, std::vector<Term>&& args ) : fun(fun), args(args) {}
-	Term( String const& fun, std::initializer_list<Term> args ) : fun(fun), args(args) {}
-};
-
 class FunInfo {
 	unsigned char _arity;
 public:
@@ -37,7 +28,6 @@ public:
 	};
 	static Exp const APPLIED_VAR;
 	static Exp const APPLIED_CONST;
-	static Exp const UNEXPECTED_CLOSE;
 	static Exp const MISSING_TERM;
 	static Exp const UNAPPLIED_FUN;
 	static Exp const UNIT;

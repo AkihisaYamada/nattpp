@@ -4,7 +4,6 @@ using namespace std;
 
 Exp const Sig::APPLIED_VAR = Exp("#applied_var");
 Exp const Sig::APPLIED_CONST = Exp("#applied_const");
-Exp const Sig::UNEXPECTED_CLOSE = Exp("#unexpected_close");
 Exp const Sig::MISSING_TERM = Exp("#missing_term");
 Exp const Sig::UNAPPLIED_FUN = Exp("#unapplied_fun");
 Exp const Sig::UNIT = Exp("#unit");
@@ -32,7 +31,7 @@ optional<Exp> Sig::reads_term( ExpReader& reader ) const {
 			args.push_back(read_term(reader));
 		}
 		if( !reader.closes() ) {
-			throw Error(App(MISSING_CLOSE,{fun}));
+			throw Error(App(MISSING_RPAR,{fun}));
 		}
 		return App(fun,std::move(args));
 	}

@@ -79,7 +79,7 @@ int main(int argc, char** argv) {
 		cerr << e.e << endl;
 	} catch( SyntaxError const& e ) {
 		cerr << e.msg << endl;
-	} catch( ExpReader::ParseError const& e ) {
+	} catch( ExpError const& e ) {
 		cerr << e.msg << endl;
 	}
 }

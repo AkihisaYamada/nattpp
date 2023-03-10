@@ -3,6 +3,10 @@
 
 using namespace std;
 
+Exp const MISSING_SYMBOL = Exp("#missing_symbol");
+Exp const MISSING_EXP = Exp("#missing_expression");
+Exp const MISSING_CLOSE = Exp("#missing_close");
+
 bool ExpReader::opens() {
 	_is >> ws;
 	if( _is.peek() == '(' ) {
@@ -21,7 +25,7 @@ bool ExpReader::closes() {
 }
 void ExpReader::close() {
 	if( !closes() ) {
-		throw ParseError(Exp("#expected_close"));
+		throw ExpError(MISSING_CLOSE);
 	}
 }
 optional<String> ExpReader::reads_key() {
@@ -78,7 +82,7 @@ optional<Exp> ExpReader::reads_exp() {
 			} else {
 				std::string what;
 				_is >> what;
-				throw ParseError(Exp(std::move(what)));
+				throw ExpError(Exp(std::move(what)));
 			}
 		}
 	}

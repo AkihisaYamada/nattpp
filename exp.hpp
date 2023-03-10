@@ -29,9 +29,10 @@ class Exp {
 		T* operator->() const { return ptr; }
 		operator bool() const { return ptr; }
 	};
+	Exp() = delete;
 public:
 	Exp( String const& str ) : _un(str) {}
-	Exp( App&& app ) : _un(app) {}
+	Exp( App const& app ) : _un(app) {}
 	OptRef<String const> sym() const {
 		return OptRef(std::get_if<String>(&_un));
 	}
@@ -40,10 +41,12 @@ public:
 		return OptRef( p ? &**p : nullptr );
 	}
 };
-struct App {
+class App {
+	App() = delete;
+public:
 	Exp fun;
 	std::vector<Exp> args;
-	App( Exp const& fun, std::vector<Exp>&& args ) : fun(fun), args(args) {}
+	App( Exp const& fun, std::vector<Exp>&& args ) : fun(fun), args(std::move(args)) {}
 	App( Exp const& fun, std::initializer_list<Exp> args ) : fun(fun), args(std::vector<Exp>(args)) {}
 };
 
@@ -51,6 +54,12 @@ inline bool operator==( Exp const& l, std::string_view r ) {
 	auto sym = l.sym();
 	return sym && *sym == r;
 }
+
+struct ExpError : std::exception {
+	Exp msg;
+	ExpError(Exp const& msg) : msg(msg) {}
+};
+
 class Dict {
 	std::set<String,std::less<>> _set;
 public:
@@ -65,15 +74,15 @@ public:
 	}
 };
 
+extern Exp const MISSING_SYMBOL;
+extern Exp const MISSING_EXP;
+extern Exp const MISSING_CLOSE;
+
 class ExpReader {
 	Dict& _dict;
 	std::istream& _is;
 public:
-	ExpReader(std::istream& is, Dict& dict) : _is(is), _dict(dict) {}
-	struct ParseError : std::exception {
-		Exp const& msg;
-		ParseError(Exp const& msg) : msg(msg) {}
-	};
+	ExpReader( std::istream& is, Dict& dict ) : _is(is), _dict(dict) {}
 	bool opens();
 	bool closes();
 	void close();
@@ -82,7 +91,7 @@ public:
 	String read_sym() {
 		auto sym = reads_sym();
 		if( !sym ) {
-			throw ParseError(Exp("#missing_symbol"));
+			throw ExpError(MISSING_SYMBOL);
 		}
 		return *sym;
 	}
@@ -93,12 +102,12 @@ public:
 	Exp read_exp() {
 		auto exp = reads_exp();
 		if( !exp ) {
-			throw ParseError(Exp("#missing_expression"));
+			throw ExpError(MISSING_EXP);
 		}
 		return *exp;
 	}
 };
 
-std::ostream& operator<<(std::ostream& os, Exp const& e);
+std::ostream& operator<<( std::ostream& os, Exp const& e );
 
 #endif

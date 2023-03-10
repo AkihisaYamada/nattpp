@@ -31,7 +31,9 @@ optional<Exp> Sig::reads_term( ExpReader& reader ) const {
 		for( unsigned char n = 0; n < arity; n++ ) {
 			args.push_back(read_term(reader));
 		}
-		reader.close();
+		if( !reader.closes() ) {
+			throw Error(App(MISSING_CLOSE,{fun}));
+		}
 		return App(fun,std::move(args));
 	}
 	return nullopt;

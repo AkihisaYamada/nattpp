@@ -2,10 +2,10 @@
 
 using namespace std;
 
-Exp const Sig::APPLIED_VAR = Exp("#applied_var");
-Exp const Sig::APPLIED_CONST = Exp("#applied_const");
-Exp const Sig::MISSING_TERM = Exp("#missing_term");
-Exp const Sig::UNAPPLIED_FUN = Exp("#unapplied_fun");
+Exp const Sig::APPLIED_VAR = Exp("#applied-var");
+Exp const Sig::APPLIED_CONST = Exp("#applied-const");
+Exp const Sig::MISSING_TERM = Exp("#missing-term");
+Exp const Sig::UNAPPLIED_FUN = Exp("#unapplied-fun");
 Exp const Sig::UNIT = Exp("#unit");
 
 optional<Exp> Sig::reads_term( ExpReader& reader ) const {

@@ -26,10 +26,16 @@ static Exp const UNKNOWN_CMD = Exp("#unknown-command");
 static Exp const UNKNOWN_KEY = Exp("#unknown-keyword");
 static Exp const OUT_OF_RANGE = Exp("#out-of-range");
 
+enum class Format {
+	TRS,
+	SRS,
+};
+
 class Main {
 	Dict dict;
 	Sig sig;
 	vector<vector<pair<Exp,Exp>>> trs;
+	Format format;
 	String const FORMAT = dict.touch("format");
 	String const TRS = dict.touch("TRS");
 	String const SRS = dict.touch("SRS");
@@ -45,10 +51,9 @@ class Main {
 	void _read_format(ExpReader& reader) {
 		reader.open();
 		reader.read_sym(FORMAT);
-		bool srs;
 		_switch( reader.read_sym(), {
 			{TRS,[&](){
-				srs = false;
+				format = Format::TRS;
 				optional<String> num;
 				while( auto key = reader.reads_key() ) {
 					_switch( *key, {
@@ -70,12 +75,50 @@ class Main {
 				}
 			}},
 			{SRS,[&](){
-				srs = true;
+				format = Format::SRS;
 			}},
 		}, [&](String const& str) {
 			throw SyntaxError(App{UNKNOWN_FORMAT,{str}});
 		});
 		reader.close();
+	}
+	void _process_fun(ExpReader& reader) {
+		String fun = reader.read_sym();
+		FunInfo info;
+		while( auto key = reader.reads_key() ) {
+			_switch( *key, {
+				{ARITY_KEY,[&](){
+					info.set_arity(reader.read_int());
+				}},
+			},[&](String const& key){
+				throw SyntaxError(App{UNKNOWN_KEY,{key}});
+			});
+		}
+		reader.close();
+		sig.insert(fun,info);
+	}
+	void _process_rule(ExpReader& reader) {
+		Exp l = sig.read_term(reader);
+		Exp r = sig.read_term(reader);
+		optional<String> index;
+		while( auto key = reader.reads_key() ) {
+			_switch( *key,{
+				{INDEX_KEY,[&](){
+					index = reader.read_sym();
+				}},
+			},[&](String const& key){
+				throw SyntaxError(App{UNKNOWN_KEY,{key}});
+			});
+		}
+		reader.close();
+		int i = 0;
+		if( index ) {
+			i = stoi(*index)-1;
+			if( i < 0 || trs.size() <= i ) {
+				throw SyntaxError(App{OUT_OF_RANGE,{INDEX_KEY,*index}});
+			}
+		}
+		trs[i].push_back({l,r});
 	}
 public:
 	void parse(istream& is) {
@@ -83,44 +126,8 @@ public:
 		_read_format(reader);
 		while( reader.opens() ) {
 			_switch( reader.read_sym(), {
-				{FUN,[&](){
-					String fun = reader.read_sym();
-					FunInfo info;
-					while( auto key = reader.reads_key() ) {
-						_switch( *key, {
-							{ARITY_KEY,[&](){
-								info.set_arity(reader.read_int());
-							}},
-						},[&](String const& key){
-							throw SyntaxError(App{UNKNOWN_KEY,{key}});
-						});
-					}
-					reader.close();
-					sig.insert(fun,info);
-				}},
-				{RULE,[&](){
-					Exp l = sig.read_term(reader);
-					Exp r = sig.read_term(reader);
-					optional<String> index;
-					while( auto key = reader.reads_key() ) {
-						_switch( *key,{
-							{INDEX_KEY,[&](){
-								index = reader.read_sym();
-							}},
-						},[&](String const& key){
-							throw SyntaxError(App{UNKNOWN_KEY,{key}});
-						});
-					}
-					reader.close();
-					int i = 0;
-					if( index ) {
-						i = stoi(*index)-1;
-						if( i < 0 || trs.size() <= i ) {
-							throw SyntaxError(App{OUT_OF_RANGE,{INDEX_KEY,*index}});
-						}
-					}
-					trs[i].push_back({l,r});
-				}}
+				{FUN,[&](){_process_fun(reader);}},
+				{RULE,[&](){_process_rule(reader);}}
 			}, [&](String const& cmd){
 				throw SyntaxError(App{UNKNOWN_CMD,{cmd}});
 			});

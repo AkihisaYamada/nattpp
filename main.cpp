@@ -21,37 +21,31 @@ static void _switch(
 		it->second();
 	}
 }
-static Exp const UNKNOWN_FORMAT = Exp("#unknown-format");
-static Exp const UNKNOWN_CMD = Exp("#unknown-command");
-static Exp const UNKNOWN_KEY = Exp("#unknown-keyword");
-static Exp const OUT_OF_RANGE = Exp("#out-of-range");
-static Exp const INVALID_ATTRIBUTE = Exp("#invalid-attribute");
-static Exp const DUP_FUN_DECL = Exp("#duplicate-fun");
-
 enum class Format {
 	TRS,
 	SRS,
 };
 
 class Main {
-	Sig sig;
-	vector<vector<pair<Exp,Exp>>> trs;
+	Term::Sig sig;
+	struct System : vector<pair<Term,Term>> {};
+	vector<System> systems;
 	Format format;
 	/**
 	 * @brief Reads (format ...) expression.
 	 */
-	void _read_format( ExpReader& reader ) {
+	void _read_format( Exp::Reader& reader ) {
 		reader.open();
 		reader.read_sym("format");
 		_switch( reader.read_sym(), {
 			{"TRS",[&](){ _process_trs_format(reader); }},
 			{"SRS",[&](){ _process_srs_format(reader); }},
 		}, [&](string const& str) {
-			throw SyntaxError(UNKNOWN_FORMAT(str));
+			throw SyntaxError({"#unknown-format",{str}});
 		});
 		reader.close();
 	}
-	void _process_trs_format( ExpReader& reader ) {
+	void _process_trs_format( Exp::Reader& reader ) {
 		format = Format::TRS;
 		optional<string> num;
 		while( auto key = reader.reads_key() ) {
@@ -59,47 +53,47 @@ class Main {
 				{":number",[&](){
 					auto const& new_num = reader.read_sym();
 					if( num ) {
-						throw SyntaxError(INVALID_ATTRIBUTE(Exp(":number",{*num,new_num})));
+						throw SyntaxError({"#duplicate-attr",{":number",{*num,new_num}}});
 					}
 					num = new_num;
 				}},
 			},[&]( string const& key ){
-				throw SyntaxError(Exp(UNKNOWN_KEY)(key));
+				throw SyntaxError({"#unknown-key",key});
 			});
 		}
 		if( num ) {
 			int n = stoi(*num);
 			if( n <= 0 || 10 < n ) {
-				throw SyntaxError(OUT_OF_RANGE(Exp(":number")(*num)));
+				throw SyntaxError({"#out-of-range",{":number",*num}});
 			}
-			trs = vector<vector<pair<Exp,Exp>>>(n);
+			systems = vector<System>(n);
 		} else {
-			trs = vector<vector<pair<Exp,Exp>>>(1);
+			systems = vector<System>(1);
 		}
 	}
-	void _process_srs_format( ExpReader& reader ) {
+	void _process_srs_format( Exp::Reader& reader ) {
 		format = Format::SRS;
 	}
-	void _process_fun(ExpReader& reader) {
+	void _process_fun(Exp::Reader& reader) {
 		string fun = reader.read_sym();
-		FunInfo info;
+		Term::Rank rank;
 		while( auto key = reader.reads_key() ) {
 			_switch( *key, {
 				{":arity",[&](){
-					info.set_arity(reader.read_int());
+					rank.set_arity(reader.read_int());
 				}},
 			},[&]( string const& key ){
-				throw SyntaxError(Exp(UNKNOWN_KEY)(key));
+				throw SyntaxError({"#unknown-key",key});
 			});
 		}
 		reader.close();
-		if( !sig.insert(fun,info) ) {
-			throw SyntaxError(DUP_FUN_DECL(fun));
+		if( !sig.insert(fun,rank) ) {
+			throw SyntaxError({"#duplicate-fun",fun});
 		}
 	}
-	void _process_rule(ExpReader& reader) {
-		Exp l = sig.read_term(reader);
-		Exp r = sig.read_term(reader);
+	void _process_rule(Term::Reader& reader) {
+		Term l = reader.read_term();
+		Term r = reader.read_term();
 		optional<string> index;
 		while( auto key = reader.reads_key() ) {
 			_switch( *key,{
@@ -107,36 +101,36 @@ class Main {
 					index = reader.read_sym();
 				}},
 			},[&]( string const& key ){
-				throw SyntaxError(Exp(UNKNOWN_KEY)(key));
+				throw SyntaxError({"#unknown-key",key});
 			});
 		}
 		reader.close();
 		int i = 0;
 		if( index ) {
 			i = stoi(*index)-1;
-			if( i < 0 || trs.size() <= i ) {
-				throw SyntaxError(OUT_OF_RANGE(Exp(":index")(*index)));
+			if( i < 0 || systems.size() <= i ) {
+				throw SyntaxError({"#index-out-of-range",*index});
 			}
 		}
-		trs[i].push_back({l,r});
+		systems[i].push_back({l,r});
 	}
 public:
 	void parse( istream& is ) {
-		auto reader = ExpReader(is);
+		auto reader = Term::Reader(is,sig);
 		_read_format(reader);
 		while( reader.opens() ) {
 			_switch( reader.read_sym(), {
 				{"fun",[&](){_process_fun(reader);}},
 				{"rule",[&](){_process_rule(reader);}}
 			}, [&]( string const& cmd ){
-				throw SyntaxError(UNKNOWN_CMD(cmd));
+				throw SyntaxError({"#unknown-command",cmd});
 			});
 		}
 	}
-	void write_trs( ostream& os ) {
-		for( int i = 0; i < trs.size(); i++ ) {
+	void write_systems( ostream& os ) {
+		for( int i = 0; i < systems.size(); i++ ) {
 			cout << "TRS " << i+1 << ":" << endl;
-			for( auto const& rule : trs[i] ) {
+			for( auto const& rule : systems[i] ) {
 				cout << '\t' << rule.first << " -> " << rule.second << endl;
 			}
 		}
@@ -155,12 +149,12 @@ int main( int argc, char** argv ) {
 			exit_on_error = true;
 		}
 		obj.parse(*pis);
-		obj.write_trs(cout);
-	} catch( Sig::Error const& e ) {
-		cerr << e.e << endl;
+		obj.write_systems(cout);
+	} catch( Term::Reader::Error const& e ) {
+		cerr << e.msg << endl;
 	} catch( SyntaxError const& e ) {
 		cerr << e.msg << endl;
-	} catch( ExpError const& e ) {
+	} catch( Exp::Reader::Error const& e ) {
 		cerr << e.msg << endl;
 	}
 }

@@ -3,10 +3,16 @@
 
 using namespace std;
 
-Exp const MISSING_SYM = Exp("#missing_symbol");
-Exp const MISSING_EXP = Exp("#missing_expression");
-Exp const MISSING_LPAR = Exp("#missing_left_paren");
-Exp const MISSING_RPAR = Exp("#missing_right_paren");
+Exp Exp::_construct( initializer_list<Exp> const& list ) {
+	auto it = list.begin(), end = list.end();
+	if( it == end ) {
+		return Exp();
+	} else {
+		Exp fun = *it;
+		it++;
+		return Exp(fun,vector<Exp>(it,end));
+	}
+}
 
 static void skip_comment_line( istream& is ) {
 	is.get();
@@ -32,7 +38,7 @@ static string read_sym_rest( istream& is ) {
 		}
 	}
 }
-void ExpReader::_fetch() {
+void Exp::Reader::_fetch() {
 	if( get_if<None>(&_fetched) ) {
 		for(;;) {
 			switch( _is.peek() ) {
@@ -63,7 +69,7 @@ void ExpReader::_fetch() {
 	}
 }
 
-optional<Exp> ExpReader::reads_exp() {
+optional<Exp> Exp::Reader::reads_exp() {
 	if( auto sym = reads_sym() ) {
 		return *sym;
 	}
@@ -80,7 +86,7 @@ optional<Exp> ExpReader::reads_exp() {
 			} else {
 				std::string what;
 				_is >> what;
-				throw ExpError(Exp(std::move(what)));
+				throw Error(Exp(std::move(what)));
 			}
 		}
 	}

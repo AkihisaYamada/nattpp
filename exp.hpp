@@ -16,17 +16,34 @@
 class Exp {
 	class _App;
 	std::variant<std::string,Ptr<_App const>> _un;
-	Exp() = delete;
+	static Exp _construct( std::initializer_list<Exp> const& list );
 public:
 	/**
 	 * @brief Application. The pair of the function and the vector of arguments.
 	 */
 	typedef std::pair<Exp,std::vector<Exp>> App;
+	/**
+	 * @brief "nil"
+	 */
+	Exp() {}
+	/**
+	 * @brief Symbol
+	 */
 	Exp( std::string const& str ) : _un(str) {}
 	Exp( char const* str ) : _un(str) {}
+	/**
+	 * @brief Application.
+	 * 
+	 * @param fun 
+	 * @param args 
+	 */
 	Exp( Exp const& fun, std::vector<Exp> && args );
-	Exp( Exp const& fun, std::initializer_list<Exp> const& args );
-	Exp operator()( Exp const& arg ) const;
+	/**
+	 * @brief For handy construction of applications.
+	 * 
+	 * @param list 
+	 */
+	Exp( std::initializer_list<Exp> const& list ) : Exp(_construct(list)) {}
 	/**
 	 * @brief Fast conditional reference to the string of a symbol expression.
 	 * @return r such that (bool)r is true iff this is a symbol, and *r is the string.
@@ -57,13 +74,12 @@ public:
 	 * @brief Conditional reference to the body of an application.
 	 */
 	std::optional<App> app() const &&;
+	class Reader;
 };
 
 struct Exp::_App : App {};
 
 inline Exp::Exp( Exp const& fun, std::vector<Exp>&& args ) : _un(_App({fun,std::move(args)})) {}
-
-inline Exp::Exp( Exp const& fun, std::initializer_list<Exp> const& args ) : _un(_App({fun,args})) {}
 
 inline TempOpt<Exp::App const> Exp::app() const & {
 	if( auto p = std::get_if<Ptr<_App const>>(&_un) ) {
@@ -81,25 +97,12 @@ inline std::optional<Exp::App> Exp::app() const && {
 	}
 }
 
-inline Exp Exp::operator()( Exp const& arg ) const {
-	return Exp(*this,{arg});
-}
 inline bool operator==( Exp const& l, std::string_view r ) {
 	auto sym = l.sym();
 	return sym && *sym == r;
 }
 
-struct ExpError : std::exception {
-	Exp msg;
-	ExpError(Exp const& msg) : msg(msg) {}
-};
-
-extern Exp const MISSING_SYM;
-extern Exp const MISSING_EXP;
-extern Exp const MISSING_LPAR;
-extern Exp const MISSING_RPAR;
-
-class ExpReader {
+class Exp::Reader {
 	std::istream& _is;
 	class LPar {};
 	class RPar {};
@@ -109,7 +112,11 @@ class ExpReader {
 	std::variant<None,LPar,RPar,Key,Sym> _fetched;
 	void _fetch();
 public:
-	ExpReader( std::istream& is ) : _is(is), _fetched(None()) {}
+	struct Error : std::exception {
+		Exp msg;
+		Error(Exp const& msg) : msg(msg) {}
+	};
+	Reader( std::istream& is ) : _is(is), _fetched(None()) {}
 	bool opens() {
 		_fetch();
 		if( std::get_if<LPar>(&_fetched) ) {
@@ -120,7 +127,7 @@ public:
 	}
 	void open() {
 		if( !opens() ) {
-			throw ExpError(MISSING_LPAR);
+			throw Error("#missing-left-paren");
 		}
 	}
 	bool closes() {
@@ -133,7 +140,7 @@ public:
 	}
 	void close() {
 		if( !closes() ) {
-			throw ExpError(MISSING_RPAR);
+			throw Error("#missing-right-paren");
 		}
 	}
 	std::optional<std::string> reads_key() {
@@ -157,7 +164,7 @@ public:
 	std::string read_sym() {
 		auto sym = reads_sym();
 		if( !sym ) {
-			throw ExpError(MISSING_SYM);
+			throw Error("#missing-symbol");
 		}
 		return *sym;
 	}
@@ -173,7 +180,7 @@ public:
 	}
 	void read_sym( char const* str ) {
 		if( !reads_sym(str) ) {
-			throw ExpError(MISSING_SYM(str));
+			throw Error(Exp("#missing-symbol",{str}));
 		}
 	}
 	int read_int() {
@@ -183,7 +190,7 @@ public:
 	Exp read_exp() {
 		auto exp = reads_exp();
 		if( !exp ) {
-			throw ExpError(MISSING_EXP);
+			throw Error("#missing-expression");
 		}
 		return *exp;
 	}

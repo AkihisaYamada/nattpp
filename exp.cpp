@@ -19,13 +19,13 @@ static void skip_comment_line( istream& is ) {
 		}
 	}
 }
-static String const& read_sym_rest( istream& is, Dict& dict ) {
+static string read_sym_rest( istream& is ) {
 	string str = string(1,is.get());
 	for(;;) {
 		switch( is.peek() ) {
 		case ' ': case '\t': case '\n': case '\r': case ';':
 		case '(': case ')': case EOF:
-			return dict.touch(str);
+			return str;
 		default:
 			str.push_back(is.get());
 			continue;
@@ -53,10 +53,10 @@ void ExpReader::_fetch() {
 			case '"': case '\'':
 				return;
 			case ':':
-				_fetched.emplace<Key>(read_sym_rest(_is,_dict));
+				_fetched.emplace<Key>(read_sym_rest(_is));
 				return;
 			default:
-				_fetched.emplace<Sym>(read_sym_rest(_is,_dict));
+				_fetched.emplace<Sym>(read_sym_rest(_is));
 				return;
 			}
 		}
@@ -76,7 +76,7 @@ optional<Exp> ExpReader::reads_exp() {
 				args.push_back(*e);
 			} else if( _is.peek() == ')' ) {
 				_is.get();
-				return App(fun,std::move(args));
+				return fun(std::move(args));
 			} else {
 				std::string what;
 				_is >> what;
@@ -91,8 +91,8 @@ std::ostream& operator<<(std::ostream& os, Exp const& e) {
 	if( auto sym = e.sym() ) {
 		os << *sym;
 	} else if( auto app = e.app() ) {
-		os << '(' << app->fun;
-		for( auto arg : app->args ) {
+		os << '(' << app->first;
+		for( auto arg : app->second ) {
 			os << ' ' << arg;
 		}
 		os << ')';

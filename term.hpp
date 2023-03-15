@@ -12,12 +12,12 @@ public:
 	unsigned char arity() const { return _arity; }
 };
 class Sig {
-	std::map<String,FunInfo,std::less<>> _map;
+	std::map<std::string,FunInfo,std::less<>> _map;
 	class FunInfoOpt {
 		FunInfo const* _ptr;
 	public:
 		FunInfoOpt(FunInfo const* ptr) : _ptr(ptr) {}
-		operator bool () { return _ptr; }
+		operator bool () const { return _ptr; }
 		FunInfo const& operator*() const { return *_ptr; }
 		FunInfo const* operator->() const { return _ptr; }
 	};
@@ -30,11 +30,11 @@ public:
 	static Exp const APPLIED_CONST;
 	static Exp const MISSING_TERM;
 	static Exp const UNAPPLIED_FUN;
-	static Exp const UNIT;
-	void insert( String const& name, FunInfo const& info ) {
-		_map.insert({name,info});
+	static Exp const NIL;
+	bool insert( std::string const& name, FunInfo const& info ) {
+		return _map.insert({name,info}).second;
 	}
-	FunInfoOpt find( String const& name ) const {
+	FunInfoOpt find( std::string const& name ) const {
 		auto it = _map.find(name);
 		return FunInfoOpt( it == _map.end() ? nullptr : &it->second );
 	}

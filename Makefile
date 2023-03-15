@@ -9,6 +9,7 @@ ${TGT}: ${OBJS}
 	${CPP} $^ -o $@
 
 test: ${TGT} test.ari
+	for f in syntax_errors/*.ari; do ${TGT} $$f; done
 	${TGT} test.ari
 
 $(BUILD)/%.d: %.cpp

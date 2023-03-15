@@ -6,34 +6,41 @@ Exp const Sig::APPLIED_VAR = Exp("#applied-var");
 Exp const Sig::APPLIED_CONST = Exp("#applied-const");
 Exp const Sig::MISSING_TERM = Exp("#missing-term");
 Exp const Sig::UNAPPLIED_FUN = Exp("#unapplied-fun");
-Exp const Sig::UNIT = Exp("#unit");
+Exp const Sig::NIL = Exp("#nil");
 
 optional<Exp> Sig::reads_term( ExpReader& reader ) const {
 	if( auto sym = reader.reads_sym() ) {
 		auto info = find(*sym);
 		if( info && info->arity() != 0 ) {
-			throw Error(App(UNAPPLIED_FUN,{*sym}));
+			throw Error(UNAPPLIED_FUN(*sym));
 		}
 		return *sym;
 	}
 	if( reader.opens() ) {
-		auto fun = reader.read_sym();
-		auto info = find(fun);
+		auto const& fun = reader.reads_sym();
+		if( !fun ) {
+			throw Error(NIL);
+		}
+		auto const& info = find(*fun);
 		if( !info ) {
-			throw Error(App(APPLIED_VAR,{fun}));
+			throw Error(APPLIED_VAR(*fun));
 		}
 		unsigned char arity = info->arity();
 		if( arity == 0 ) {
-			throw Error(App(APPLIED_CONST,{fun}));
+			throw Error(APPLIED_CONST(*fun));
 		}
 		vector<Exp> args;
 		for( unsigned char n = 0; n < arity; n++ ) {
-			args.push_back(read_term(reader));
+			auto const& arg = reads_term(reader);
+			if( !arg ) {
+				throw Error(MISSING_TERM(Exp(*fun)(std::move(args))));
+			}
+			args.push_back(*arg);
 		}
 		if( !reader.closes() ) {
-			throw Error(App(MISSING_RPAR,{fun}));
+			throw Error(MISSING_RPAR(Exp(*fun)(std::move(args))));
 		}
-		return App(fun,std::move(args));
+		return Exp(*fun)(std::move(args));
 	}
 	return nullopt;
 }

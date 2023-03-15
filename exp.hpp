@@ -14,19 +14,19 @@
 #include"ref.hpp"
 
 class Exp {
-	/**
-	 * @brief Application. first is the function, and second is the list of arguments.
-	 */
-	class App;
-	std::variant<std::string,Ptr<App const>> _un;
+	class _App;
+	std::variant<std::string,Ptr<_App const>> _un;
 	Exp() = delete;
 public:
+	/**
+	 * @brief Application. The pair of the function and the vector of arguments.
+	 */
+	typedef std::pair<Exp,std::vector<Exp>> App;
 	Exp( std::string const& str ) : _un(str) {}
 	Exp( char const* str ) : _un(str) {}
-	Exp( Exp const& fun, std::vector<Exp>&& args );
+	Exp( Exp const& fun, std::vector<Exp> && args );
+	Exp( Exp const& fun, std::initializer_list<Exp> const& args );
 	Exp operator()( Exp const& arg ) const;
-	Exp operator()( std::vector<Exp>&& args ) const;
-	Exp operator()( std::initializer_list<Exp> args ) const;
 	/**
 	 * @brief Fast conditional reference to the string of a symbol expression.
 	 * @return r such that (bool)r is true iff this is a symbol, and *r is the string.
@@ -52,37 +52,35 @@ public:
 	/**
 	 * @brief Fast conditional reference to the body of an application.
 	 */
-	TempOpt<App const> app() const & {
-		if( auto p = std::get_if<Ptr<App const>>(&_un) ) {
-			return **p;
-		} else {
-			return std::nullopt;
-		}
-	}
+	TempOpt<App const> app() const &;
 	/**
 	 * @brief Conditional reference to the body of an application.
 	 */
 	std::optional<App> app() const &&;
 };
 
-struct Exp::App : std::pair<Exp,std::vector<Exp>> {};
+struct Exp::_App : App {};
 
-inline Exp::Exp( Exp const& fun, std::vector<Exp>&& args ) : _un(App({fun,args})) {}
+inline Exp::Exp( Exp const& fun, std::vector<Exp>&& args ) : _un(_App({fun,std::move(args)})) {}
 
-inline std::optional<Exp::App> Exp::app() const && {
-	if( auto const& p = std::get_if<Ptr<App const>>(&_un) ) {
+inline Exp::Exp( Exp const& fun, std::initializer_list<Exp> const& args ) : _un(_App({fun,args})) {}
+
+inline TempOpt<Exp::App const> Exp::app() const & {
+	if( auto p = std::get_if<Ptr<_App const>>(&_un) ) {
 		return **p;
 	} else {
 		return std::nullopt;
 	}
 }
 
-inline Exp Exp::operator()( std::vector<Exp>&& args ) const {
-	return Exp(*this,std::move(args));
+inline std::optional<Exp::App> Exp::app() const && {
+	if( auto const& p = std::get_if<Ptr<_App const>>(&_un) ) {
+		return **p;
+	} else {
+		return std::nullopt;
+	}
 }
-inline Exp Exp::operator()( std::initializer_list<Exp> args ) const {
-	return Exp(*this,args);
-}
+
 inline Exp Exp::operator()( Exp const& arg ) const {
 	return Exp(*this,{arg});
 }
@@ -175,7 +173,7 @@ public:
 	}
 	void read_sym( char const* str ) {
 		if( !reads_sym(str) ) {
-			throw ExpError(MISSING_SYM({str}));
+			throw ExpError(MISSING_SYM(str));
 		}
 	}
 	int read_int() {

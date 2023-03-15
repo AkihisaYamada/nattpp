@@ -76,7 +76,7 @@ optional<Exp> ExpReader::reads_exp() {
 				args.push_back(*e);
 			} else if( _is.peek() == ')' ) {
 				_is.get();
-				return fun(std::move(args));
+				return Exp(fun,std::move(args));
 			} else {
 				std::string what;
 				_is >> what;

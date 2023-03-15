@@ -33,14 +33,14 @@ optional<Exp> Sig::reads_term( ExpReader& reader ) const {
 		for( unsigned char n = 0; n < arity; n++ ) {
 			auto const& arg = reads_term(reader);
 			if( !arg ) {
-				throw Error(MISSING_TERM(Exp(*fun)(std::move(args))));
+				throw Error(MISSING_TERM(Exp(*fun,std::move(args))));
 			}
 			args.push_back(*arg);
 		}
 		if( !reader.closes() ) {
-			throw Error(MISSING_RPAR(Exp(*fun)(std::move(args))));
+			throw Error(MISSING_RPAR(Exp(*fun,std::move(args))));
 		}
-		return Exp(*fun)(std::move(args));
+		return Exp(*fun,std::move(args));
 	}
 	return nullopt;
 }

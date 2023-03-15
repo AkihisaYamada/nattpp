@@ -59,7 +59,7 @@ class Main {
 				{":number",[&](){
 					auto const& new_num = reader.read_sym();
 					if( num ) {
-						throw SyntaxError(INVALID_ATTRIBUTE(Exp(":number")({*num,new_num})));
+						throw SyntaxError(INVALID_ATTRIBUTE(Exp(":number",{*num,new_num})));
 					}
 					num = new_num;
 				}},

@@ -2,7 +2,8 @@
 #define _REF_HPP
 
 #include<memory>
-#include<ostream>
+#include<variant>
+#include<optional>
 
 /**
  * @brief Temporary nullable pointers.
@@ -28,6 +29,25 @@ public:
 	T& operator*() const { return *ptr; }
 	T* operator->() const { return ptr; }
 };
+
+/**
+ * @brief Safer access to variant alternatives.
+ * Works like std::get_if, but return is not a pointer.
+ */
+template<typename T, typename... Ts>
+constexpr TempOpt<T const> ref_if( std::variant<Ts...> const& un ) noexcept {
+	if( auto p = std::get_if<T>(&un) ) {
+		return *p;
+	}
+	return std::nullopt;
+}
+template<typename T, typename... Ts>
+constexpr std::optional<T> ref_if( std::variant<Ts...> && un ) noexcept {
+	if( auto p = std::get_if<T>(&un) ) {
+		return std::move(*p);
+	}
+	return std::nullopt;
+}
 
 /**
  * @brief Non-null shared pointer.

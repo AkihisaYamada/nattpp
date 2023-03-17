@@ -5,11 +5,9 @@
 #include<string>
 #include<vector>
 #include<set>
-#include<optional>
 #include<functional>
 #include<iostream>
 #include<exception>
-#include<variant>
 
 #include"ref.hpp"
 
@@ -50,22 +48,14 @@ public:
 	 * @return r such that (bool)r is true iff this is a symbol, and *r is the string.
 	 */
 	TempOpt<std::string const> sym() const & {
-		if( auto p = std::get_if<std::string>(&_un) ) {
-			return *p;
-		} else {
-			return std::nullopt;
-		}
+		return ref_if<std::string>(_un);
 	}
 	/**
 	 * @brief Conditional access to the string of a symbol expression.
 	 * @return an option that contains the string iff this is a symbol.
 	 */
-	std::optional<std::string> sym() const && {
-		if( auto p = std::get_if<std::string>(&_un) ) {
-			return *p;
-		} else {
-			return std::nullopt;
-		}
+	std::optional<std::string> sym() && {
+		return ref_if<std::string>(std::move(_un));
 	}
 	/**
 	 * @brief Fast conditional reference to the body of an application.
@@ -91,7 +81,7 @@ inline TempOpt<Exp::App const> Exp::app() const & {
 
 inline std::optional<Exp::App> Exp::app() const && {
 	if( auto const& p = std::get_if<Ptr<App const>>(&_un) ) {
-		return **p;
+		return std::move(**p);
 	} else {
 		return std::nullopt;
 	}
@@ -119,7 +109,7 @@ public:
 	Reader( std::istream& is ) : _is(is), _fetched(None()) {}
 	bool opens() {
 		_fetch();
-		if( std::get_if<LPar>(&_fetched) ) {
+		if( std::holds_alternative<LPar>(_fetched) ) {
 			_fetched.emplace<None>();
 			return true;
 		}
@@ -132,7 +122,7 @@ public:
 	}
 	bool closes() {
 		_fetch();
-		if( std::get_if<RPar>(&_fetched) ) {
+		if( std::holds_alternative<RPar>(_fetched) ) {
 			_fetched.emplace<None>();
 			return true;
 		}

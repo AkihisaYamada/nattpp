@@ -3,7 +3,7 @@
 
 using namespace std;
 
-Exp Exp::_construct( initializer_list<Exp> const& list ) {
+Exp Exp::_construct( initializer_list<Exp> list ) {
 	auto it = list.begin(), end = list.end();
 	if( it == end ) {
 		return Exp();

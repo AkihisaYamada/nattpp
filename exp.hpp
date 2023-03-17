@@ -14,14 +14,15 @@
 #include"ref.hpp"
 
 class Exp {
-	class _App;
-	std::variant<std::string,Ptr<_App const>> _un;
-	static Exp _construct( std::initializer_list<Exp> const& list );
 public:
 	/**
 	 * @brief Application. The pair of the function and the vector of arguments.
 	 */
 	typedef std::pair<Exp,std::vector<Exp>> App;
+private:
+	std::variant<std::string,Ptr<App const>> _un;
+	static Exp _construct( std::initializer_list<Exp> list );
+public:
 	/**
 	 * @brief "nil"
 	 */
@@ -43,7 +44,7 @@ public:
 	 * 
 	 * @param list 
 	 */
-	Exp( std::initializer_list<Exp> const& list ) : Exp(_construct(list)) {}
+	Exp( std::initializer_list<Exp> list ) : Exp(_construct(list)) {}
 	/**
 	 * @brief Fast conditional reference to the string of a symbol expression.
 	 * @return r such that (bool)r is true iff this is a symbol, and *r is the string.
@@ -77,12 +78,11 @@ public:
 	class Reader;
 };
 
-struct Exp::_App : App {};
-
-inline Exp::Exp( Exp const& fun, std::vector<Exp>&& args ) : _un(_App({fun,std::move(args)})) {}
+inline Exp::Exp( Exp const& fun, std::vector<Exp>&& args ) :
+	_un(Ptr<App const>::make(fun,std::move(args))) {}
 
 inline TempOpt<Exp::App const> Exp::app() const & {
-	if( auto p = std::get_if<Ptr<_App const>>(&_un) ) {
+	if( auto p = std::get_if<Ptr<App const>>(&_un) ) {
 		return **p;
 	} else {
 		return std::nullopt;
@@ -90,7 +90,7 @@ inline TempOpt<Exp::App const> Exp::app() const & {
 }
 
 inline std::optional<Exp::App> Exp::app() const && {
-	if( auto const& p = std::get_if<Ptr<_App const>>(&_un) ) {
+	if( auto const& p = std::get_if<Ptr<App const>>(&_un) ) {
 		return **p;
 	} else {
 		return std::nullopt;

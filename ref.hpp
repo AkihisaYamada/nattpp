@@ -1,6 +1,7 @@
 #ifndef _REF_HPP
 #define _REF_HPP
 
+#include<memory>
 #include<ostream>
 
 /**
@@ -29,58 +30,37 @@ public:
 };
 
 /**
- * @brief Reference counter.
+ * @brief Non-null shared pointer.
  * 
  * @tparam T the type of the content.
  */
 template<typename T>
 class Ptr {
-	struct Body {
-		unsigned int nref = 0;
-		T body;
-		Body() {}
-		Body(T const& body) : body(body) {}
-		Body(T&& body) : body(std::move(body)) {}
-	};
-	Body* ptr;
-	Ptr(Body* ptr) : ptr(ptr) {}
+	std::shared_ptr<T> _ptr;
+	T& operator*() && = delete;
+	T* operator->() && = delete;
+	Ptr( std::shared_ptr<T> const& ptr ) : _ptr(ptr) {}
 public:
-	Ptr() : ptr(new Body()) {}
-	Ptr(T const& body) : ptr(new Body(body)) {}
-	Ptr(T&& body) : ptr(new Body(std::move(body))) {}
-	Ptr(Ptr const& org) : ptr(org.ptr) {
-		ptr->nref++;
+	Ptr(Ptr const& org) = default;
+	~Ptr() = default;
+	Ptr& operator=(Ptr const& other) = default;
+	T& operator*() const & {
+		return *_ptr;
 	}
-	~Ptr() {
-		if( ptr->nref == 0 ) {
-			delete ptr;
-		} else {
-			ptr->nref--;
-		}
-	}
-	Ptr& operator=(Ptr const& other) {
-		this->~Ptr<T>();
-		ptr = other.ptr;
-		ptr->nref++;
-		return *this;
-	}
-	T& operator*() const {
-		return ptr->body;
-	}
-	T* operator->() const {
-		return &ptr->body;
+	T* operator->() const & {
+		return _ptr;
 	}
 	/**
 	 * @brief forks the referenced object.
 	 */
 	void fork() {
-		if( ptr->nref != 0 ) {
-			ptr->nref--;
-			ptr = new Body(ptr->body);
+		if( !_ptr.unique() ) {
+			_ptr = new T(*_ptr);
 		}
 	}
-	bool last() const {
-		return ptr->nref == 0;
+	template<typename... Ts>
+	static Ptr<T> make(Ts... args...) {
+		return Ptr(std::make_shared<T>(args...));
 	}
 	template<typename S>
 	friend bool operator==(Ptr<S> const& l, Ptr<S> const& r);
@@ -88,28 +68,37 @@ public:
 
 template<typename T>
 bool operator==(Ptr<T> const& l, Ptr<T> const& r) {
-	return l.ptr == r.ptr || *l == *r;
+	return l._ptr == r._ptr;
 };
 
+/**
+ * @brief Non-null, modifiable object.
+ * 
+ * @tparam T 
+ */
 template<class T>
 class Safe {
-	Ptr<T> _ref;
+	Ptr<T> _ptr;
 public:
-	Safe() : _ref() {}
-	Safe(T const& val) : _ref(val) {}
-	Safe(T&& val) : _ref(std::move(val)) {}
+	template<typename... Ts>
+	Safe(Ts... args...) : _ptr(new T(args...)) {}
+	Safe(Safe const& other) = default;
 	T const& operator*() const {
-		return *_ref;
+		return *_ptr;
 	}
 	T const* operator->() const {
-		return &*_ref;
+		return _ptr.operator->();
 	}
+	/**
+	 * @brief Modifiable reference. It will ensure the content is unique.
+	 */
 	T& operator*() {
-		_ref.fork();
-		return *_ref;
+		_ptr.fork();
+		return *_ptr();
 	}
 	T* operator->() {
-		return &operator*();
+		_ptr.fork();
+		return _ptr.operator->();
 	}
 	template<class S>
 	friend bool operator==(Safe<S> const& l, Safe<S> const& r);
@@ -117,7 +106,7 @@ public:
 
 template<class T>
 bool operator==(Safe<T> const& l, Safe<T> const& r) {
-	return l._ref == r._ref;
+	return l._ptr == r._ptr || *l == *r;
 };
 
 #endif

@@ -27,15 +27,11 @@ public:
 		return *std::move(_opt);
 	}
 	T const* operator->() const & {
-		return &*_opt;
+		return _opt.operator->();
 	}
 	T* operator->() & {
-		return &*_opt;
+		return _opt.operator->();
 	}
-	/**
-	 * @brief Do not make pointer of an rvalue.
-	 */
-	T* operator->() && = delete;
 };
 
 /**

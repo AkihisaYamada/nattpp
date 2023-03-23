@@ -14,16 +14,17 @@ class Ptr {
 	std::shared_ptr<T> _ptr;
 	T& operator*() && = delete;
 	T* operator->() && = delete;
-	Ptr( std::shared_ptr<T> const& ptr ) : _ptr(ptr) {}
+	Ptr( std::shared_ptr<T>&& ptr ) : _ptr(std::move(ptr)) {}
 public:
 	Ptr(Ptr const& org) = default;
+	Ptr(T const& val) : _ptr(std::make_shared<T>(val)) {}
 	~Ptr() = default;
 	Ptr& operator=(Ptr const& other) = default;
 	T& operator*() const & {
 		return *_ptr;
 	}
 	T* operator->() const & {
-		return _ptr;
+		return &*_ptr;
 	}
 	/**
 	 * @brief forks the referenced object.

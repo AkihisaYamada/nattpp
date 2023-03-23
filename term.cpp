@@ -25,7 +25,7 @@ ostream& operator<<( ostream& os, Term const& term ) {
 	}
 }
 
-optional<Term> Term::Reader::reads_term() {
+Opt<Term> Term::Reader::reads_term() {
 	if( auto sym = reads_sym() ) {
 		if( auto info = _sig.find(*sym) ) {
 			if( info->arity() != 0 ) {
@@ -33,7 +33,7 @@ optional<Term> Term::Reader::reads_term() {
 			}
 			return Term(*sym);
 		}
-		return Var(*sym);
+		return Term::Var(*sym);
 	}
 	if( opens() ) {
 		auto const& fun = reads_sym();
@@ -61,5 +61,5 @@ optional<Term> Term::Reader::reads_term() {
 		}
 		return Term(*fun,std::move(args));
 	}
-	return nullopt;
+	return nullptr;
 }

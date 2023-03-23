@@ -10,17 +10,17 @@
 #include<exception>
 
 #include"ref.hpp"
+#include"opt.hpp"
 
 class Exp {
-public:
 	/**
 	 * @brief Application. The pair of the function and the vector of arguments.
 	 */
 	typedef std::pair<Exp,std::vector<Exp>> App;
-private:
-	std::variant<std::string,Mem<App>> _un;
+	std::variant<std::string,Ptr<App const>> _un;
 	static Exp _construct( std::initializer_list<Exp> list );
 public:
+	class Reader;
 	/**
 	 * @brief "nil"
 	 */
@@ -37,7 +37,7 @@ public:
 	 * @param args 
 	 */
 	Exp( Exp const& fun, std::vector<Exp> && args ) :
-		_un(Mem<App>::make(fun,std::move(args))) {}
+		_un(Ptr<App const>::make(fun,std::move(args))) {}
 	/**
 	 * @brief For handy construction of applications.
 	 * 
@@ -48,47 +48,36 @@ public:
 	 * @brief Fast conditional reference to the string of a symbol expression.
 	 * @return r such that (bool)r is true iff this is a symbol, and *r is the string.
 	 */
-	TempOpt<std::string> sym() & {
-		return ref_if<std::string>(_un);
-	}
-	TempOpt<std::string const> sym() const & {
+	Opt<std::string const&> sym() const & {
 		return ref_if<std::string>(_un);
 	}
 	/**
 	 * @brief Conditional access to the string of a symbol expression.
 	 * @return an option that contains the string iff this is a symbol.
 	 */
-	std::optional<std::string> sym() && {
+	Opt<std::string> sym() && {
 		return ref_if<std::string>(std::move(_un));
 	}
 	/**
 	 * @brief Fast conditional reference to the body of an application.
 	 */
-	TempOpt<App> app() & {
-		if( auto p = std::get_if<Mem<App>>(&_un) ) {
+	Opt<App const&> app() const & {
+		if( auto p = ref_if<Ptr<App const>>(_un) ) {
 			return **p;
 		} else {
-			return std::nullopt;
-		}
-	}
-	TempOpt<App const> app() const & {
-		if( auto p = std::get_if<Mem<App>>(&_un) ) {
-			return **p;
-		} else {
-			return std::nullopt;
+			return nullptr;
 		}
 	}
 	/**
 	 * @brief Conditional reference to the body of an application.
 	 */
-	std::optional<App> app() const && {
-		if( auto const& p = std::get_if<Mem<App>>(&_un) ) {
+	Opt<App> app() const && {
+		if( auto p = ref_if<Ptr<App const>>(_un) ) {
 			return std::move(**p);
 		} else {
-			return std::nullopt;
+			return nullptr;
 		}
 	};
-	class Reader;
 };
 
 inline bool operator==( Exp const& l, std::string_view r ) {
@@ -137,23 +126,23 @@ public:
 			throw Error("#missing-right-paren");
 		}
 	}
-	std::optional<std::string> reads_key() {
+	Opt<std::string> reads_key() {
 		_fetch();
-		if( auto key = std::get_if<Key>(&_fetched) ) {
+		if( auto key = ref_if<Key>(_fetched) ) {
 			std::string str = key->str;
 			_fetched.emplace<None>();
 			return str;
 		}
-		return std::nullopt;
+		return nullptr;
 	}
-	std::optional<std::string> reads_sym() {
+	Opt<std::string> reads_sym() {
 		_fetch();
-		if( auto sym = std::get_if<Sym>(&_fetched) ) {
+		if( auto sym = ref_if<Sym>(_fetched) ) {
 			std::string str = sym->str;
 			_fetched.emplace<None>();
 			return str;
 		}
-		return std::nullopt;
+		return nullptr;
 	}
 	std::string read_sym() {
 		auto sym = reads_sym();
@@ -180,7 +169,7 @@ public:
 	int read_int() {
 		return std::stoi(read_sym());
 	}
-	std::optional<Exp> reads_exp();
+	Opt<Exp> reads_exp();
 	Exp read_exp() {
 		auto exp = reads_exp();
 		if( !exp ) {

@@ -3,58 +3,6 @@
 
 #include<memory>
 #include<variant>
-#include<optional>
-
-/**
- * @brief Temporary nullable pointers.
- * An object can only refer to an lvalue, and only accessible in the same scope.
- * Functions returning this type must be sure that the pointed object exists in the scope of the return value.
- * @tparam T 
- */
-template<typename T>
-class TempOpt {
-	T* ptr;
-	/**
-	 * @brief rvalue cannot be pointed.
-	 */
-	TempOpt(T&&) = delete;
-	/**
-	 * @brief Do not substitute, as it may break scope.
-	 */
-	TempOpt& operator=( TempOpt<T> const& ) = delete;
-public:
-	TempOpt( std::nullopt_t = std::nullopt ) : ptr(nullptr) {}
-	TempOpt( T& l ) : ptr(&l) {}
-	operator bool() const { return ptr; }
-	T& operator*() const { return *ptr; }
-	T* operator->() const { return ptr; }
-};
-
-/**
- * @brief Safer access to variant alternatives.
- * Works like std::get_if, but return is not a pointer.
- */
-template<typename T, typename... Ts>
-constexpr TempOpt<T const> ref_if( std::variant<Ts...> const& un ) noexcept {
-	if( auto p = std::get_if<T>(&un) ) {
-		return *p;
-	}
-	return std::nullopt;
-}
-template<typename T, typename... Ts>
-constexpr TempOpt<T> ref_if( std::variant<Ts...>& un ) noexcept {
-	if( auto p = std::get_if<T>(&un) ) {
-		return *p;
-	}
-	return std::nullopt;
-}
-template<typename T, typename... Ts>
-constexpr std::optional<T> ref_if( std::variant<Ts...> && un ) noexcept {
-	if( auto p = std::get_if<T>(&un) ) {
-		return std::move(*p);
-	}
-	return std::nullopt;
-}
 
 /**
  * @brief Non-null shared pointer.
@@ -105,7 +53,7 @@ bool operator==(Ptr<T> const& l, Ptr<T> const& r) {
 };
 
 /**
- * @brief Memoization. Modification to the object is permitted, but other references will not be affected.
+ * @brief Memoized object. Modification to the object will not affect other references.
  * 
  * @tparam T 
  */

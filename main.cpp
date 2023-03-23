@@ -47,7 +47,7 @@ class Main {
 	}
 	void _process_trs_format( Exp::Reader& reader ) {
 		format = Format::TRS;
-		optional<string> num;
+		Opt<string> num;
 		while( auto key = reader.reads_key() ) {
 			_switch( *key, {
 				{":number",[&](){
@@ -94,7 +94,7 @@ class Main {
 	void _process_rule(Term::Reader& reader) {
 		Term l = reader.read_term();
 		Term r = reader.read_term();
-		optional<string> index;
+		Opt<string> index;
 		while( auto key = reader.reads_key() ) {
 			_switch( *key,{
 				{":index",[&](){

@@ -69,9 +69,9 @@ void Exp::Reader::_fetch() {
 	}
 }
 
-optional<Exp> Exp::Reader::reads_exp() {
+Opt<Exp> Exp::Reader::reads_exp() {
 	if( auto sym = reads_sym() ) {
-		return *sym;
+		return Exp(*sym);
 	}
 	if( _is.peek() == '(' ) {
 		_is.get();
@@ -90,7 +90,7 @@ optional<Exp> Exp::Reader::reads_exp() {
 			}
 		}
 	}
-	return nullopt;
+	return nullptr;
 }
 
 std::ostream& operator<<(std::ostream& os, Exp const& e) {

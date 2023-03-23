@@ -18,7 +18,7 @@ public:
 	 */
 	typedef std::pair<Exp,std::vector<Exp>> App;
 private:
-	std::variant<std::string,Ptr<App const>> _un;
+	std::variant<std::string,Mem<App>> _un;
 	static Exp _construct( std::initializer_list<Exp> list );
 public:
 	/**
@@ -36,7 +36,8 @@ public:
 	 * @param fun 
 	 * @param args 
 	 */
-	Exp( Exp const& fun, std::vector<Exp> && args );
+	Exp( Exp const& fun, std::vector<Exp> && args ) :
+		_un(Mem<App>::make(fun,std::move(args))) {}
 	/**
 	 * @brief For handy construction of applications.
 	 * 
@@ -47,6 +48,9 @@ public:
 	 * @brief Fast conditional reference to the string of a symbol expression.
 	 * @return r such that (bool)r is true iff this is a symbol, and *r is the string.
 	 */
+	TempOpt<std::string> sym() & {
+		return ref_if<std::string>(_un);
+	}
 	TempOpt<std::string const> sym() const & {
 		return ref_if<std::string>(_un);
 	}
@@ -60,32 +64,32 @@ public:
 	/**
 	 * @brief Fast conditional reference to the body of an application.
 	 */
-	TempOpt<App const> app() const &;
+	TempOpt<App> app() & {
+		if( auto p = std::get_if<Mem<App>>(&_un) ) {
+			return **p;
+		} else {
+			return std::nullopt;
+		}
+	}
+	TempOpt<App const> app() const & {
+		if( auto p = std::get_if<Mem<App>>(&_un) ) {
+			return **p;
+		} else {
+			return std::nullopt;
+		}
+	}
 	/**
 	 * @brief Conditional reference to the body of an application.
 	 */
-	std::optional<App> app() const &&;
+	std::optional<App> app() const && {
+		if( auto const& p = std::get_if<Mem<App>>(&_un) ) {
+			return std::move(**p);
+		} else {
+			return std::nullopt;
+		}
+	};
 	class Reader;
 };
-
-inline Exp::Exp( Exp const& fun, std::vector<Exp>&& args ) :
-	_un(Ptr<App const>::make(fun,std::move(args))) {}
-
-inline TempOpt<Exp::App const> Exp::app() const & {
-	if( auto p = std::get_if<Ptr<App const>>(&_un) ) {
-		return **p;
-	} else {
-		return std::nullopt;
-	}
-}
-
-inline std::optional<Exp::App> Exp::app() const && {
-	if( auto const& p = std::get_if<Ptr<App const>>(&_un) ) {
-		return std::move(**p);
-	} else {
-		return std::nullopt;
-	}
-}
 
 inline bool operator==( Exp const& l, std::string_view r ) {
 	auto sym = l.sym();

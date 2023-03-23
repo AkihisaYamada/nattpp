@@ -42,6 +42,13 @@ constexpr TempOpt<T const> ref_if( std::variant<Ts...> const& un ) noexcept {
 	return std::nullopt;
 }
 template<typename T, typename... Ts>
+constexpr TempOpt<T> ref_if( std::variant<Ts...>& un ) noexcept {
+	if( auto p = std::get_if<T>(&un) ) {
+		return *p;
+	}
+	return std::nullopt;
+}
+template<typename T, typename... Ts>
 constexpr std::optional<T> ref_if( std::variant<Ts...> && un ) noexcept {
 	if( auto p = std::get_if<T>(&un) ) {
 		return std::move(*p);
@@ -75,9 +82,15 @@ public:
 	 */
 	void fork() {
 		if( !_ptr.unique() ) {
-			_ptr = new T(*_ptr);
+			_ptr = std::make_shared<T>(*_ptr);
 		}
 	}
+	/**
+	 * @brief Constructing a shared object.
+	 * 
+	 * @param args arguments to the object constructor
+	 * @return a non-null pointer to the constructed object
+	 */
 	template<typename... Ts>
 	static Ptr<T> make(Ts... args...) {
 		return Ptr(std::make_shared<T>(args...));
@@ -92,40 +105,54 @@ bool operator==(Ptr<T> const& l, Ptr<T> const& r) {
 };
 
 /**
- * @brief Non-null, modifiable object.
+ * @brief Memoization. Modification to the object is permitted, but other references will not be affected.
  * 
  * @tparam T 
  */
 template<class T>
-class Safe {
+class Mem {
 	Ptr<T> _ptr;
+	T operator*() && = delete;
+	T* operator->() && = delete;
+	Mem( Ptr<T> const& ptr ) : _ptr(ptr) {}
 public:
-	template<typename... Ts>
-	Safe(Ts... args...) : _ptr(new T(args...)) {}
-	Safe(Safe const& other) = default;
-	T const& operator*() const {
+	Mem( Mem const& other ) = default;
+	/**
+	 * @brief Const reference.
+	 */
+	T const& operator*() const & {
 		return *_ptr;
 	}
-	T const* operator->() const {
+	T const* operator->() const & {
 		return _ptr.operator->();
 	}
 	/**
-	 * @brief Modifiable reference. It will ensure the content is unique.
+	 * @brief Modifiable reference. This will be the unique owner of the object.
 	 */
-	T& operator*() {
+	T& operator*() & {
 		_ptr.fork();
-		return *_ptr();
+		return *_ptr;
 	}
-	T* operator->() {
+	T* operator->() & {
 		_ptr.fork();
 		return _ptr.operator->();
 	}
+	/**
+	 * @brief Constructing a shared object.
+	 * 
+	 * @param args arguments to the object constructor
+	 * @return a non-null pointer to the constructed object
+	 */
+	template<typename... Ts>
+	static Mem<T> make(Ts... args...) {
+		return Mem(Ptr<T>::make(args...));
+	}
 	template<class S>
-	friend bool operator==(Safe<S> const& l, Safe<S> const& r);
+	friend bool operator==(Mem<S> const& l, Mem<S> const& r);
 };
 
 template<class T>
-bool operator==(Safe<T> const& l, Safe<T> const& r) {
+bool operator==(Mem<T> const& l, Mem<T> const& r) {
 	return l._ptr == r._ptr || *l == *r;
 };
 

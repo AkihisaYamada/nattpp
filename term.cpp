@@ -4,21 +4,22 @@ using namespace std;
 
 ostream& operator<<( ostream& os, Term const& term ) {
 	if( auto var = term.var() ) {
-		return os << var;
+		return os << *var;
 	} else if( auto app = term.app() ) {
 		os << app->first;
 		auto const& args = app->second;
 		auto it = args.begin();
-		if( it != args.end() ) {
-			os << '(' << *it;
-			for(;;) {
-				it++;
-				if( it == args.end() ) break;
-				os << ',' << *it;
-			}
-			os << ')';
+		if( it == args.end() ) {
+			return os;
 		}
-		return os;
+		os << '(' << *it;
+		for(;;) {
+			it++;
+			if( it == args.end() ) {
+				return os << ')';
+			}
+			os << ',' << *it;
+		}
 	} else {
 		assert(false);
 	}

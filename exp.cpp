@@ -39,7 +39,7 @@ static string read_sym_rest( istream& is ) {
 	}
 }
 void Exp::Reader::_fetch() {
-	if( get_if<None>(&_fetched) ) {
+	if( _fetched.ref<None>() ) {
 		for(;;) {
 			switch( _is.peek() ) {
 			case ' ': case '\t': case '\n': case '\r':// skip white spaces
@@ -50,19 +50,19 @@ void Exp::Reader::_fetch() {
 				continue;
 			case '(':
 				_is.get();
-				_fetched.emplace<LPar>();
+				_fetched = LPar();
 				return;
 			case ')':
 				_is.get();
-				_fetched.emplace<RPar>();
+				_fetched = RPar();
 				return;
 			case '"': case '\'':
 				return;
 			case ':':
-				_fetched.emplace<Key>(read_sym_rest(_is));
+				_fetched = Key(read_sym_rest(_is));
 				return;
 			default:
-				_fetched.emplace<Sym>(read_sym_rest(_is));
+				_fetched = Sym(read_sym_rest(_is));
 				return;
 			}
 		}
@@ -90,7 +90,7 @@ Opt<Exp> Exp::Reader::reads_exp() {
 			}
 		}
 	}
-	return nullptr;
+	return {};
 }
 
 std::ostream& operator<<(std::ostream& os, Exp const& e) {

@@ -61,5 +61,5 @@ Opt<Term> Term::Reader::reads_term() {
 		}
 		return Term(*fun,std::move(args));
 	}
-	return nullptr;
+	return {};
 }

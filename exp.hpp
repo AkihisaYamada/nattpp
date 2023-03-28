@@ -10,14 +10,14 @@
 #include<exception>
 
 #include"ref.hpp"
-#include"opt.hpp"
+#include"sum.hpp"
 
 class Exp {
 	/**
 	 * @brief Application. The pair of the function and the vector of arguments.
 	 */
 	typedef std::pair<Exp,std::vector<Exp>> App;
-	std::variant<std::string,Ptr<App const>> _un;
+	Sum<std::string,Ref<App const>> _un;
 	static Exp _construct( std::initializer_list<Exp> list );
 public:
 	class Reader;
@@ -37,7 +37,7 @@ public:
 	 * @param args 
 	 */
 	Exp( Exp const& fun, std::vector<Exp> && args ) :
-		_un(Ptr<App const>::make(fun,std::move(args))) {}
+		_un(Ref<App const>::make(fun,std::move(args))) {}
 	/**
 	 * @brief For handy construction of applications.
 	 * 
@@ -49,33 +49,33 @@ public:
 	 * @return r such that (bool)r is true iff this is a symbol, and *r is the string.
 	 */
 	Opt<std::string const&> sym() const & {
-		return ref_if<std::string>(_un);
+		return _un.ref<std::string>();
 	}
 	/**
 	 * @brief Conditional access to the string of a symbol expression.
 	 * @return an option that contains the string iff this is a symbol.
 	 */
 	Opt<std::string> sym() && {
-		return ref_if<std::string>(std::move(_un));
+		return std::move(_un).ref<std::string>();
 	}
 	/**
 	 * @brief Fast conditional reference to the body of an application.
 	 */
 	Opt<App const&> app() const & {
-		if( auto p = ref_if<Ptr<App const>>(_un) ) {
+		if( auto p = _un.ref<Ref<App const>>() ) {
 			return **p;
 		} else {
-			return nullptr;
+			return {};
 		}
 	}
 	/**
 	 * @brief Conditional reference to the body of an application.
 	 */
 	Opt<App> app() const && {
-		if( auto p = ref_if<Ptr<App const>>(_un) ) {
+		if( auto p = _un.ref<Ref<App const>>() ) {
 			return std::move(**p);
 		} else {
-			return nullptr;
+			return {};
 		}
 	};
 };
@@ -92,7 +92,7 @@ class Exp::Reader {
 	class None {};
 	struct Key { std::string str; };
 	struct Sym { std::string str; };
-	std::variant<None,LPar,RPar,Key,Sym> _fetched;
+	Sum<None,LPar,RPar,Key,Sym> _fetched;
 	void _fetch();
 public:
 	struct Error : std::exception {
@@ -102,8 +102,8 @@ public:
 	Reader( std::istream& is ) : _is(is), _fetched(None()) {}
 	bool opens() {
 		_fetch();
-		if( std::holds_alternative<LPar>(_fetched) ) {
-			_fetched.emplace<None>();
+		if( _fetched.ref<LPar>() ) {
+			_fetched = None();
 			return true;
 		}
 		return false;
@@ -115,8 +115,8 @@ public:
 	}
 	bool closes() {
 		_fetch();
-		if( std::holds_alternative<RPar>(_fetched) ) {
-			_fetched.emplace<None>();
+		if( _fetched.ref<RPar>() ) {
+			_fetched = None();
 			return true;
 		}
 		return false;
@@ -128,21 +128,21 @@ public:
 	}
 	Opt<std::string> reads_key() {
 		_fetch();
-		if( auto key = ref_if<Key>(_fetched) ) {
-			std::string str = key->str;
-			_fetched.emplace<None>();
+		if( auto key = _fetched.ref<Key>() ) {
+			std::string str = std::move(key->str);
+			_fetched = None();
 			return str;
 		}
-		return nullptr;
+		return {};
 	}
 	Opt<std::string> reads_sym() {
 		_fetch();
-		if( auto sym = ref_if<Sym>(_fetched) ) {
-			std::string str = sym->str;
-			_fetched.emplace<None>();
+		if( auto sym = _fetched.ref<Sym>() ) {
+			std::string str = std::move(sym->str);
+			_fetched = None();
 			return str;
 		}
-		return nullptr;
+		return {};
 	}
 	std::string read_sym() {
 		auto sym = reads_sym();
@@ -153,9 +153,9 @@ public:
 	}
 	bool reads_sym( char const* str ) {
 		_fetch();
-		if( auto sym = std::get_if<Sym>(&_fetched) ) {
+		if( auto sym = _fetched.ref<Sym>() ) {
 			if( str == sym->str ) {
-				_fetched.emplace<None>();
+				_fetched = None();
 				return true;
 			}
 		}

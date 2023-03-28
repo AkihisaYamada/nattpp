@@ -13,7 +13,7 @@ public:
 	class Sig;
 	class Reader;
 private:
-	std::variant<std::string,Mem<App>> _un;
+	Sum<std::string,Mem<App>> _un;
 	Term( std::string const& var, _Var const& ) : _un(var) {}
 public:
 	static Term Var( std::string const& var ) {
@@ -22,23 +22,23 @@ public:
 	Term( std::string const& fun, std::vector<Term> const& args = {} ) : _un(Mem<App>::make(fun,args)) {}
 	Term( std::string const& fun, std::vector<Term> && args ) : _un(Mem<App>::make(fun,std::move(args))) {}
 	Opt<std::string const&> var() const & {
-		return ref_if<std::string>(_un);
+		return _un.ref<std::string>();
 	}
 	Opt<std::string> var() && {
-		return ref_if<std::string>(std::move(_un));
+		return std::move(_un).ref<std::string>();
 	}
 	Opt<App const&> app() const & {
-		if( auto p = ref_if<Mem<App>>(_un) ) {
+		if( auto p = _un.ref<Mem<App>>() ) {
 			return **p;
 		} else {
-			return nullptr;
+			return {};
 		}
 	}
 	Opt<App> app() && {
-		if( auto p = ref_if<Mem<App>>(_un) ) {
+		if( auto const& p = std::move(_un).ref<Mem<App>>() ) {
 			return **p;
 		} else {
-			return nullptr;
+			return {};
 		}
 	}
 };
@@ -61,7 +61,7 @@ public:
 		if( auto it = _map.find(name); it != _map.end() ) {
 			return it->second;
 		} else {
-			return nullptr;
+			return {};
 		}
 	}
 };

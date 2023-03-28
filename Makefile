@@ -1,4 +1,4 @@
-SRCS=exp.cpp term.cpp main.cpp
+SRCS=exp.cpp term.cpp proc.cpp main.cpp
 CPP=g++ -O3 -std=c++20 -Wfatal-errors
 DEPEND=_depend
 BUILD=_build
@@ -16,6 +16,8 @@ ${TGT}: ${OBJS}
 
 ${DTGT}: ${DOBJS}
 	${DCPP} $^ -o $@
+
+debug: ${DTGT}
 
 test: ${DTGT} test.ari
 	${DTGT} test.ari

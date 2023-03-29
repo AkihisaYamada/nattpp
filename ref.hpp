@@ -7,7 +7,7 @@
  * 
  * @tparam T the type of the content.
  */
-template<typename T, bool nullable = false>
+template<typename T, bool _nullable = false>
 class Ref {
 	std::shared_ptr<T> _ptr;
 	T& operator*() && = delete;
@@ -16,10 +16,16 @@ class Ref {
 	template<typename S, bool n>
 	friend class Ref;
 public:
-	Ref( nullptr_t const& n = nullptr ) requires nullable {}
+	/**
+	 * @brief Null reference
+	 */
+	Ref() requires _nullable = default;
+	/**
+	 * @brief Non-null reference can be considered nullable
+	 */
+	Ref( Ref<T,false> const& org ) requires _nullable : _ptr(org._ptr) {}
 	Ref( Ref const& org ) = default;
-	~Ref() = default;
-	operator bool() const requires nullable {
+	operator bool() const requires _nullable {
 		return (bool)_ptr;
 	}
 	Ref& operator=( Ref const& other ) = default;
@@ -67,19 +73,32 @@ bool operator==(Ref<T,n1> const& l, Ref<T,n2> const& r) {
  * 
  * @tparam T 
  */
-template<class T>
+template<class T, bool _nullable = false>
 class Mem {
-	std::shared_ptr<T> _ptr;
+	mutable std::shared_ptr<T> _ptr;
 	T operator*() && = delete;
 	T* operator->() && = delete;
 	Mem( std::shared_ptr<T> const& ptr ) : _ptr(ptr) {}
-	void _fork() {
+	void _fork() const {
 		if( !_ptr.unique() ) {
 			_ptr = std::make_shared<T>(*_ptr);
 		}
 	}
+	template<typename S, bool n>
+	friend class Mem;
 public:
+	/**
+	 * @brief Null object
+	 */
+	Mem() requires _nullable = default;
+	/**
+	 * @brief Non-null object can be considered nullable
+	 */
+	Mem( Mem<T,false> const& org ) requires _nullable : _ptr(org._ptr) {}
 	Mem( Mem const& other ) = default;
+	operator bool() const requires _nullable {
+		return (bool)_ptr;
+	}
 	/**
 	 * @brief Const reference.
 	 */
@@ -110,13 +129,16 @@ public:
 	static Mem<T> make(Ts... args...) {
 		return Mem(std::make_shared<T>(args...));
 	}
-	template<class S>
-	friend bool operator==(Mem<S> const& l, Mem<S> const& r);
+	template<class S, bool n1, bool n2>
+	friend bool operator==( Mem<S,n1> const& l, Mem<S,n2> const& r );
 };
 
-template<class T>
-bool operator==(Mem<T> const& l, Mem<T> const& r) {
+template<class T, bool n1, bool n2>
+bool operator==( Mem<T,n1> const& l, Mem<T,n2> const& r ) {
 	return l._ptr == r._ptr || *l == *r;
 }
+
+template<typename T>
+using OptMem = Mem<T,true>;
 
 #endif

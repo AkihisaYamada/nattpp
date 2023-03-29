@@ -1,29 +1,39 @@
-SRCS=exp.cpp term.cpp proc.cpp main.cpp
+SRCS=exp.cpp term.cpp proc.cpp smt.cpp
+MAIN_SRC=main.cpp
+TEST_SRC=test.cpp
+TGT=terma
+
 CPP=g++ -O3 -std=c++20 -Wfatal-errors
+DEBUG_CPP=g++ -O0 -ggdb3 -std=c++20 -Wfatal-errors
+
 DEPEND=_depend
 BUILD=_build
 DEBUG=_debug
-TGT=terma
 
-DTGT=${DEBUG}/${TGT}
-DEPS=$(SRCS:%.cpp=$(DEPEND)/%.d)
+ALL_SRCS=${SRCS} ${MAIN_SRC} ${TEST_SRC}
+
+DEPS=$(ALL_SRCS:%.cpp=$(DEPEND)/%.d)
 OBJS=$(SRCS:%.cpp=$(BUILD)/%.o)
-DOBJS=$(SRCS:%.cpp=$(DEBUG)/%.o)
-DCPP=g++ -O0 -ggdb3 -std=c++20 -Wfatal-errors
+MAIN=$(MAIN_SRC:%.cpp=$(BUILD)/%.o)
+TEST=$(TEST_SRC:%.cpp=$(BUILD)/%.o)
+DEBUG_OBJS=$(SRCS:%.cpp=$(DEBUG)/%.o)
+DEBUG_MAIN=$(MAIN_SRC:%.cpp=$(DEBUG)/%.o)
+DEBUG_TEST=$(TEST_SRC:%.cpp=$(DEBUG)/%.o)
 
-${TGT}: ${OBJS}
+${TGT}: ${OBJS} ${MAIN}
 	${CPP} $^ -o $@
 
-${DTGT}: ${DOBJS}
-	${DCPP} $^ -o $@
+debug: ${DEBUG_OBJS} ${DEBUG_MAIN}
+	${DEBUG_CPP} $^ -o $@
 
-debug: ${DTGT}
+tester: ${DEBUG_OBJS} ${DEBUG_TEST}
+	${CPP} $^ -o $@
 
-test: ${DTGT} test.ari
-	${DTGT} test.ari
+test: tester
+	./tester
 
-error: ${DTGT} syntax_errors/*.ari
-	for f in syntax_errors/*.ari; do ${DTGT} $$f; done
+error: ${DEBUG_TGT} syntax_errors/*.ari
+	for f in syntax_errors/*.ari; do ${DEBUG_TGT} $$f; done
 
 $(DEPEND)/%.d: %.cpp
 	@mkdir -p $(@D)
@@ -37,7 +47,7 @@ $(BUILD)/%.o: %.cpp
 
 $(DEBUG)/%.o: %.cpp
 	@mkdir -p $(@D)
-	${DCPP} -c $< -o $@
+	${DEBUG_CPP} -c $< -o $@
 
 .PHONY: clean test
 

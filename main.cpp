@@ -1,6 +1,8 @@
 #include<map>
 #include<fstream>
+#include<fcntl.h>
 #include"term.hpp"
+#include"proc.hpp"
 
 using namespace std;
 

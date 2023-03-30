@@ -38,12 +38,26 @@ Smt::Exp Smt::Exp::operator||( Exp const& other ) const {
 
 Smt::Exp Smt::Exp::operator!() const {
 	if( *this == TRUE ) {
-		return Exp(FALSE);
+		return FALSE;
 	}
 	if( *this == FALSE ) {
-		return Exp(TRUE);
+		return TRUE;
 	}
 	return _Not{{*this}};
+}
+
+Smt::Exp Smt::Exp::eq( Exp const& other ) const {
+	if( *this == other ) {
+		return TRUE;
+	}
+	return _Eq{{*this,other}};
+}
+
+Smt::Exp Smt::Exp::operator>=( Exp const& other ) const {
+	if( *this == other ) {
+		return TRUE;
+	}
+	return _Ge{{*this,other}};
 }
 
 Smt::Exp Smt::Exp::operator+( Exp const& other ) const {
@@ -81,6 +95,12 @@ ostream& operator<<( ostream& os, Smt::Exp const& e ) {
 		return os << "(or " << args->first << ' ' << args->second << ')';
 	} else if( auto arg = e.neg() ) {
 		return os << "(not " << *arg << ')';
+	} else if( auto args = e.eq() ) {
+		return os << "(= " << args->first << ' ' << args->second << ')';
+	} else if( auto args = e.ge() ) {
+		return os << "(>= " << args->first << ' ' << args->second << ')';
+	} else if( auto args = e.gt() ) {
+		return os << "(> " << args->first << ' ' << args->second << ')';
 	} else if( auto args = e.add() ) {
 		return os << "(+ " << args->first << ' ' << args->second << ')';
 	} else if( auto args = e.mul() ) {
@@ -92,9 +112,9 @@ ostream& operator<<( ostream& os, Smt::Exp const& e ) {
 
 int Smt::test() {
 	cout << "this is Smt::test()." << endl;
-	cout << Exp("1") + Exp("x") << endl;
-	cout << Exp("0") + Exp("x") << endl;
-	cout << Exp("3") * Exp("x") * Exp("y") << endl;
-	cout << !(Exp("p") && Exp("q")) << endl;
+	cout << Exp("1") + "x" << endl;
+	cout << Exp("0") + "x" << endl;
+	cout << Exp("3") * "x" * "y" << endl;
+	cout << !(Exp("x").eq("y") && Exp("y") >= "3") << endl;
 	exit(0);
 }

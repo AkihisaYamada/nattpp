@@ -22,23 +22,25 @@ public:
 		struct _And : _BinOp {};
 		struct _Or : _BinOp {};
 		struct _Not : _UnOp {};
+		struct _Eq : _BinOp {};
+		struct _Ge : _BinOp {};
+		struct _Gt : _BinOp {};
 		struct _Add : _BinOp {};
 		struct _Mul : _BinOp {};
-			typedef Sum<std::string,_And,_Or,_Not,_Add,_Mul> _Un;
+		typedef Sum<std::string,_And,_Or,_Not,_Eq,_Ge,_Gt,_Add,_Mul> _Un;
 		_Un _un;
-		Exp( _And const& v ) : _un(v) {}
-		Exp( _Or const& v ) : _un(v) {}
-		Exp( _Not const& v ) : _un(v) {}
-		Exp( _Add const& v ) : _un(v) {}
-		Exp( _Mul const& v ) : _un(v) {}
+		template<typename T> requires std::is_convertible_v<T,_Un> && (!std::is_convertible_v<T,std::string>)
+		Exp( T const& v ) : _un(v) {}
 	public:
-		explicit Exp( std::string const& v ) : _un(v) {}
+		template<typename T> requires std::is_convertible_v<T,std::string_view>
+		Exp( T const& v ) : _un(v) {}
 		Exp( Exp const& v ) = default;
 		Exp operator&&( Exp const& other ) const;
 		Exp operator||( Exp const& other ) const;
 		Exp operator!() const;
-		Exp operator==( Exp const& other ) const;
-		Exp operator<=( Exp const& other ) const;
+		Exp eq( Exp const& other ) const;
+		Exp operator>=( Exp const& other ) const;
+		Exp operator>( Exp const& other ) const;
 		Exp operator+( Exp const& other ) const;
 		Exp operator*( Exp const& other ) const;
 		Opt<std::string> sym() && {
@@ -65,6 +67,15 @@ public:
 		auto neg() const& {
 			return OptMem<Exp>(_un.ref<_Not>());
 		}
+		auto eq() const& {
+			return OptMem<std::pair<Exp,Exp>>(_un.ref<_Eq>());
+		}
+		auto ge() const& {
+			return OptMem<std::pair<Exp,Exp>>(_un.ref<_Ge>());
+		}
+		auto gt() const& {
+			return OptMem<std::pair<Exp,Exp>>(_un.ref<_Gt>());
+		}
 		auto add() && {
 			return OptMem<std::pair<Exp,Exp>>(std::move(_un).ref<_Add>());
 		}
@@ -78,8 +89,9 @@ public:
 			return OptMem<std::pair<Exp,Exp>>(_un.ref<_Mul>());
 		}
 		friend std::ostream& operator<<( std::ostream& os, Exp const& e );
-		friend bool operator==( Exp const& l, Exp const& r );
-		friend bool operator==( Exp const& l, std::string_view const& r );
+		bool operator==( Exp const& other ) const {
+			return _un == other._un;
+		}
 	};
 	class Solver {
 		Proc _proc;
@@ -87,15 +99,5 @@ public:
 	};
 	static int test();
 };
-
-inline bool operator==( Smt::Exp const& l, Smt::Exp const& r ) {
-	return l._un == r._un;
-}
-inline bool operator==( Smt::Exp const& l, std::string_view const& r ) {
-	if( auto sym = l.sym() ) {
-		return (std::string_view)*sym == r;
-	}
-	return false;
-}
 
 #endif

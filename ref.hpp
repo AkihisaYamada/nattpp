@@ -142,13 +142,10 @@ public:
 		return Mem(std::make_shared<T>(args...));
 	}
 	template<bool n>
-	friend bool operator==( Mem const& l, Mem<T,n> const& r );
+	bool operator==( Mem<T,n> const& r ) const {
+		return _ptr == r._ptr || *_ptr == *r;
+	}
 };
-
-template<class T, bool n1, bool n2>
-bool operator==( Mem<T,n1> const& l, Mem<T,n2> const& r ) {
-	return l._ptr == r._ptr || *l == *r;
-}
 
 template<typename T>
 using OptMem = Mem<T,true>;

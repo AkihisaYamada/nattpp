@@ -2,6 +2,8 @@
 #define _REF_HPP
 
 #include<memory>
+#include"opt.hpp"
+
 /**
  * @brief Non-null shared pointer.
  * 
@@ -96,6 +98,16 @@ public:
 	 */
 	Mem( Mem<T,false> const& org ) requires _nullable : _ptr(org._ptr) {}
 	Mem( Mem const& other ) = default;
+	/**
+	 * @brief Optional non-null object can be seen as a nullable object
+	 */
+	template<typename S> requires _nullable && std::is_convertible_v<S,Mem<T>>
+	explicit Mem( Opt<S> const org ) : _ptr( org ? org->Mem<T>::_ptr : nullptr ) {}
+	/**
+	 * @brief Optional non-null object can be seen as a nullable object
+	 */
+	template<typename S> requires _nullable && std::is_convertible_v<S,Mem<T>>
+	explicit Mem( Opt<S&> const org ) : _ptr( org ? org->Mem<T>::_ptr : nullptr ) {}
 	operator bool() const requires _nullable {
 		return (bool)_ptr;
 	}
@@ -129,8 +141,8 @@ public:
 	static Mem<T> make(Ts... args...) {
 		return Mem(std::make_shared<T>(args...));
 	}
-	template<class S, bool n1, bool n2>
-	friend bool operator==( Mem<S,n1> const& l, Mem<S,n2> const& r );
+	template<bool n>
+	friend bool operator==( Mem const& l, Mem<T,n> const& r );
 };
 
 template<class T, bool n1, bool n2>

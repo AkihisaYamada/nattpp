@@ -9,6 +9,8 @@
 template<typename T>
 class Opt {
 	std::optional<T> _opt;
+	template<typename U>
+	friend class Opt;
 public:
 	Opt() {}
 	Opt(T const& val) : _opt(val) {}
@@ -30,6 +32,10 @@ public:
 	}
 	T* operator->() & {
 		return _opt.operator->();
+	}
+	template<typename U> requires std::is_convertible_v<T,U>
+	operator Opt<U>() {
+		return Opt<U>(_opt);
 	}
 };
 

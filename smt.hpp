@@ -7,18 +7,38 @@
 
 class Smt {
 public:
+	static constexpr char TRUE[] = "true";
+	static constexpr char FALSE[] = "false";
+	static constexpr char ZERO[] = "0";
+	static constexpr char ONE[] = "1";
 	class Exp {
-		struct _Add : Mem<std::pair<Exp,Exp>> {
-			_Add( Exp const& l, Exp const& r ) : Mem(Mem::make(l,r)) {}
+		struct _BinOp : Mem<std::pair<Exp,Exp>> {
+			_BinOp( Exp const& l, Exp const r ) : Mem(Mem<std::pair<Exp,Exp>>::make(l,r)) {}
 		};
-		struct _Mul : Mem<std::pair<Exp,Exp>> {
-			_Mul( Exp const& l, Exp const& r ) : Mem(Mem::make(l,r)) {}
+		struct _UnOp : Mem<Exp> {
+			_UnOp( Exp const& a ) : Mem(Mem<Exp>::make(a)) {}
+			_UnOp( Exp && a ) : Mem(Mem<Exp>::make(std::move(a))) {}
 		};
-		Sum<std::string,_Add,_Mul> _un;
+		struct _And : _BinOp {};
+		struct _Or : _BinOp {};
+		struct _Not : _UnOp {};
+		struct _Add : _BinOp {};
+		struct _Mul : _BinOp {};
+			typedef Sum<std::string,_And,_Or,_Not,_Add,_Mul> _Un;
+		_Un _un;
+		Exp( _And const& v ) : _un(v) {}
+		Exp( _Or const& v ) : _un(v) {}
+		Exp( _Not const& v ) : _un(v) {}
 		Exp( _Add const& v ) : _un(v) {}
 		Exp( _Mul const& v ) : _un(v) {}
 	public:
-		Exp( std::string const& v ) : _un(v) {}
+		explicit Exp( std::string const& v ) : _un(v) {}
+		Exp( Exp const& v ) = default;
+		Exp operator&&( Exp const& other ) const;
+		Exp operator||( Exp const& other ) const;
+		Exp operator!() const;
+		Exp operator==( Exp const& other ) const;
+		Exp operator<=( Exp const& other ) const;
 		Exp operator+( Exp const& other ) const;
 		Exp operator*( Exp const& other ) const;
 		Opt<std::string> sym() && {
@@ -27,33 +47,43 @@ public:
 		Opt<std::string const&> sym() const & {
 			return _un.ref<std::string>();
 		}
-		OptMem<std::pair<Exp,Exp>> add() && {
-			if( auto p = std::move(_un).ref<_Add>() ) {
-				return std::move(*p);
-			}
-			return {};
+		auto conj() && {
+			return OptMem<std::pair<Exp,Exp>>(std::move(_un).ref<_And>());
 		}
-		OptMem<std::pair<Exp,Exp>> add() const& {
-			if( auto p = _un.ref<_Add>() ) {
-				return *p;
-			}
-			return {};
+		auto conj() const& {
+			return OptMem<std::pair<Exp,Exp>>(_un.ref<_And>());
 		}
-		OptMem<std::pair<Exp,Exp>> mul() && {
-			if( auto p = std::move(_un).ref<_Mul>() ) {
-				return std::move(*p);
-			}
-			return {};
+		auto disj() && {
+			return OptMem<std::pair<Exp,Exp>>(std::move(_un).ref<_Or>());
 		}
-		OptMem<std::pair<Exp,Exp>> mul() const& {
-			if( auto p = _un.ref<_Mul>() ) {
-				return *p;
-			}
-			return {};
+		auto disj() const& {
+			return OptMem<std::pair<Exp,Exp>>(_un.ref<_Or>());
+		}
+		auto neg() && {
+			return OptMem<Exp>(std::move(_un).ref<_Not>());
+		}
+		auto neg() const& {
+			return OptMem<Exp>(_un.ref<_Not>());
+		}
+		auto add() && {
+			return OptMem<std::pair<Exp,Exp>>(std::move(_un).ref<_Add>());
+		}
+		auto add() const& {
+			return OptMem<std::pair<Exp,Exp>>(_un.ref<_Add>());
+		}
+		auto mul() && {
+			return OptMem<std::pair<Exp,Exp>>(std::move(_un).ref<_Mul>());
+		}
+		auto mul() const& {
+			return OptMem<std::pair<Exp,Exp>>(_un.ref<_Mul>());
 		}
 		friend std::ostream& operator<<( std::ostream& os, Exp const& e );
 		friend bool operator==( Exp const& l, Exp const& r );
 		friend bool operator==( Exp const& l, std::string_view const& r );
+	};
+	class Solver {
+		Proc _proc;
+		
 	};
 	static int test();
 };

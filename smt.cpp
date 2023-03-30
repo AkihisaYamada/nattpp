@@ -43,6 +43,9 @@ Smt::Exp Smt::Exp::operator!() const {
 	if( *this == FALSE ) {
 		return TRUE;
 	}
+	if( auto arg = neg() ) {
+		return *arg;
+	}
 	return _Not{{*this}};
 }
 
@@ -51,6 +54,16 @@ Smt::Exp Smt::Exp::eq( Exp const& other ) const {
 		return TRUE;
 	}
 	return _Eq{{*this,other}};
+}
+
+Smt::Exp Smt::ite( Exp const& x, Exp const& y, Exp const& z ) {
+	if( x == TRUE ) {
+		return y;
+	}
+	if( x == FALSE ) {
+		return z;
+	}
+	return Exp::_Ite{{x,y,z}};
 }
 
 Smt::Exp Smt::Exp::operator>=( Exp const& other ) const {
@@ -95,6 +108,8 @@ ostream& operator<<( ostream& os, Smt::Exp const& e ) {
 		return os << "(or " << args->first << ' ' << args->second << ')';
 	} else if( auto arg = e.neg() ) {
 		return os << "(not " << *arg << ')';
+	} else if( auto args = e.ite() ) {
+		return os << "(ite " << get<0>(*args) << ' ' << get<1>(*args) << ' ' << get<2>(*args) << ')';
 	} else if( auto args = e.eq() ) {
 		return os << "(= " << args->first << ' ' << args->second << ')';
 	} else if( auto args = e.ge() ) {
@@ -113,8 +128,8 @@ ostream& operator<<( ostream& os, Smt::Exp const& e ) {
 int Smt::test() {
 	cout << "this is Smt::test()." << endl;
 	cout << Exp("1") + "x" << endl;
-	cout << Exp("0") + "x" << endl;
-	cout << Exp("3") * "x" * "y" << endl;
+	cout << !!(Exp("0") + "x") << endl;
+	cout << ite( "p", Exp("3") * "x" * "y", Smt::ZERO ) << endl;
 	cout << !(Exp("x").eq("y") && Exp("y") >= "3") << endl;
 	exit(0);
 }

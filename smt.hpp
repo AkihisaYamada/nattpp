@@ -12,6 +12,7 @@ public:
 	static constexpr char ZERO[] = "0";
 	static constexpr char ONE[] = "1";
 	class Exp {
+		friend Smt;
 		struct _BinOp : Mem<std::pair<Exp,Exp>> {
 			_BinOp( Exp const& l, Exp const r ) : Mem(Mem<std::pair<Exp,Exp>>::make(l,r)) {}
 		};
@@ -19,15 +20,20 @@ public:
 			_UnOp( Exp const& a ) : Mem(Mem<Exp>::make(a)) {}
 			_UnOp( Exp && a ) : Mem(Mem<Exp>::make(std::move(a))) {}
 		};
+		struct _TrOp : Mem<std::tuple<Exp,Exp,Exp>> {
+			_TrOp( Exp const& x, Exp const& y, Exp const& z ) :
+				Mem(Mem<std::tuple<Exp,Exp,Exp>>::make(x,y,z)) {}
+		};
 		struct _And : _BinOp {};
 		struct _Or : _BinOp {};
 		struct _Not : _UnOp {};
+		struct _Ite : _TrOp {};
 		struct _Eq : _BinOp {};
 		struct _Ge : _BinOp {};
 		struct _Gt : _BinOp {};
 		struct _Add : _BinOp {};
 		struct _Mul : _BinOp {};
-		typedef Sum<std::string,_And,_Or,_Not,_Eq,_Ge,_Gt,_Add,_Mul> _Un;
+		typedef Sum<std::string,_And,_Or,_Not,_Ite,_Eq,_Ge,_Gt,_Add,_Mul> _Un;
 		_Un _un;
 		template<typename T> requires std::is_convertible_v<T,_Un> && (!std::is_convertible_v<T,std::string>)
 		Exp( T const& v ) : _un(v) {}
@@ -67,6 +73,9 @@ public:
 		auto neg() const& {
 			return OptMem<Exp>(_un.ref<_Not>());
 		}
+		auto ite() const& {
+			return OptMem<std::tuple<Exp,Exp,Exp>>(_un.ref<_Ite>());
+		}
 		auto eq() const& {
 			return OptMem<std::pair<Exp,Exp>>(_un.ref<_Eq>());
 		}
@@ -88,11 +97,12 @@ public:
 		auto mul() const& {
 			return OptMem<std::pair<Exp,Exp>>(_un.ref<_Mul>());
 		}
-		friend std::ostream& operator<<( std::ostream& os, Exp const& e );
 		bool operator==( Exp const& other ) const {
 			return _un == other._un;
 		}
+		friend std::ostream& operator<<( std::ostream& os, Exp const& e );
 	};
+	static Exp ite( Exp const& x, Exp const& y, Exp const& z );
 	class Solver {
 		Proc _proc;
 		

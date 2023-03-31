@@ -17,21 +17,25 @@ class Exp {
 	 * @brief Application. The pair of the function and the vector of arguments.
 	 */
 	typedef std::pair<Exp,std::vector<Exp>> App;
-	Sum<std::string,Ref<App const>> _un;
+	Sum<std::string,Mem<App const>> _un;
 	static Exp _construct( std::initializer_list<Exp> list );
 public:
 	class Reader;
+	Exp( Exp const& other ) = default;
+	Exp( Exp && other ) = default;
 	/** @brief "nil" */
-	Exp() {}
+	explicit Exp() {}
 	/** @brief Symbol */
 	Exp( std::string && str ) : _un(std::move(str)) {}
 	/** @brief Symbol */
-	Exp( std::string const& str ) : _un(str) {}
+	Exp( std::string_view const& str ) : _un(std::in_place_type<std::string>,str) {}
 	/** @brief Symbol */
 	Exp( char const* str ) : _un(str) {}
+	/** @brief Number as symbol */
+	Exp( int n ) : _un(std::to_string(n)) {}
 	/** @brief Application */
 	Exp( Exp const& fun, std::vector<Exp> && args ) :
-		_un(Ref<App const>::make(fun,std::move(args))) {}
+		_un(Mem<App const>::make(fun,std::move(args))) {}
 	/** @brief For handy construction of applications. */
 	Exp( std::initializer_list<Exp> list ) : Exp(_construct(list)) {}
 	/**
@@ -52,7 +56,7 @@ public:
 	 * @brief Fast conditional reference to the body of an application.
 	 */
 	Opt<App const&> app() const & {
-		if( auto p = _un.ref<Ref<App const>>() ) {
+		if( auto p = _un.ref<Mem<App const>>() ) {
 			return **p;
 		} else {
 			return {};
@@ -62,7 +66,7 @@ public:
 	 * @brief Conditional reference to the body of an application.
 	 */
 	Opt<App> app() const && {
-		if( auto p = _un.ref<Ref<App const>>() ) {
+		if( auto p = _un.ref<Mem<App const>>() ) {
 			return std::move(**p);
 		} else {
 			return {};

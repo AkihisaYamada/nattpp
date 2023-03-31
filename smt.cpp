@@ -17,7 +17,7 @@ Smt::Exp Smt::Exp::operator&&( Exp const& other ) const {
 	if( other == TRUE ) {
 		return *this;
 	}
-	return Exp(_And{{*this,other}});
+	return {AND,*this,other};
 }
 
 Smt::Exp Smt::Exp::operator||( Exp const& other ) const {
@@ -33,7 +33,7 @@ Smt::Exp Smt::Exp::operator||( Exp const& other ) const {
 	if( other == FALSE ) {
 		return *this;
 	}
-	return Exp(_Or{{*this,other}});
+	return {OR,*this,other};
 }
 
 Smt::Exp Smt::Exp::operator!() const {
@@ -43,17 +43,19 @@ Smt::Exp Smt::Exp::operator!() const {
 	if( *this == FALSE ) {
 		return TRUE;
 	}
-	if( auto arg = neg() ) {
-		return *arg;
+	if( auto a = app() ) {
+		if( a->first == NOT ) {
+			return a->second[0];
+		}
 	}
-	return Exp(_Not{{*this}});
+	return {NOT,*this};
 }
 
 Smt::Exp Smt::Exp::eq( Exp const& other ) const {
 	if( *this == other ) {
 		return TRUE;
 	}
-	return Exp(_Eq{{*this,other}});
+	return {EQ,*this,other};
 }
 
 Smt::Exp Smt::ite( Exp const& x, Exp const& y, Exp const& z ) {
@@ -63,14 +65,14 @@ Smt::Exp Smt::ite( Exp const& x, Exp const& y, Exp const& z ) {
 	if( x == FALSE ) {
 		return z;
 	}
-	return Exp(Exp::_Ite{{x,y,z}});
+	return {ITE,x,y,z};
 }
 
 Smt::Exp Smt::Exp::operator>=( Exp const& other ) const {
 	if( *this == other ) {
 		return TRUE;
 	}
-	return Exp(_Ge{{*this,other}});
+	return {GE,*this,other};
 }
 
 Smt::Exp Smt::Exp::operator+( Exp const& other ) const {
@@ -80,7 +82,7 @@ Smt::Exp Smt::Exp::operator+( Exp const& other ) const {
 	if( other == ZERO ) {
 		return *this;
 	}
-	return Exp(_Add{{*this,other}});
+	return {ADD,*this,other};
 }
 
 Smt::Exp Smt::Exp::operator*( Exp const& other ) const {
@@ -96,7 +98,7 @@ Smt::Exp Smt::Exp::operator*( Exp const& other ) const {
 	if( other == ONE ) {
 		return *this;
 	}
-	return Exp(_Mul{{*this,other}});
+	return {MUL,*this,other};
 }
 
 void Smt::Solver::set_logic( string_view const& x ) & {
@@ -134,7 +136,7 @@ Smt::Solver& Smt::Solver::result() & {
 	assert( _status == SOLVING );
 	auto ans = _reader.reads_exp();
 	if( !ans ) {
-		throw Error("#no-response");
+		throw Error("#smt:no-response");
 	}
 	if( *ans == "sat" ) {
 		_status = SAT;
@@ -144,33 +146,26 @@ Smt::Solver& Smt::Solver::result() & {
 		_status = UNSAT;
 		return *this;
 	}
-	throw Error({"#invalid-smt-response",*ans});
+	throw Error({"#smt:invalid-response",*ans});
 }
 
-ostream& operator<<( ostream& os, Smt::Exp const& e ) {
-	if( auto sym = e.sym() ) {
-		return os << *sym;
-	} else if( auto args = e.conj() ) {
-		return os << "(and " << args->first << ' ' << args->second << ')';
-	} else if( auto args = e.disj() ) {
-		return os << "(or " << args->first << ' ' << args->second << ')';
-	} else if( auto arg = e.neg() ) {
-		return os << "(not " << *arg << ')';
-	} else if( auto args = e.ite() ) {
-		return os << "(ite " << get<0>(*args) << ' ' << get<1>(*args) << ' ' << get<2>(*args) << ')';
-	} else if( auto args = e.eq() ) {
-		return os << "(= " << args->first << ' ' << args->second << ')';
-	} else if( auto args = e.ge() ) {
-		return os << "(>= " << args->first << ' ' << args->second << ')';
-	} else if( auto args = e.gt() ) {
-		return os << "(> " << args->first << ' ' << args->second << ')';
-	} else if( auto args = e.add() ) {
-		return os << "(+ " << args->first << ' ' << args->second << ')';
-	} else if( auto args = e.mul() ) {
-		return os << "(* " << args->first << ' ' << args->second << ')';
-	} else {
-		assert(false);
+Smt::Exp Smt::Solver::declare_const( string_view const& name, string_view const& sort ) & {
+	_proc.to << "(declare-const " << name << ' ' << sort << ')' << endl;
+	return name;
+}
+
+Smt::Exp Smt::Solver::get_value( Exp const& e ) & {
+	if( _status != SAT ) {
+		throw Error("#smt:get_value");
 	}
+	_proc.to << "(get-value (" << e << "))" << endl;
+	_reader.open();
+	_reader.open();
+	assert( _reader.read_sym() == e );
+	Exp ret = _reader.read_exp();
+	_reader.close();
+	_reader.close();
+	return ret;
 }
 
 int Smt::test() try {
@@ -183,8 +178,11 @@ int Smt::test() try {
 	Proc ps = Proc("ps",{"ps"});
 	for( char c; (c=ps.from.get()) != EOF; cout.put(c) ) ;
 	z3.set_logic("QF_LIA");
-	z3.ass("false");
-	cout << z3.check_sat().result().is_unsat() << endl;
+	auto x = z3.declare_const("x","Int");
+	z3.ass( x >= 5 );
+	cout << z3.check_sat().result().is_sat() << endl;
+	auto xv = z3.get_value(x);
+	cout << x << " := " << xv << endl;
 	exit(0);
 } catch( Smt::Error const& e ) {
 	cerr << e.message << endl;

@@ -76,22 +76,16 @@ Opt<Exp> Exp::Reader::reads_exp() {
 	if( auto sym = reads_sym() ) {
 		return Exp(*sym);
 	}
-	if( _is.peek() == '(' ) {
-		_is.get();
-		Exp fun = read_exp();
-		vector<Exp> args;
-		for(;;) {
-			if( auto e = reads_exp() ) {
-				args.push_back(*e);
-			} else if( _is.peek() == ')' ) {
-				_is.get();
-				return Exp(fun,std::move(args));
-			} else {
-				std::string what;
-				_is >> what;
-				throw Error(Exp(std::move(what)));
-			}
+	if( opens() ) {
+		if( closes() ) {
+			return Exp();
 		}
+		auto const& fun = read_exp();
+		vector<Exp> args;
+		while( !closes() ) {
+			args.push_back(read_exp());
+		}
+		return Exp(fun,std::move(args));
 	}
 	return {};
 }

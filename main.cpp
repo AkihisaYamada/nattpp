@@ -6,9 +6,8 @@
 
 using namespace std;
 
-struct SyntaxError : std::exception {
-	Exp msg;
-	SyntaxError(Exp const&& msg) : msg(msg) {}
+struct SyntaxError : Exp::Error {
+	using Exp::Error::Error;
 };
 
 static void _switch(
@@ -43,7 +42,7 @@ class Main {
 			{"TRS",[&](){ _process_trs_format(reader); }},
 			{"SRS",[&](){ _process_srs_format(reader); }},
 		}, [&](string const& str) {
-			throw SyntaxError({"#unknown-format",{str}});
+			throw SyntaxError({"#unknown-format",str});
 		});
 		reader.close();
 	}
@@ -154,9 +153,7 @@ int main( int argc, char** argv ) {
 		obj.write_systems(cout);
 	} catch( Term::Reader::Error const& e ) {
 		cerr << e.msg << endl;
-	} catch( SyntaxError const& e ) {
-		cerr << e.msg << endl;
-	} catch( Exp::Reader::Error const& e ) {
+	} catch( Exp::Error const& e ) {
 		cerr << e.msg << endl;
 	}
 }

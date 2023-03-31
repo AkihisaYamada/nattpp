@@ -20,6 +20,7 @@ class Exp {
 	Sum<std::string,Mem<App const>> _un;
 	static Exp _construct( std::initializer_list<Exp> list );
 public:
+	struct Error;
 	class Reader;
 	Exp( Exp const& other ) = default;
 	Exp( Exp && other ) = default;
@@ -27,6 +28,8 @@ public:
 	explicit Exp() {}
 	/** @brief Symbol */
 	Exp( std::string && str ) : _un(std::move(str)) {}
+	/** @brief Symbol */
+	Exp( std::string const& str ) : _un(str) {}
 	/** @brief Symbol */
 	Exp( std::string_view const& str ) : _un(std::in_place_type<std::string>,str) {}
 	/** @brief Symbol */
@@ -74,6 +77,12 @@ public:
 	};
 	bool operator==( Exp const& other ) const = default;
 };
+
+struct Exp::Error : std::exception {
+	Exp msg;
+	Error( Exp const& msg ) : msg(msg) {}
+};
+
 class Exp::Reader {
 	std::istream& _is;
 	class LPar {};
@@ -84,10 +93,6 @@ class Exp::Reader {
 	Sum<None,LPar,RPar,Key,Sym> _fetched;
 	void _fetch();
 public:
-	struct Error : std::exception {
-		Exp msg;
-		Error(Exp const& msg) : msg(msg) {}
-	};
 	Reader( std::istream& is ) : _is(is), _fetched(None()) {}
 	bool opens() {
 		_fetch();

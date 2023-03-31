@@ -23,6 +23,9 @@ DEBUG_TEST=$(TEST_SRC:%.cpp=$(DEBUG)/%.o)
 ${TGT}: ${OBJS} ${MAIN}
 	${CPP} $^ -o $@
 
+run: ${TGT}
+	./${TGT} test.ari
+
 debug: ${DEBUG_OBJS} ${DEBUG_MAIN}
 	${DEBUG_CPP} $^ -o $@
 

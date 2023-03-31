@@ -33,8 +33,8 @@ public:
 	T* operator->() & {
 		return _opt.operator->();
 	}
-	template<typename U> requires std::is_convertible_v<T,U>
-	operator Opt<U>() {
+	template<typename U>
+	operator Opt<U>() requires std::is_convertible_v<T,U> {
 		return Opt<U>(_opt);
 	}
 };

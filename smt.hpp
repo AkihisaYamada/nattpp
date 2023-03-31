@@ -1,12 +1,16 @@
 #ifndef _SMT_HPP
 #define _SMT_HPP
 
-#include"ref.hpp"
-#include"sum.hpp"
+#include<iostream>
+#include"exp.hpp"
 #include"proc.hpp"
 
 class Smt {
 public:
+	struct Error : std::exception {
+		::Exp message;
+		Error( ::Exp const& message ) : message(message) {}
+	};
 	static constexpr char TRUE[] = "true";
 	static constexpr char FALSE[] = "false";
 	static constexpr char ZERO[] = "0";
@@ -35,8 +39,8 @@ public:
 		struct _Mul : _BinOp {};
 		typedef Sum<std::string,_And,_Or,_Not,_Ite,_Eq,_Ge,_Gt,_Add,_Mul> _Un;
 		_Un _un;
-		template<typename T> requires std::is_convertible_v<T,_Un> && (!std::is_convertible_v<T,std::string>)
-		Exp( T const& v ) : _un(v) {}
+		template<typename T> requires std::is_convertible_v<T,_Un> && (!std::is_convertible_v<T,std::string_view>)
+		explicit Exp( T const& v ) : _un(v) {}
 	public:
 		template<typename T> requires std::is_convertible_v<T,std::string_view>
 		Exp( T const& v ) : _un(v) {}
@@ -104,8 +108,34 @@ public:
 	};
 	static Exp ite( Exp const& x, Exp const& y, Exp const& z );
 	class Solver {
-		Proc _proc;
-		
+		friend Smt;
+		enum { UNKNOWN, SOLVING, SAT, UNSAT } _status;
+		Proc& _proc;
+		::Exp::Reader _reader;
+		Solver( Proc& proc ) : _status(UNKNOWN), _proc(proc), _reader(proc.from) {}
+		Solver( Solver const& other ) = delete;
+		Solver& operator=( Solver const& other ) = delete;
+	public:
+		void set_logic( std::string_view const& view ) &;
+		Solver& ass( Exp const& e ) &;
+		Solver& push() &;
+		Solver& pop() &;
+		Solver& check_sat() &;
+		Solver& result() &;
+		bool is_sat() const {
+			return _status == SAT;
+		}
+		bool is_unsat() const {
+			return _status == UNSAT;
+		}
+		Exp get_value( Exp const& e ) &;
+	};
+private:
+	public:
+	class Z3 : private Proc, public Solver {
+	public:
+		Z3() : Proc("z3",{"z3","-smt2","-in"}), Solver((Proc&)*this) {
+		}
 	};
 	static int test();
 };

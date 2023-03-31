@@ -61,6 +61,9 @@ void Exp::Reader::_fetch() {
 			case ':':
 				_fetched = Key(read_sym_rest(_is));
 				return;
+			case EOF:
+				_fetched = None();
+				return;
 			default:
 				_fetched = Sym(read_sym_rest(_is));
 				return;

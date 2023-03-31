@@ -78,13 +78,8 @@ public:
 			return {};
 		}
 	};
+	bool operator==( Exp const& other ) const = default;
 };
-
-inline bool operator==( Exp const& l, std::string_view r ) {
-	auto sym = l.sym();
-	return sym && *sym == r;
-}
-
 class Exp::Reader {
 	std::istream& _is;
 	class LPar {};

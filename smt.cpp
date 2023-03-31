@@ -17,7 +17,7 @@ Smt::Exp Smt::Exp::operator&&( Exp const& other ) const {
 	if( other == TRUE ) {
 		return *this;
 	}
-	return _And{{*this,other}};
+	return Exp(_And{{*this,other}});
 }
 
 Smt::Exp Smt::Exp::operator||( Exp const& other ) const {
@@ -33,7 +33,7 @@ Smt::Exp Smt::Exp::operator||( Exp const& other ) const {
 	if( other == FALSE ) {
 		return *this;
 	}
-	return _Or{{*this,other}};
+	return Exp(_Or{{*this,other}});
 }
 
 Smt::Exp Smt::Exp::operator!() const {
@@ -46,14 +46,14 @@ Smt::Exp Smt::Exp::operator!() const {
 	if( auto arg = neg() ) {
 		return *arg;
 	}
-	return _Not{{*this}};
+	return Exp(_Not{{*this}});
 }
 
 Smt::Exp Smt::Exp::eq( Exp const& other ) const {
 	if( *this == other ) {
 		return TRUE;
 	}
-	return _Eq{{*this,other}};
+	return Exp(_Eq{{*this,other}});
 }
 
 Smt::Exp Smt::ite( Exp const& x, Exp const& y, Exp const& z ) {
@@ -63,14 +63,14 @@ Smt::Exp Smt::ite( Exp const& x, Exp const& y, Exp const& z ) {
 	if( x == FALSE ) {
 		return z;
 	}
-	return Exp::_Ite{{x,y,z}};
+	return Exp(Exp::_Ite{{x,y,z}});
 }
 
 Smt::Exp Smt::Exp::operator>=( Exp const& other ) const {
 	if( *this == other ) {
 		return TRUE;
 	}
-	return _Ge{{*this,other}};
+	return Exp(_Ge{{*this,other}});
 }
 
 Smt::Exp Smt::Exp::operator+( Exp const& other ) const {
@@ -80,7 +80,7 @@ Smt::Exp Smt::Exp::operator+( Exp const& other ) const {
 	if( other == ZERO ) {
 		return *this;
 	}
-	return _Add{{*this,other}};
+	return Exp(_Add{{*this,other}});
 }
 
 Smt::Exp Smt::Exp::operator*( Exp const& other ) const {
@@ -96,7 +96,55 @@ Smt::Exp Smt::Exp::operator*( Exp const& other ) const {
 	if( other == ONE ) {
 		return *this;
 	}
-	return _Mul{{*this,other}};
+	return Exp(_Mul{{*this,other}});
+}
+
+void Smt::Solver::set_logic( string_view const& x ) & {
+	_proc.to << "(set-logic " << x << ')' << endl;
+}
+
+Smt::Solver& Smt::Solver::ass( Exp const& e ) & {
+	if( _status != UNSAT ) {
+		_proc.to << "(assert " << e << ')' << endl;
+		_status = UNKNOWN;
+	}
+	return *this;
+}
+
+Smt::Solver& Smt::Solver::push() & {
+	_proc.to << "(push)" << endl;
+	_status = UNKNOWN;
+	return *this;
+}
+
+Smt::Solver& Smt::Solver::pop() & {
+	_proc.to << "(pop)" << endl;
+	_status = UNKNOWN;
+	return *this;
+}
+
+Smt::Solver& Smt::Solver::check_sat() & {
+	if( _status == UNKNOWN ) {
+		_proc.to << "(check-sat)" << endl;
+		_status = SOLVING;
+	}
+	return *this;
+}
+Smt::Solver& Smt::Solver::result() & {
+	assert( _status == SOLVING );
+	auto ans = _reader.reads_exp();
+	if( !ans ) {
+		throw Error("#no-response");
+	}
+	if( *ans == "sat" ) {
+		_status = SAT;
+		return *this;
+	}
+	if( *ans == "unsat" ) {
+		_status = UNSAT;
+		return *this;
+	}
+	throw Error({"#invalid-smt-response",*ans});
 }
 
 ostream& operator<<( ostream& os, Smt::Exp const& e ) {
@@ -125,11 +173,20 @@ ostream& operator<<( ostream& os, Smt::Exp const& e ) {
 	}
 }
 
-int Smt::test() {
+int Smt::test() try {
 	cout << "this is Smt::test()." << endl;
 	cout << Exp("1") + "x" << endl;
 	cout << !!(Exp("0") + "x") << endl;
 	cout << ite( "p", Exp("3") * "x" * "y", Smt::ZERO ) << endl;
 	cout << !(Exp("x").eq("y") && Exp("y") >= "3") << endl;
+	auto z3 = Smt::Z3();
+	Proc ps = Proc("ps",{"ps"});
+	for( char c; (c=ps.from.get()) != EOF; cout.put(c) ) ;
+	z3.set_logic("QF_LIA");
+	z3.ass("false");
+	cout << z3.check_sat().result().is_unsat() << endl;
 	exit(0);
+} catch( Smt::Error const& e ) {
+	cerr << e.message << endl;
+	exit(-1);
 }

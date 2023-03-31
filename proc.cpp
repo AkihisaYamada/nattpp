@@ -3,12 +3,12 @@
 
 using namespace std;
 
-Proc Proc::make( string const& cmd, vector<string> const& args ) {
+Proc::_Maker::_Maker( string const& cmd, vector<string> const& args ) {
 	int to_pipe[2], from_pipe[2];
 	if( pipe(to_pipe) || pipe(from_pipe) ) {
 		throw Error("pipe");
 	}
-	pid_t pid = fork();
+	pid = fork();
 	if( pid == 0 ) {
 		char const* argv[args.size()+1];
 		size_t i = 0;
@@ -28,5 +28,23 @@ Proc Proc::make( string const& cmd, vector<string> const& args ) {
 	}
 	close(to_pipe[0]);
 	close(from_pipe[1]);
-	return Proc(pid,to_pipe[1],from_pipe[0]);
+	to = to_pipe[1];
+	from = from_pipe[0];
+	cerr << "Proc: " << cmd << "; pid=" << pid << endl;
+}
+
+Proc::Proc( _Maker const& maker ) :
+	_pid(maker.pid),
+	_to_filebuf(maker.to,std::ios::out),
+	_from_filebuf(maker.from,std::ios::in),
+	to(&_to_filebuf),
+	from(&_from_filebuf) {
+}
+
+void Proc::test() {
+	Proc cat("cat",{"cat","/dev/stdin"});
+	cat.to<<"hello world"<<endl;
+	cat.finish();
+	
+	for( char c; (c=cat.from.get()) != EOF; cout.put(c) ) ;
 }

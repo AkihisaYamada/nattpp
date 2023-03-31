@@ -21,28 +21,18 @@ class Exp {
 	static Exp _construct( std::initializer_list<Exp> list );
 public:
 	class Reader;
-	/**
-	 * @brief "nil"
-	 */
+	/** @brief "nil" */
 	Exp() {}
-	/**
-	 * @brief Symbol
-	 */
+	/** @brief Symbol */
+	Exp( std::string && str ) : _un(std::move(str)) {}
+	/** @brief Symbol */
 	Exp( std::string const& str ) : _un(str) {}
+	/** @brief Symbol */
 	Exp( char const* str ) : _un(str) {}
-	/**
-	 * @brief Application.
-	 * 
-	 * @param fun 
-	 * @param args 
-	 */
+	/** @brief Application */
 	Exp( Exp const& fun, std::vector<Exp> && args ) :
 		_un(Ref<App const>::make(fun,std::move(args))) {}
-	/**
-	 * @brief For handy construction of applications.
-	 * 
-	 * @param list 
-	 */
+	/** @brief For handy construction of applications. */
 	Exp( std::initializer_list<Exp> list ) : Exp(_construct(list)) {}
 	/**
 	 * @brief Fast conditional reference to the string of a symbol expression.

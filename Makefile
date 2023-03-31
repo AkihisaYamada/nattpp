@@ -1,4 +1,4 @@
-SRCS=exp.cpp term.cpp proc.cpp smt.cpp parser.cpp
+SRCS=exp.cpp term.cpp proc.cpp smt.cpp problem.cpp
 MAIN_SRC=main.cpp
 TEST_SRC=test.cpp
 TGT=terma

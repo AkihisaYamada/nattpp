@@ -1,34 +1,36 @@
-#ifndef PARSER_HPP_
-#define PARSER_HPP_
+#ifndef PROBLEM_HPP_
+#define PROBLEM_HPP_
 
 #include"term.hpp"
 
-class Parser {
+class Problem {
 public:
 	struct Error : Exp::Error {
 		using Exp::Error::Error;
 	};
-	enum class Format {
+	enum {
 		TRS,
 		SRS,
-	};
-
+	} format;
 	Term::Sig sig;
-	struct System : std::vector<std::pair<Term,Term>> {};
+	struct System : std::vector<std::pair<Term,Term>> {
+		using std::vector<std::pair<Term,Term>>::vector;
+	};
 	std::vector<System> systems;
-	Format format;
-	/**
-	 * @brief Reads (format ...) expression.
-	 */
+private:
 	void _read_format( Exp::Reader& reader );
 	void _process_trs_format( Exp::Reader& reader );
 	void _process_srs_format( Exp::Reader& reader ) {
-		format = Format::SRS;
+		format = SRS;
 	}
 	void _process_fun(Exp::Reader& reader);
 	void _process_rule(Term::Reader& reader);
+	void _parse( std::istream& is );
+	Problem() = delete;
 public:
-	void parse( std::istream& is );
+	Problem( std::istream& is ) {
+		_parse(is);
+	}
 	void write_systems( std::ostream& os );
 };
 #endif

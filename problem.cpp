@@ -1,4 +1,4 @@
-#include"parser.hpp"
+#include"problem.hpp"
 
 using namespace std;
 
@@ -15,7 +15,7 @@ static void _switch(
 	}
 }
 
-void Parser::_read_format( Exp::Reader& reader ) {
+void Problem::_read_format( Exp::Reader& reader ) {
 	reader.open();
 	reader.read_sym("format");
 	_switch( reader.read_sym(), {
@@ -27,8 +27,8 @@ void Parser::_read_format( Exp::Reader& reader ) {
 	reader.close();
 }
 
-void Parser::_process_trs_format( Exp::Reader& reader ) {
-	format = Format::TRS;
+void Problem::_process_trs_format( Exp::Reader& reader ) {
+	format = TRS;
 	Opt<string> num;
 	while( auto key = reader.reads_key() ) {
 		_switch( *key, {
@@ -54,7 +54,7 @@ void Parser::_process_trs_format( Exp::Reader& reader ) {
 	}
 }
 
-void Parser::_process_fun(Exp::Reader& reader) {
+void Problem::_process_fun(Exp::Reader& reader) {
 	string fun = reader.read_sym();
 	Term::Rank rank;
 	while( auto key = reader.reads_key() ) {
@@ -72,7 +72,7 @@ void Parser::_process_fun(Exp::Reader& reader) {
 	}
 }
 
-void Parser::_process_rule(Term::Reader& reader) {
+void Problem::_process_rule(Term::Reader& reader) {
 	Term l = reader.read_term();
 	Term r = reader.read_term();
 	Opt<string> index;
@@ -95,7 +95,7 @@ void Parser::_process_rule(Term::Reader& reader) {
 	}
 	systems[i].push_back({l,r});
 }
-void Parser::parse( std::istream& is ) {
+void Problem::_parse( std::istream& is ) {
 	auto reader = Term::Reader(is,sig);
 	_read_format(reader);
 	while( reader.opens() ) {
@@ -107,7 +107,7 @@ void Parser::parse( std::istream& is ) {
 		});
 	}
 }
-void Parser::write_systems( ostream& os ) {
+void Problem::write_systems( ostream& os ) {
 	for( int i = 0; i < systems.size(); i++ ) {
 		cout << "TRS " << i+1 << ":" << endl;
 		for( auto const& rule : systems[i] ) {

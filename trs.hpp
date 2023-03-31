@@ -4,12 +4,13 @@
 #include<istream>
 #include "exp.hpp"
 
-class TRS {
+class Trs {
 	/** @brief No object in this class */
-	TRS() = delete;
+	Trs() = delete;
 public:
 	class Exp : public ::Exp {
-		friend TRS;
+		friend Trs;
+		friend class Srs;
 		using ::Exp::Exp;// constructors are private
 	};
 	class Rank;
@@ -19,18 +20,14 @@ public:
 	struct Rules : std::vector<Rule> { using std::vector<Rule>::vector; };
 };
 
-std::ostream& operator<<( std::ostream& os, TRS::Rule const& rule );
-std::ostream& operator<<( std::ostream& os, TRS::Rules const& sys );
+std::ostream& operator<<( std::ostream& os, Trs::Rule const& rule );
+std::ostream& operator<<( std::ostream& os, Trs::Rules const& sys );
 
-class TRS::Rank {
-	unsigned char _arity;
-public:
-	Rank() {}
-	void set_arity( unsigned char arity ) { _arity = arity; }
-	unsigned char arity() const { return _arity; }
+struct Trs::Rank {
+	unsigned char arity;
 };
 
-class TRS::Sig {
+class Trs::Sig {
 	std::map<std::string,Rank,std::less<>> _map;
 public:
 	bool insert( std::string_view const& name, Rank const& info ) {
@@ -43,16 +40,9 @@ public:
 			return {};
 		}
 	}
-	Exp term( std::string_view const& fun, std::initializer_list<Exp> args ) {
-		if( auto rank = find(fun) ) {
-			if( rank->arity() == args.size() ) {
-				return Exp(fun,args.begin(),args.end());
-			}
-		}
-	}
 };
 
-class TRS::Reader {
+class Trs::Reader {
 	Sig const& _sig;
 	::Exp::Reader& _reader;
 	/**
@@ -64,9 +54,9 @@ public:
 		using Exp::Error::Error;
 	};
 	Reader( ::Exp::Reader& reader, Sig const& sig ) : _reader(reader), _sig(sig) {}
-	Opt<Exp> reads_term();
-	Exp read_term() {
-		auto t = reads_term();
+	Opt<Exp> reads();
+	Exp read() {
+		auto t = reads();
 		if( !t ) {
 			throw Error("#missing-term");
 		}

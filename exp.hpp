@@ -17,7 +17,7 @@ class Exp {
 	 * @brief Application. The pair of the function and the vector of arguments.
 	 */
 	typedef std::pair<Exp,std::vector<Exp>> App;
-	Sum<std::string,Mem<App const>> _un;
+	Sum<std::string,Mem<App>> _un;
 	static Exp _construct( std::initializer_list<Exp> list );
 public:
 	struct Error;
@@ -38,14 +38,14 @@ public:
 	Exp( int n ) : _un(std::to_string(n)) {}
 	/** @brief Application */
 	explicit Exp( Exp const& fun, std::vector<Exp>&& args ) :
-		_un(Mem<App const>::make(fun,std::move(args))) {}
+		_un(Mem<App>::make(fun,std::move(args))) {}
 	/** @brief Application */
 	explicit Exp( Exp const& fun, std::initializer_list<Exp> args ) :
-		_un(Mem<App const>::make(fun,args)) {}
+		_un(Mem<App>::make(fun,args)) {}
 	/** @brief Application */
 	template<typename It> requires std::input_iterator<It>
 	explicit Exp( Exp const& fun, It begin, It end) :
-		_un(Mem<App const>::make(std::piecewise_construct,std::tuple<Exp>(fun),std::tuple<It,It>(begin,end))) {}
+		_un(Mem<App>::make(std::piecewise_construct,std::tuple<Exp>(fun),std::tuple<It,It>(begin,end))) {}
 	/** @brief For handy construction of applications. */
 	Exp( std::initializer_list<Exp> list ) : Exp(_construct(list)) {}
 	/**
@@ -65,8 +65,18 @@ public:
 	/**
 	 * @brief Fast conditional reference to the body of an application.
 	 */
+	Opt<App&> app() & {
+		if( auto p = _un.ref<Mem<App>>() ) {
+			return **p;
+		} else {
+			return {};
+		}
+	}
+	/**
+	 * @brief Fast conditional reference to the body of an application.
+	 */
 	Opt<App const&> app() const & {
-		if( auto p = _un.ref<Mem<App const>>() ) {
+		if( auto p = _un.ref<Mem<App>>() ) {
 			return **p;
 		} else {
 			return {};
@@ -76,12 +86,14 @@ public:
 	 * @brief Conditional reference to the body of an application.
 	 */
 	Opt<App> app() const && {
-		if( auto p = _un.ref<Mem<App const>>() ) {
+		if( auto p = _un.ref<Mem<App>>() ) {
 			return std::move(**p);
 		} else {
 			return {};
 		}
 	};
+	Exp& operator=( Exp && other ) & = default;
+	Exp& operator=( Exp const& other ) & = default;
 	bool operator==( Exp const& other ) const = default;
 };
 

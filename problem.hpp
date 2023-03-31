@@ -12,8 +12,8 @@ public:
 		TRS,
 		SRS,
 	} format;
-	TRS::Sig sig;
-	std::vector<TRS::Rules> systems;
+	Trs::Sig sig;
+	std::vector<Trs::Rules> systems;
 private:
 	Problem() = delete;
 public:

@@ -170,10 +170,10 @@ Smt::Exp Smt::Solver::get_value( Exp const& e ) & {
 
 int Smt::test() try {
 	cout << "this is Smt::test()." << endl;
-	cout << Exp("1") + "x" << endl;
-	cout << !!(Exp("0") + "x") << endl;
-	cout << ite( "p", Exp("3") * "x" * "y", Smt::ZERO ) << endl;
-	cout << !(Exp("x").eq("y") && Exp("y") >= "3") << endl;
+	cout << Exp(1) + "x" << endl;
+	cout << !!(Exp(0) + "x") << endl;
+	cout << ite( "p", Exp(3) * "x" * "y", Smt::ZERO ) << endl;
+	cout << !(Exp("x").eq("y") && Exp("y") >= 3) << endl;
 	auto z3 = Smt::Z3();
 	Proc ps = Proc("ps",{"ps"});
 	for( char c; (c=ps.from.get()) != EOF; cout.put(c) ) ;

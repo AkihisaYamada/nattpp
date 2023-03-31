@@ -20,7 +20,7 @@ int main( int argc, char** argv ) {
 		for( int i = 0; i < p.systems.size(); i++ ) {
 			cout << "TRS " << i+1 << ":" << endl << p.systems[i];
 		}
-	} catch( TRS::Reader::Error const& e ) {
+	} catch( Trs::Reader::Error const& e ) {
 		cerr << e << endl;
 	} catch( Exp::Error const& e ) {
 		cerr << e << endl;

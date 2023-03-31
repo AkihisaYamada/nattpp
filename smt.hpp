@@ -65,8 +65,7 @@ private:
 	public:
 	class Z3 : private Proc, public Solver {
 	public:
-		Z3() : Proc("z3",{"z3","-smt2","-in"}), Solver((Proc&)*this) {
-		}
+		Z3() : Proc("z3",{"z3","-smt2","-in"}), Solver((Proc&)*this) {}
 	};
 	static int test();
 };

@@ -1,4 +1,4 @@
-SRCS=exp.cpp term.cpp proc.cpp smt.cpp
+SRCS=exp.cpp term.cpp proc.cpp smt.cpp parser.cpp
 MAIN_SRC=main.cpp
 TEST_SRC=test.cpp
 TGT=terma
@@ -35,8 +35,8 @@ tester: ${DEBUG_OBJS} ${DEBUG_TEST}
 test: tester
 	./tester
 
-error: ${DEBUG_TGT} syntax_errors/*.ari
-	for f in syntax_errors/*.ari; do ${DEBUG_TGT} $$f; done
+error: debug syntax_errors/*.ari
+	for f in syntax_errors/*.ari; do ./debug $$f; done
 
 $(DEPEND)/%.d: %.cpp
 	@mkdir -p $(@D)

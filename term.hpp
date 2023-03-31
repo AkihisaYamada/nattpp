@@ -45,8 +45,9 @@ public:
 	}
 };
 
-class TRS::Reader : public Exp::Reader {
+class TRS::Reader {
 	Sig const& _sig;
+	::Exp::Reader& _reader;
 	/**
 	 * @brief Do not construct with rvalue Sig
 	 */
@@ -55,7 +56,7 @@ public:
 	struct Error : Exp::Error {
 		using Exp::Error::Error;
 	};
-	Reader( std::istream& is, Sig const& sig ) : Exp::Reader(is), _sig(sig) {}
+	Reader( ::Exp::Reader& reader, Sig const& sig ) : _reader(reader), _sig(sig) {}
 	Opt<Exp> reads_term();
 	Exp read_term() {
 		auto t = reads_term();

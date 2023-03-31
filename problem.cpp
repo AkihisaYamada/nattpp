@@ -1,3 +1,4 @@
+#include<fstream>
 #include"problem.hpp"
 
 using namespace std;
@@ -15,95 +16,82 @@ static void _switch(
 	}
 }
 
-void Problem::_read_format( Exp::Reader& reader ) {
-	reader.open();
-	reader.read_sym("format");
-	_switch( reader.read_sym(), {
-		{"TRS",[&](){ _process_trs_format(reader); }},
-		{"SRS",[&](){ _process_srs_format(reader); }},
-	}, [&](string const& str) {
-		throw Error{"#unknown-format",str};
-	});
-	reader.close();
-}
-
-void Problem::_process_trs_format( Exp::Reader& reader ) {
-	format = TRS;
-	Opt<string> num;
-	while( auto key = reader.reads_key() ) {
-		_switch( *key, {
-			{":number",[&](){
-				auto const& new_num = reader.read_sym();
+Problem::Problem( istream& is ) {
+	auto eis = Exp::Reader(is);
+	eis.open();
+	eis.read_sym("format");
+	if( eis.reads_sym("TRS") ) {
+		format = TRS;
+		Opt<int> num;
+		while( auto key = eis.reads_key() ) {
+			if( *key == ":number" ) {
+				auto const& s = eis.read_sym();
 				if( num ) {
-					throw Error{"#duplicate-attr",{":number",{*num,new_num}}};
+					throw Error{"#duplicate-attr",{":number",{*num,s}}};
 				}
-				num = new_num;
-			}},
-		},[&]( string const& key ){
-			throw Error{"#unknown-key",key};
-		});
-	}
-	if( num ) {
-		int n = stoi(*num);
-		if( n <= 0 || 10 < n ) {
-			throw Error{"#out-of-range",{":number",*num}};
+				num = stoi(s);
+				if( *num <= 0 || 10 < *num ) {
+					throw Error{"#out-of-range",{":number",*num}};
+				}
+			} else {
+				throw Error{"#unknown-key",*key};
+			}
 		}
-		systems = vector<TRS::Rules>(n);
-	} else {
-		systems = vector<TRS::Rules>(1);
+		eis.close();// of format
+		systems = vector<TRS::Rules>( num ? *num : 1 );
+		auto tis = TRS::Reader(eis,sig);
+		while( eis.opens() ) {
+			if( eis.reads_sym("fun") ) {
+				string fun = eis.read_sym();
+				TRS::Rank rank;
+				while( auto key = eis.reads_key() ) {
+					_switch( *key, {
+						{":arity",[&](){
+							rank.set_arity(eis.read_int());
+						}},
+					},[&]( string const& key ){
+						throw Error{"#unknown-key",key};
+					});
+				}
+				if( !sig.insert(fun,rank) ) {
+					throw Error{"#duplicate-fun",fun};
+				}
+			} else if( eis.reads_sym("rule") ) {
+				auto l = tis.read_term();
+				auto r = tis.read_term();
+				Opt<string> index;
+				while( auto key = eis.reads_key() ) {
+					_switch( *key,{
+						{":index",[&](){
+							index = eis.read_sym();
+						}},
+					},[&]( string const& key ){
+						throw Error{"#unknown-key",key};
+					});
+				}
+				int i = 0;
+				if( index ) {
+					i = stoi(*index)-1;
+					if( i < 0 || systems.size() <= i ) {
+						throw Error{"#index-out-of-range",*index};
+					}
+				}
+				systems[i].push_back({l,r});
+			} else {
+				throw Error{"#unknown-command",eis.read_exp()};
+			};
+			eis.close();
+		}
+	} else if( eis.reads_sym("SRS") ) {
+		format = SRS;
 	}
 }
 
-void Problem::_process_fun(Exp::Reader& reader) {
-	string fun = reader.read_sym();
-	TRS::Rank rank;
-	while( auto key = reader.reads_key() ) {
-		_switch( *key, {
-			{":arity",[&](){
-				rank.set_arity(reader.read_int());
-			}},
-		},[&]( string const& key ){
-			throw Error{"#unknown-key",key};
-		});
+bool Problem::test() {
+	auto ifs = fstream("test.ari");
+	auto prob = Problem(ifs);
+	for( int i = 0; i < prob.systems.size(); i++ ) {
+		cout << "TRS " << i+1 << ":" << endl << prob.systems[i];
 	}
-	reader.close();
-	if( !sig.insert(fun,rank) ) {
-		throw Error{"#duplicate-fun",fun};
-	}
-}
-
-void Problem::_process_rule(TRS::Reader& reader) {
-	auto l = reader.read_term();
-	auto r = reader.read_term();
-	Opt<string> index;
-	while( auto key = reader.reads_key() ) {
-		_switch( *key,{
-			{":index",[&](){
-				index = reader.read_sym();
-			}},
-		},[&]( string const& key ){
-			throw Error{"#unknown-key",key};
-		});
-	}
-	reader.close();
-	int i = 0;
-	if( index ) {
-		i = stoi(*index)-1;
-		if( i < 0 || systems.size() <= i ) {
-			throw Error{"#index-out-of-range",*index};
-		}
-	}
-	systems[i].push_back({l,r});
-}
-void Problem::_parse( std::istream& is ) {
-	auto reader = TRS::Reader(is,sig);
-	_read_format(reader);
-	while( reader.opens() ) {
-		_switch( reader.read_sym(), {
-			{"fun",[&](){_process_fun(reader);}},
-			{"rule",[&](){_process_rule(reader);}}
-		}, [&]( string const& cmd ){
-			throw Error{"#unknown-command",cmd};
-		});
-	}
+	return true;
 }

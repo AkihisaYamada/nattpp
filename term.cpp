@@ -14,7 +14,7 @@ ostream& operator<<( ostream& os, TRS::Rules const& system ) {
 }
 
 Opt<TRS::Exp> TRS::Reader::reads_term() {
-	if( auto sym = reads_sym() ) {
+	if( auto sym = _reader.reads_sym() ) {
 		if( auto info = _sig.find(*sym) ) {
 			if( info->arity() != 0 ) {
 				throw Error({"#unapplied-fun",*sym});
@@ -23,8 +23,8 @@ Opt<TRS::Exp> TRS::Reader::reads_term() {
 		}
 		return *sym;
 	}
-	if( opens() ) {
-		auto const& fun = reads_sym();
+	if( _reader.opens() ) {
+		auto const& fun = _reader.reads_sym();
 		if( !fun ) {
 			throw Error("#nil");
 		}
@@ -44,7 +44,7 @@ Opt<TRS::Exp> TRS::Reader::reads_term() {
 			}
 			args.push_back(*arg);
 		}
-		if( !closes() ) {
+		if( !_reader.closes() ) {
 			throw Error{"too-many-args",{*fun,std::move(args)}};
 		}
 		return Exp{*fun,std::move(args)};

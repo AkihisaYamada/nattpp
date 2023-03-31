@@ -10,7 +10,7 @@ Exp Exp::_construct( initializer_list<Exp> list ) {
 	} else {
 		Exp fun = *it;
 		it++;
-		return Exp(fun,vector<Exp>(it,end));
+		return Exp(fun,it,end);
 	}
 }
 

@@ -1,4 +1,4 @@
-#include "term.hpp"
+#include "trs.hpp"
 
 using namespace std;
 
@@ -40,12 +40,12 @@ Opt<TRS::Exp> TRS::Reader::reads_term() {
 		for( unsigned char n = 0; n < arity; n++ ) {
 			auto const& arg = reads_term();
 			if( !arg ) {
-				throw Error{"#too-few-args",{*fun,std::move(args)}};
+				throw Error{"#too-few-args",Exp{*fun,std::move(args)}};
 			}
 			args.push_back(*arg);
 		}
 		if( !_reader.closes() ) {
-			throw Error{"too-many-args",{*fun,std::move(args)}};
+			throw Error{"too-many-args",Exp{*fun,std::move(args)}};
 		}
 		return Exp{*fun,std::move(args)};
 	}

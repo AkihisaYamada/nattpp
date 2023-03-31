@@ -1,5 +1,5 @@
-#ifndef TERM_HPP_
-#define TERM_HPP_
+#ifndef TRS_HPP_
+#define TRS_HPP_
 #include<map>
 #include<istream>
 #include "exp.hpp"
@@ -33,14 +33,21 @@ public:
 class TRS::Sig {
 	std::map<std::string,Rank,std::less<>> _map;
 public:
-	bool insert( std::string const& name, Rank const& info ) {
-		return _map.insert({name,info}).second;
+	bool insert( std::string_view const& name, Rank const& info ) {
+		return _map.insert({(std::string)name,info}).second;
 	}
-	Opt<Rank const&> find( std::string const& name ) const & {
+	Opt<Rank const&> find( std::string_view const& name ) const & {
 		if( auto it = _map.find(name); it != _map.end() ) {
 			return it->second;
 		} else {
 			return {};
+		}
+	}
+	Exp term( std::string_view const& fun, std::initializer_list<Exp> args ) {
+		if( auto rank = find(fun) ) {
+			if( rank->arity() == args.size() ) {
+				return Exp(fun,args.begin(),args.end());
+			}
 		}
 	}
 };

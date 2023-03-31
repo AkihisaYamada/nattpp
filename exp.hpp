@@ -37,11 +37,15 @@ public:
 	/** @brief Number as symbol */
 	Exp( int n ) : _un(std::to_string(n)) {}
 	/** @brief Application */
-	Exp( Exp const& fun, std::vector<Exp> && args ) :
+	explicit Exp( Exp const& fun, std::vector<Exp>&& args ) :
 		_un(Mem<App const>::make(fun,std::move(args))) {}
 	/** @brief Application */
-	Exp( Exp const& fun, std::vector<Exp> const & args ) :
+	explicit Exp( Exp const& fun, std::initializer_list<Exp> args ) :
 		_un(Mem<App const>::make(fun,args)) {}
+	/** @brief Application */
+	template<typename It> requires std::input_iterator<It>
+	explicit Exp( Exp const& fun, It begin, It end) :
+		_un(Mem<App const>::make(std::piecewise_construct,std::tuple<Exp>(fun),std::tuple<It,It>(begin,end))) {}
 	/** @brief For handy construction of applications. */
 	Exp( std::initializer_list<Exp> list ) : Exp(_construct(list)) {}
 	/**

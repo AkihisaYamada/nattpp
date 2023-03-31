@@ -1,7 +1,7 @@
 #ifndef PROBLEM_HPP_
 #define PROBLEM_HPP_
 
-#include"term.hpp"
+#include"trs.hpp"
 
 class Problem {
 public:

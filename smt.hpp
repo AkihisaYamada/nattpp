@@ -7,9 +7,8 @@
 
 class Smt {
 public:
-	struct Error : std::exception {
-		::Exp message;
-		Error( ::Exp const& message ) : message(message) {}
+	struct Error : ::Exp::Error {
+		using ::Exp::Error::Error;
 	};
 	static constexpr char TRUE[] = "true";
 	static constexpr char FALSE[] = "false";

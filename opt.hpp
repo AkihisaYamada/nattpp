@@ -13,8 +13,11 @@ class Opt {
 	friend class Opt;
 public:
 	Opt() {}
-	Opt(T const& val) : _opt(val) {}
-	Opt(T && val) : _opt(std::move(val)) {}
+	/**
+	 * @brief Constructs optional object, with at least one constructor argument.
+	 */
+	template<typename S, typename... Ts>
+	Opt(S&& x, Ts&&... xs...) : _opt(std::in_place,std::move(x),std::forward<Ts>(xs)...) {}
 	operator bool() const {
 		return (bool)_opt;
 	}

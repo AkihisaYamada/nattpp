@@ -17,10 +17,12 @@ int main( int argc, char** argv ) {
 			exit_on_error = true;
 		}
 		Problem p(*pis);
-		p.write_systems(cout);
-	} catch( Term::Reader::Error const& e ) {
-		cerr << e.msg << endl;
+		for( int i = 0; i < p.systems.size(); i++ ) {
+			cout << "TRS " << i+1 << ":" << endl << p.systems[i];
+		}
+	} catch( TRS::Reader::Error const& e ) {
+		cerr << e << endl;
 	} catch( Exp::Error const& e ) {
-		cerr << e.msg << endl;
+		cerr << e << endl;
 	}
 }

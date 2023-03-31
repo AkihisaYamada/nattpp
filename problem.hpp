@@ -12,11 +12,8 @@ public:
 		TRS,
 		SRS,
 	} format;
-	Term::Sig sig;
-	struct System : std::vector<std::pair<Term,Term>> {
-		using std::vector<std::pair<Term,Term>>::vector;
-	};
-	std::vector<System> systems;
+	TRS::Sig sig;
+	std::vector<TRS::Rules> systems;
 private:
 	void _read_format( Exp::Reader& reader );
 	void _process_trs_format( Exp::Reader& reader );
@@ -24,13 +21,12 @@ private:
 		format = SRS;
 	}
 	void _process_fun(Exp::Reader& reader);
-	void _process_rule(Term::Reader& reader);
+	void _process_rule(TRS::Reader& reader);
 	void _parse( std::istream& is );
 	Problem() = delete;
 public:
 	Problem( std::istream& is ) {
 		_parse(is);
 	}
-	void write_systems( std::ostream& os );
 };
 #endif

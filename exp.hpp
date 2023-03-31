@@ -39,6 +39,9 @@ public:
 	/** @brief Application */
 	Exp( Exp const& fun, std::vector<Exp> && args ) :
 		_un(Mem<App const>::make(fun,std::move(args))) {}
+	/** @brief Application */
+	Exp( Exp const& fun, std::vector<Exp> const & args ) :
+		_un(Mem<App const>::make(fun,args)) {}
 	/** @brief For handy construction of applications. */
 	Exp( std::initializer_list<Exp> list ) : Exp(_construct(list)) {}
 	/**
@@ -78,9 +81,8 @@ public:
 	bool operator==( Exp const& other ) const = default;
 };
 
-struct Exp::Error : std::exception {
-	Exp msg;
-	Error( Exp const& msg ) : msg(msg) {}
+struct Exp::Error : std::exception, Exp {
+	using Exp::Exp;
 };
 
 class Exp::Reader {
@@ -157,7 +159,7 @@ public:
 	}
 	void read_sym( char const* str ) {
 		if( !reads_sym(str) ) {
-			throw Error(Exp("#missing-symbol",{str}));
+			throw Error{"#missing-symbol",str};
 		}
 	}
 	int read_int() {

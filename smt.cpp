@@ -146,7 +146,7 @@ Smt::Solver& Smt::Solver::result() & {
 		_status = UNSAT;
 		return *this;
 	}
-	throw Error({"#smt:invalid-response",*ans});
+	throw Error{"#smt:invalid-response",*ans};
 }
 
 Smt::Exp Smt::Solver::declare_const( string_view const& name, string_view const& sort ) & {
@@ -183,8 +183,8 @@ int Smt::test() try {
 	cout << z3.check_sat().result().is_sat() << endl;
 	auto xv = z3.get_value(x);
 	cout << x << " := " << xv << endl;
-	exit(0);
-} catch( Smt::Error const& e ) {
-	cerr << e.message << endl;
-	exit(-1);
+	return 0;
+} catch( Exp::Error const& e ) {
+	cerr << e << endl;
+	return -1;
 }

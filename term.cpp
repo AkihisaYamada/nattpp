@@ -2,64 +2,52 @@
 
 using namespace std;
 
-ostream& operator<<( ostream& os, Term const& term ) {
-	if( auto var = term.var() ) {
-		return os << *var;
-	} else if( auto app = term.app() ) {
-		os << app->first;
-		auto const& args = app->second;
-		auto it = args.begin();
-		if( it == args.end() ) {
-			return os;
-		}
-		os << '(' << *it;
-		for(;;) {
-			it++;
-			if( it == args.end() ) {
-				return os << ')';
-			}
-			os << ',' << *it;
-		}
-	} else {
-		assert(false);
-	}
+ostream& operator<<( ostream& os, TRS::Rule const& rule ) {
+	return os << rule.first << " -> " << rule.second;
 }
 
-Opt<Term> Term::Reader::reads_term() {
+ostream& operator<<( ostream& os, TRS::Rules const& system ) {
+	for( auto const& rule : system ) {
+		os << '\t' << rule << endl;
+	}
+	return os;
+}
+
+Opt<TRS::Exp> TRS::Reader::reads_term() {
 	if( auto sym = reads_sym() ) {
 		if( auto info = _sig.find(*sym) ) {
 			if( info->arity() != 0 ) {
-				throw Error(Term("#unapplied-fun",{*sym}));
+				throw Error({"#unapplied-fun",*sym});
 			}
-			return Term(*sym);
+			return {*sym};
 		}
-		return Term::Var(*sym);
+		return *sym;
 	}
 	if( opens() ) {
 		auto const& fun = reads_sym();
 		if( !fun ) {
-			throw Error(Term("#nil"));
+			throw Error("#nil");
 		}
 		auto const& info = _sig.find(*fun);
 		if( !info ) {
-			throw Error(Term("#applied-var",{*fun}));
+			throw Error{"#applied-var",*fun};
 		}
 		unsigned char arity = info->arity();
 		if( arity == 0 ) {
-			throw Error(Term("#applied-const",{*fun}));
+			throw Error{"#applied-const",*fun};
 		}
-		vector<Term> args;
+		vector<::Exp> args;
 		for( unsigned char n = 0; n < arity; n++ ) {
 			auto const& arg = reads_term();
 			if( !arg ) {
-				throw Error(Term("#too-few-args",{Term(*fun,std::move(args))}));
+				throw Error{"#too-few-args",{*fun,std::move(args)}};
 			}
 			args.push_back(*arg);
 		}
 		if( !closes() ) {
-			throw Error(Term("too-many-args",{Term(*fun,std::move(args))}));
+			throw Error{"too-many-args",{*fun,std::move(args)}};
 		}
-		return Term(*fun,std::move(args));
+		return Exp{*fun,std::move(args)};
 	}
 	return {};
 }

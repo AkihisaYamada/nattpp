@@ -80,7 +80,6 @@ class Mem {
 	mutable std::shared_ptr<T> _ptr;
 	T operator*() && = delete;
 	T* operator->() && = delete;
-	Mem( std::shared_ptr<T> const& ptr ) : _ptr(ptr) {}
 	void _fork() const {
 		if( !_ptr.unique() ) {
 			_ptr = std::make_shared<T>(*_ptr);
@@ -99,15 +98,22 @@ public:
 	Mem( Mem<T,false> const& org ) requires _nullable : _ptr(org._ptr) {}
 	Mem( Mem const& other ) = default;
 	/**
-	 * @brief Optional non-null object can be seen as a nullable object
+	 * @brief Constructing a shared object.
+	 * 
+	 * @param args arguments to the object constructor
 	 */
-	template<typename S> requires _nullable && std::is_convertible_v<S,Mem<T>>
-	explicit Mem( Opt<S> const org ) : _ptr( org ? org->Mem<T>::_ptr : nullptr ) {}
+	template<typename... Ts>
+	explicit Mem(Ts... args) : _ptr(std::make_shared<T>(args...)) {}
 	/**
 	 * @brief Optional non-null object can be seen as a nullable object
 	 */
 	template<typename S> requires _nullable && std::is_convertible_v<S,Mem<T>>
-	explicit Mem( Opt<S&> const org ) : _ptr( org ? org->Mem<T>::_ptr : nullptr ) {}
+	explicit Mem( Opt<S> const& org ) : _ptr( org ? ((Mem<T>)*org)._ptr : nullptr ) {}
+	/**
+	 * @brief Optional non-null object can be seen as a nullable object
+	 */
+	template<typename S> requires _nullable && std::is_convertible_v<S,Mem<T>>
+	explicit Mem( Opt<S const&> const& org ) : _ptr( org ? ((Mem<T>)*org)._ptr : nullptr ) {}
 	operator bool() const requires _nullable {
 		return (bool)_ptr;
 	}
@@ -130,16 +136,6 @@ public:
 	T* operator->() & {
 		_fork();
 		return _ptr.get();
-	}
-	/**
-	 * @brief Constructing a shared object.
-	 * 
-	 * @param args arguments to the object constructor
-	 * @return a non-null pointer to the constructed object
-	 */
-	template<typename... Ts>
-	static Mem<T> make(Ts... args...) {
-		return Mem(std::make_shared<T>(args...));
 	}
 	template<bool n>
 	bool operator==( Mem<T,n> const& r ) const {

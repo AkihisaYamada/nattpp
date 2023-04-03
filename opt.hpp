@@ -13,11 +13,16 @@ class Opt {
 	friend class Opt;
 public:
 	Opt() {}
+	Opt( Opt&& other ) : _opt(std::move(other._opt)) {}
+	Opt( Opt const& other ) : _opt(other._opt) {}
+	Opt( T&& org ) : _opt(std::move(org)) {}
+	template<typename S> requires std::is_convertible_v<S,T>
+	Opt( S const& org ) : _opt(org) {}
 	/**
-	 * @brief Constructs optional object, with at least one constructor argument.
+	 * @brief Constructs optional object in-place.
 	 */
-	template<typename S, typename... Ts>
-	Opt(S&& x, Ts&&... xs...) : _opt(std::in_place,std::move(x),std::forward<Ts>(xs)...) {}
+	template<typename... Ts>
+	Opt( std::in_place_t const& t, Ts&&... xs... ) : _opt(t,std::forward<Ts>(xs)...) {}
 	operator bool() const {
 		return (bool)_opt;
 	}
@@ -35,10 +40,6 @@ public:
 	}
 	T* operator->() & {
 		return _opt.operator->();
-	}
-	template<typename U>
-	operator Opt<U>() requires std::is_convertible_v<T,U> {
-		return Opt<U>(_opt);
 	}
 };
 

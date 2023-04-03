@@ -38,14 +38,14 @@ public:
 	Exp( int n ) : _un(std::to_string(n)) {}
 	/** @brief Application */
 	explicit Exp( Exp const& fun, std::vector<Exp>&& args ) :
-		_un(Mem<App>::make(fun,std::move(args))) {}
+		_un(std::in_place_type<Mem<App>>,fun,std::move(args)) {}
 	/** @brief Application */
 	explicit Exp( Exp const& fun, std::initializer_list<Exp> args ) :
-		_un(Mem<App>::make(fun,args)) {}
+		_un(std::in_place_type<Mem<App>>,fun,args) {}
 	/** @brief Application */
 	template<typename It> requires std::input_iterator<It>
-	explicit Exp( Exp const& fun, It begin, It end) :
-		_un(Mem<App>::make(std::piecewise_construct,std::tuple<Exp>(fun),std::tuple<It,It>(begin,end))) {}
+	explicit Exp( Exp const& fun, It begin, It end ) :
+		_un(std::in_place_type<Mem<App>>,std::piecewise_construct,std::tuple<Exp>(fun),std::tuple<It,It>(begin,end)) {}
 	/** @brief For handy construction of applications. */
 	Exp( std::initializer_list<Exp> list ) : Exp(_construct(list)) {}
 	/**
@@ -75,22 +75,14 @@ public:
 	/**
 	 * @brief Fast conditional reference to the body of an application.
 	 */
-	Opt<App const&> app() const & {
-		if( auto p = _un.ref<Mem<App>>() ) {
-			return **p;
-		} else {
-			return {};
-		}
+	auto app() const & {
+		return OptMem<App>(_un.ref<Mem<App>>());
 	}
 	/**
 	 * @brief Conditional reference to the body of an application.
 	 */
-	Opt<App> app() const && {
-		if( auto p = _un.ref<Mem<App>>() ) {
-			return std::move(**p);
-		} else {
-			return {};
-		}
+	auto app() const && {
+		return OptMem<App>(std::move(_un).ref<Mem<App>>());
 	};
 	Exp& operator=( Exp && other ) & = default;
 	Exp& operator=( Exp const& other ) & = default;

@@ -19,7 +19,7 @@ Opt<Trs::Exp> Trs::Reader::reads() {
 			if( info->arity != 0 ) {
 				throw Error({"#unapplied-fun",*sym});
 			}
-			return {*sym};
+			return Exp{*sym};
 		}
 		return *sym;
 	}
@@ -40,14 +40,14 @@ Opt<Trs::Exp> Trs::Reader::reads() {
 		for( unsigned char n = 0; n < arity; n++ ) {
 			auto const& arg = reads();
 			if( !arg ) {
-				throw Error{"#too-few-args",Exp{*fun,std::move(args)}};
+				throw Error{"#too-few-args",Exp(*fun,std::move(args))};
 			}
 			args.push_back(*arg);
 		}
 		if( !_reader.closes() ) {
-			throw Error{"too-many-args",Exp{*fun,std::move(args)}};
+			throw Error{"too-many-args",Exp(*fun,std::move(args))};
 		}
-		return Exp{*fun,std::move(args)};
+		return Exp(*fun,std::move(args));
 	}
 	return {};
 }

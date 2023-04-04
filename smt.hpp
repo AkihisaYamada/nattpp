@@ -43,36 +43,33 @@ public:
 		Exp operator*( Exp const& other ) const;
 	};
 	static Exp ite( Exp const& x, Exp const& y, Exp const& z );
-	struct LET_tag {};
-	static constexpr LET_tag LET = {};
+private:
+	struct _LET_tag {};
 	struct _LAZY_tag {};
-	static constexpr _LAZY_tag LAZY = {};
+public:
 	class PreExp {
 		friend Smt;
 		using App = std::vector<PreExp>;
 		using Let = std::tuple<PreExp,Sort,std::function<PreExp(PreExp const&)>>;
-		using Lazy = std::tuple<char const*,PreExp,std::function<PreExp()>>;
-		using Lazy3 = std::tuple<char const*,PreExp,std::function<PreExp()>,std::function<PreExp()>>;
-		Sum<std::string,Mem<App>,Mem<Let>,Mem<Lazy>,Mem<Lazy3>> _un;
+		using Lazy = std::function<PreExp()>;
+		using Lazy2 = std::tuple<char const*,PreExp,Lazy>;
+		using Lazy3 = std::tuple<char const*,PreExp,Lazy,Lazy>;
+		Sum<std::string,Mem<App>,Mem<Let>,Mem<Lazy2>,Mem<Lazy3>> _un;
+		PreExp( _LET_tag const&, PreExp const& val, std::string_view const& sort, std::function<PreExp(PreExp const&)> body ) :
+			_un( std::in_place_type<Mem<Let>>, val, sort, body ) {}
 		PreExp( _LAZY_tag const&, char const* op, PreExp const& x, std::function<PreExp()> y ) :
-			_un(std::in_place_type<Mem<Lazy>>,op,x,y) {}
+			_un(std::in_place_type<Mem<Lazy2>>,op,x,y) {}
 		PreExp( _LAZY_tag const&, char const* op, PreExp const& x, std::function<PreExp()> y, std::function<PreExp()> z ) :
 			_un(std::in_place_type<Mem<Lazy3>>,op,x,y,z) {}
 	public:
 		PreExp( const char* str ) : _un(std::in_place_type<std::string>,str) {}
 		PreExp( std::string_view const& str ) : _un(std::in_place_type<std::string>,str) {}
 		PreExp( std::initializer_list<PreExp> list ) : _un(std::in_place_type<Mem<App>>,list) {}
-		PreExp(
-			LET_tag const&,
-			PreExp const& val,
-			std::string_view const& sort,
-			std::function<PreExp(PreExp const&)> body
-		) : _un( std::in_place_type<Mem<Let>>, val, sort, body ) {}
 		PreExp operator&&( std::function<PreExp()> y ) const {
-			return PreExp(LAZY,AND,*this,y);
+			return PreExp(_LAZY_tag{},AND,*this,y);
 		}
 		PreExp operator||( std::function<PreExp()> y ) const {
-			return PreExp(LAZY,OR,*this,y);
+			return PreExp(_LAZY_tag{},OR,*this,y);
 		}
 		PreExp eq( PreExp const& y ) const {
 			return {EQ,*this,y};
@@ -108,10 +105,10 @@ public:
 			return OptMem<Let>(_un.ref<Mem<Let>>());
 		}
 		auto lazy() && {
-			return OptMem<Lazy>(std::move(_un).ref<Mem<Lazy>>());
+			return OptMem<Lazy2>(std::move(_un).ref<Mem<Lazy2>>());
 		}
 		auto lazy() const& {
-			return OptMem<Lazy>(_un.ref<Mem<Lazy>>());
+			return OptMem<Lazy2>(_un.ref<Mem<Lazy2>>());
 		}
 		auto lazy3() && {
 			return OptMem<Lazy3>(std::move(_un).ref<Mem<Lazy3>>());
@@ -120,9 +117,46 @@ public:
 			return OptMem<Lazy3>(_un.ref<Mem<Lazy3>>());
 		}
 	};
-	static PreExp ite( PreExp const& c, std::function<PreExp()> t, std::function<PreExp()> e ) {
-		return PreExp(LAZY,ITE,c,t,e);
-	}
+private:
+	struct _If2 {
+		PreExp const& i;
+		std::function<PreExp()> const& t;
+		PreExp operator^( std::function<PreExp()> const& e ) const {
+			return PreExp(_LAZY_tag{},ITE,i,t,e);
+		}
+	};
+	struct _If1 {
+		PreExp const& i;
+		_If2 operator^( std::function<PreExp()> const& t ) const {
+			return {i,t};
+		}
+	};
+	struct _If {
+		_If1 operator^( PreExp const& i ) const {
+			return {i};
+		}
+	};
+	struct _Let2 {
+		PreExp const& val;
+		char const* sort;
+		PreExp operator^( std::function<PreExp(PreExp const&)> body ) const {
+			return PreExp(_LET_tag(),val,sort,body);
+		}
+	};
+	struct _Let1 {
+		PreExp const& val;
+		_Let2 operator^( char const* sort ) const {
+			return {val,sort};
+		}
+	};
+	struct _Let {
+		_Let1 operator^( PreExp const& val ) const {
+			return {val};
+		}
+	};
+public:
+	static constexpr _If IF = {};
+	static constexpr _Let LET = {};
 	class Solver {
 		friend Smt;
 		enum { UNKNOWN, SOLVING, SAT, UNSAT } _status;
@@ -163,7 +197,7 @@ private:
 	public:
 	class Z3 : private Proc, public Solver {
 	public:
-		Z3() : Proc("z3",{"z3","-smt2","-in"}), Solver((Proc&)*this) {}
+		Z3( Opt<std::ostream&> tee = {} ) : Proc("z3",{"z3","-smt2","-in"},tee), Solver((Proc&)*this) {}
 	};
 	static int test();
 };

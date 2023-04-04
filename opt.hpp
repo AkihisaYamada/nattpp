@@ -41,6 +41,10 @@ public:
 	T* operator->() & {
 		return _opt.operator->();
 	}
+	template<class... Args>
+	T& emplace( Args&&... args ) & {
+		return _opt.emplace(std::forward<Args>(args)...);
+	}
 };
 
 /**

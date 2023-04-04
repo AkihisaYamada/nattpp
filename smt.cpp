@@ -241,6 +241,7 @@ Smt::Exp Smt::Solver::expand( PreExp const& p ) {
 			}
 			return {OR,ex,ey};
 		}
+		assert(false);
 	}
 	if( auto lazy3 = p.lazy3() ) {
 		auto [op,x,y,z] = *lazy3;
@@ -255,6 +256,7 @@ Smt::Exp Smt::Solver::expand( PreExp const& p ) {
 			auto ey = expand(y()), ez = expand(z());
 			return {ITE,ex,ey,ez};
 		}
+		assert(false);
 	}
 	assert(false);
 };
@@ -266,7 +268,7 @@ int Smt::test() try {
 	cout << !!(Exp(0) + "x") << endl;
 	cout << ite( "p", Exp(3) * "x" * "y", Smt::ZERO ) << endl;
 	cout << !(Exp("x").eq("y") && Exp("y").ge(3)) << endl;
-	auto z3 = Z3();
+	auto z3 = Z3(cout);
 	z3.set_logic("QF_LIA");
 	auto x = z3.declare_const("x","Int");
 	auto five = z3.define_fun("five",{},"Int",5);
@@ -275,16 +277,16 @@ int Smt::test() try {
 	auto xv = z3.get_value(x);
 	cout << x << " := " << xv << endl;
 
-	auto lazy_true = PreExp(TRUE) || [&](){ return PreExp("BUG"); };
+	auto lazy_true = PreExp(TRUE) || []{ return PreExp("BUG"); };
 	cout << z3.expand( lazy_true ) << endl;
 
-	cout << z3.expand( ite(PreExp(TRUE),[&](){ return PreExp("ok"); },[&](){ return PreExp("BUG"); }) ) << endl;
+	cout << z3.expand( IF ^ TRUE ^ []{ return PreExp("ok"); } ^ []{ return PreExp("BUG"); } ) << endl;
 
-	cout << z3.expand( ite(FALSE,[&](){ return PreExp("BUG"); },[&](){ return PreExp("ok"); }) ) << endl;
+	cout << z3.expand( IF ^ FALSE ^ []{ return PreExp("BUG"); } ^ []{ return PreExp("ok"); } ) << endl;
 
-	cout << z3.expand( ite(PreExp("if"),[&](){ return PreExp("then"); },[&](){ return PreExp("else"); }) ) << endl;
+	cout << z3.expand( IF ^ "cond" ^ []{ return PreExp("then"); } ^ []{ return PreExp("else"); } ) << endl;
 
-	auto foo = PreExp(LET,PreExp("x")+"five","Int",[&](PreExp const& x5){ return (x5 + x5).ge("20") ; });
+	auto foo = LET ^ PreExp("x") + "five" ^ "Int" ^ [](PreExp const& x5){ return (x5 + x5).ge("20"); };
 	z3.ass(foo);
 
 	cout << z3.check_sat().result().is_sat() << endl;

@@ -22,7 +22,9 @@ class Exp {
 public:
 	struct Error;
 	class Reader;
+	/** @brief copy constructor */
 	Exp( Exp const& other ) = default;
+	/** @brief move constructor */
 	Exp( Exp && other ) = default;
 	/** @brief "nil" */
 	explicit Exp() {}

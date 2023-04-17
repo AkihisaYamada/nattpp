@@ -4,115 +4,32 @@
 
 using namespace std;
 
-Smt::Exp Smt::Exp::operator&&( Exp const& other ) const {
-	if( *this == FALSE ) {
-		return *this;
+ostream& operator<<( ostream& os, Smt::Exp const& e ) {
+	if( auto sym = e.sym() ) {
+		return os << *sym;
 	}
-	if( *this == TRUE ) {
-		return other;
-	}
-	if( other == FALSE ) {
-		return other;
-	}
-	if( other == TRUE ) {
-		return *this;
-	}
-	return {AND,*this,other};
-}
-
-Smt::Exp Smt::Exp::operator||( Exp const& other ) const {
-	if( *this == TRUE ) {
-		return *this;
-	}
-	if( *this == FALSE ) {
-		return other;
-	}
-	if( other == TRUE ) {
-		return other;
-	}
-	if( other == FALSE ) {
-		return *this;
-	}
-	return {OR,*this,other};
-}
-
-Smt::Exp Smt::Exp::operator!() const {
-	if( *this == TRUE ) {
-		return FALSE;
-	}
-	if( *this == FALSE ) {
-		return TRUE;
-	}
-	if( auto a = app() ) {
-		if( a->first == NOT ) {
-			return a->second[0];
+	if( auto app = e.app() ) {
+		os << '(' << app->first;
+		for( auto const& arg : app->second ) {
+			os << ' ' << arg;
 		}
+		return os << ')';
 	}
-	return {NOT,*this};
-}
-
-Smt::Exp Smt::Exp::eq( Exp const& other ) const {
-	if( *this == other ) {
-		return TRUE;
+	if( auto let = e.let() ) {
+		auto const& [val,sort,body] = *let;
+		return os << '(' << val << ' ' << sort << " ...)";
 	}
-	return {EQ,*this,other};
-}
-
-Smt::Exp Smt::ite( Exp const& x, Exp const& y, Exp const& z ) {
-	if( x == TRUE ) {
-		return y;
+	if( auto lazy = e.lazy() ) {
+		return os << "...";
 	}
-	if( x == FALSE ) {
-		return z;
-	}
-	return {ITE,x,y,z};
-}
-
-Smt::Exp Smt::Exp::ge( Exp const& other ) const {
-	if( *this == other ) {
-		return TRUE;
-	}
-	return {GE,*this,other};
-}
-
-Smt::Exp Smt::Exp::gt( Exp const& other ) const {
-	if( *this == other ) {
-		return FALSE;
-	}
-	return {GT,*this,other};
-}
-
-Smt::Exp Smt::Exp::operator+( Exp const& other ) const {
-	if( *this == ZERO ) {
-		return other;
-	}
-	if( other == ZERO ) {
-		return *this;
-	}
-	return {ADD,*this,other};
-}
-
-Smt::Exp Smt::Exp::operator*( Exp const& other ) const {
-	if( *this == ZERO ) {
-		return *this;
-	}
-	if( *this == ONE ) {
-		return other;
-	}
-	if( other == ZERO ) {
-		return other;
-	}
-	if( other == ONE ) {
-		return *this;
-	}
-	return {MUL,*this,other};
+	assert(false);
 }
 
 void Smt::Solver::set_logic( string_view const& x ) & {
 	_proc.to << "(set-logic " << x << ')' << endl;
 }
 
-Smt::Solver& Smt::Solver::ass( Exp const& e ) & {
+Smt::Solver& Smt::Solver::ass( ::Exp const& e ) & {
 	if( _status != UNSAT ) {
 		_proc.to << "(assert " << e << ')' << endl;
 		_status = UNKNOWN;
@@ -167,15 +84,16 @@ Smt::Exp Smt::Solver::define_fun(
 	std::string_view const& sort,
 	Exp const& body
 ) & {
+	auto const& ebody = expand(body);
 	_proc.to << "(define-fun " << name << " (";
 	for( auto [var,psort] : params ) {
 		_proc.to << '(' << var << ' ' << psort << ") ";
 	}
-	_proc.to << ") " << sort << ' ' << body << ')' << endl;
+	_proc.to << ") " << sort << ' ' << ebody << ')' << endl;
 	return name;
 }
 
-Smt::Exp Smt::Solver::get_value( Exp const& e ) & {
+::Exp Smt::Solver::get_value( ::Exp const& e ) & {
 	if( _status != SAT ) {
 		throw Error("#smt:get_value");
 	}
@@ -183,7 +101,7 @@ Smt::Exp Smt::Solver::get_value( Exp const& e ) & {
 	_reader.open();
 	_reader.open();
 	assert( _reader.read_sym() == e );
-	Exp ret = _reader.read_exp();
+	::Exp ret = _reader.read_exp();
 	_reader.close();
 	_reader.close();
 	return ret;
@@ -193,70 +111,109 @@ std::string Smt::Solver::_make_fresh() & {
 	return string("_") + to_string(_var_count++);
 }
 
-Smt::Exp Smt::Solver::expand( PreExp const& p ) {
+::Exp Smt::Solver::expand( Exp const& p ) {
 	if( auto sym = p.sym() ) {
 		return *sym;
 	}
 	if( auto app = p.app() ) {
-		auto it = app->begin(), end = app->end();
-		if( it == end ) {
-			return Exp();
+		auto const& [fun,args] = *app;
+		auto const& efun = expand(fun);
+		auto eargs = std::vector<::Exp>();
+		if( efun == AND ) {
+			for( auto const& arg : args ) {
+				auto const& earg = expand(arg);
+				if( earg == FALSE ) {
+					return FALSE;
+				}
+				if( earg != TRUE ) {
+					eargs.push_back(earg);
+				}
+			}
+			switch( eargs.size() ) {
+				case 0: return TRUE;
+				case 1: return eargs[0];
+			}
+		} else if( efun == OR ) {
+			for( auto const& arg : args ) {
+				auto const& earg = expand(arg);
+				if( earg == TRUE ) {
+					return TRUE;
+				}
+				if( earg != FALSE ) {
+					eargs.push_back(earg);
+				}
+			}
+			switch( eargs.size() ) {
+				case 0: return FALSE;
+				case 1: return eargs[0];
+			}
+		} else if( efun == NOT ) {
+			assert( args.size() == 1 );
+			auto const& earg = expand(args[0]);
+			if( earg == TRUE ) {
+				return FALSE;
+			}
+			if( earg == FALSE ) {
+				return TRUE;
+			}
+			if( auto app = earg.app() ) {
+				if( app->first == NOT ) {
+					return app->second[0];
+				}
+			}
+			eargs.push_back(earg);
+		} else if( efun == ITE ) {
+			assert( args.size() == 3 );
+			auto const& i = expand(args[0]);
+			if( i == TRUE ) {
+				return expand(args[1]);
+			}
+			if( i == FALSE ) {
+				return expand(args[2]);
+			}
+			eargs.push_back(i);
+			eargs.push_back(expand(args[1]));
+			eargs.push_back(expand(args[2]));
+		} else if( efun == ADD ) {
+			for( auto const& arg : args ) {
+				auto const& earg = expand(arg);
+				if( earg != ZERO ) {
+					eargs.push_back(earg);
+				}
+			}
+			switch( eargs.size() ) {
+				case 0: return ZERO;
+				case 1: return eargs[0];
+			}
+		} else if( efun == MUL ) {
+			for( auto const& arg : args ) {
+				auto const& earg = expand(arg);
+				if( earg == ZERO ) {
+					return ZERO;
+				}
+				if( earg != ONE ) {
+					eargs.push_back(earg);
+				}
+			}
+			switch( eargs.size() ) {
+				case 0: return ONE;
+				case 1: return eargs[0];
+			}
+		} else {
+			for( auto const& arg : args ) {
+				eargs.push_back(expand(arg));
+			}
 		}
-		auto fun = expand(*it);
-		it++;
-		auto args = std::vector<::Exp>();
-		while( it != end ) {
-			args.push_back(expand(*it));
-			it++;
-		}
-		return Exp(fun,std::move(args));
+		return ::Exp(efun,std::move(eargs));
 	}
 	if( auto let = p.let() ) {
 		auto [val,sort,body] = *let;
-		auto eval = expand(val);
 		auto var = _make_fresh();
-		define_fun(var,{},sort,eval);
-		return expand(body(PreExp(var)));
+		define_fun(var,{},sort,val);
+		return expand(body(Exp(var)));
 	}
 	if( auto lazy = p.lazy() ) {
-		auto [op,x,y] = *lazy;
-		auto ex = expand(x);
-		if( op == AND ) {
-			if( ex == FALSE ) {
-				return ex;
-			}
-			auto ey = expand(y());
-			if( ex == TRUE ) {
-				return ey;
-			}
-			return {AND,ex,ey};
-		}
-		if( op == OR ) {
-			if( ex == TRUE ) {
-				return ex;
-			}
-			auto ey = expand(y());
-			if( ex == FALSE ) {
-				return ey;
-			}
-			return {OR,ex,ey};
-		}
-		assert(false);
-	}
-	if( auto lazy3 = p.lazy3() ) {
-		auto [op,x,y,z] = *lazy3;
-		if( op == ITE ) {
-			auto ex = expand(x);
-			if( ex == TRUE ) {
-				return expand(y());
-			}
-			if( ex == FALSE ) {
-				return expand(z());
-			}
-			auto ey = expand(y()), ez = expand(z());
-			return {ITE,ex,ey,ez};
-		}
-		assert(false);
+		return expand((*lazy)());
 	}
 	assert(false);
 };
@@ -265,8 +222,8 @@ Smt::Exp Smt::Solver::expand( PreExp const& p ) {
 int Smt::test() try {
 	cout << "this is Smt::test()." << endl;
 	cout << Exp(1) + "x" << endl;
-	cout << !!(Exp(0) + "x") << endl;
-	cout << ite( "p", Exp(3) * "x" * "y", Smt::ZERO ) << endl;
+	cout << !!(Exp(0) + []()->Exp{ return "x"; }) << endl;
+	cout << (If("p") ^ Exp(3) * "x" * "y" ^ ZERO) << endl;
 	cout << !(Exp("x").eq("y") && Exp("y").ge(3)) << endl;
 	auto z3 = Z3(cout);
 	z3.set_logic("QF_LIA");
@@ -274,25 +231,29 @@ int Smt::test() try {
 	auto five = z3.define_fun("five",{},"Int",5);
 	z3.ass( x.gt(five + 4) );
 	cout << z3.check_sat().result().is_sat() << endl;
-	auto xv = z3.get_value(x);
+	auto xv = z3.get_value("x");
 	cout << x << " := " << xv << endl;
 
-	auto lazy_true = PreExp(TRUE) || []{ return PreExp("BUG"); };
-	cout << z3.expand( lazy_true ) << endl;
+	cout << z3.expand( Exp(FALSE) && []{ return Exp("BUG"); } ) << endl;
 
-	cout << z3.expand( IF ^ TRUE ^ []{ return PreExp("ok"); } ^ []{ return PreExp("BUG"); } ) << endl;
+	cout << z3.expand( Exp(TRUE) || []{ return Exp("BUG"); } ) << endl;
 
-	cout << z3.expand( IF ^ FALSE ^ []{ return PreExp("BUG"); } ^ []{ return PreExp("ok"); } ) << endl;
+	cout << z3.expand( If( TRUE ) ^ []{ return Exp("ok"); } ^ []{ return Exp("BUG"); } ) << endl;
 
-	cout << z3.expand( IF ^ "cond" ^ []{ return PreExp("then"); } ^ []{ return PreExp("else"); } ) << endl;
+	cout << z3.expand( If( FALSE ) ^ []{ return Exp("BUG"); } ^ []{ return Exp("ok"); } ) << endl;
 
-	auto foo = LET ^ PreExp("x") + "five" ^ "Int" ^ [](PreExp const& x5){ return (x5 + x5).ge("20"); };
-	z3.ass(foo);
+	cout << z3.expand( If( "cond" ) ^ []{ return Exp("then"); } ^ []{ return Exp("else"); } ) << endl;
+
+	z3.ass(
+		Let( Exp("x") + "five", "Int" ) ^ [](Exp const& x5){
+			return (x5 + x5).ge("20");
+		}
+	);
 
 	cout << z3.check_sat().result().is_sat() << endl;
 
 	return 0;
-} catch( Exp::Error const& e ) {
+} catch( ::Exp::Error const& e ) {
 	cerr << e << endl;
 	return -1;
 }

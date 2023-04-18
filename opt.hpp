@@ -56,6 +56,7 @@ public:
 template<typename T>
 class Opt<T &> {
 	T* _ptr;
+	Opt( T* ptr ) : _ptr(ptr) {}
 	/**
 	 * @brief rvalue cannot be pointed.
 	 */
@@ -64,9 +65,12 @@ class Opt<T &> {
 	 * @brief Do not substitute, as it may break scope.
 	 */
 	Opt& operator=( Opt<T> const& ) = delete;
+	template<typename S>
+	friend class Opt;
 public:
 	Opt() : _ptr(nullptr) {}
 	Opt( T& l ) : _ptr(&l) {}
+	operator Opt<T const&>() { return _ptr; }
 	operator bool() const { return _ptr; }
 	T& operator*() const { return *_ptr; }
 	T* operator->() const { return _ptr; }

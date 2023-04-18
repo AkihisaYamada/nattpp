@@ -154,4 +154,5 @@ std::ostream& operator<<( std::ostream& os, Poly::Vars const& vs );
 
 std::ostream& operator<<( std::ostream& os, Poly const& p );
 
+
 #endif

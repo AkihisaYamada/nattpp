@@ -2,6 +2,7 @@
 #define _ALGEBRA_HPP
 
 #include<cstdint>
+#include"map.hpp"
 #include"smt.hpp"
 #include"trs.hpp"
 
@@ -34,12 +35,13 @@ public:
 	static const Intp<Exp> TERM;
 };
 
-class Subst : public std::map<std::string,Exp,std::less<>> {
+class Deriver {
 	template<typename T>
 	T _intp( Algebra::Intp<T> const& alg, std::string_view const& f, std::vector<T>&& args ) const;
 	Algebra::Intp<Exp> const _SUBST;
 public:
-	Subst( std::initializer_list<value_type> init ) : std::map<std::string,Exp,std::less<>>(init), _SUBST(derive(Algebra::TERM)) {}
+	Deriver() : _SUBST(derive(Algebra::TERM)) {}
+	virtual Opt<Exp const&> find( std::string_view const& ) const = 0;
 	template<typename T>
 	Algebra::Intp<T> derive( Algebra::Intp<T> const& intp ) {
 		return Algebra::Intp<T>([&]( std::string_view const& f, std::vector<T>&& args ){
@@ -50,8 +52,6 @@ public:
 		return _SUBST.eval(exp);
 	}
 };
-
-std::ostream& operator<<( std::ostream& os, Subst const& subst );
 
 template<typename T>
 static T _intp_inner( Algebra::Intp<T> const& intp, Exp const& e, std::vector<T> const& vs ) {
@@ -80,11 +80,26 @@ static T _intp_inner( Algebra::Intp<T> const& intp, Exp const& e, std::vector<T>
 }
 
 template<typename T>
-T Subst::_intp( Algebra::Intp<T> const& intp, std::string_view const& f, std::vector<T>&& vs ) const {
-	if( auto it = find(f); it != end() ) {
-		return _intp_inner(intp,it->second,vs);
+T Deriver::_intp( Algebra::Intp<T> const& intp, std::string_view const& f, std::vector<T>&& vs ) const {
+	if( auto e = find(f) ) {
+		return _intp_inner(intp,*e,vs);
 	}
 	return intp(f,std::move(vs));
 }
 
+class Subst : public Map<std::string,Exp>, public Deriver {
+public:
+	Opt<Exp const&> find( std::string_view const& f ) const {
+		return Map<std::string,Exp>::find(f);
+	}
+	Subst( std::initializer_list<Value> list ) : Map<std::string,Exp>(list) {}
+};
+
+std::ostream& operator<<( std::ostream& os, Subst const& subst );
+
+class Template : public Deriver {
+public:
+	Template( Trs::Sig const& sig );
+	Opt<Exp const&> find( std::string_view const& f ) const;
+};
 #endif

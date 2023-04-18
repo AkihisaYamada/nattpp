@@ -76,6 +76,9 @@ Opt<Exp> Exp::Reader::reads_exp() {
 	if( auto sym = reads_sym() ) {
 		return Exp(*sym);
 	}
+	if( auto key = reads_key() ) {// keys are treated as symbols
+		return Exp(*key);
+	}
 	if( opens() ) {
 		if( closes() ) {
 			return Exp();

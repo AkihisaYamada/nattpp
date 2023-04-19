@@ -2,6 +2,7 @@
 #define _POLY_HPP
 #include"util.hpp"
 #include"algebra.hpp"
+#include"map.hpp"
 
 class Poly {
 public:
@@ -52,20 +53,19 @@ public:
 		friend Poly;
 	};
 private:
-	using _Map = std::map<Vars,Smt::Exp>;
-	_Map _map;
+	Map<Vars,Smt::Exp> _map;
 public:
 	Poly() {}
 	Poly( Smt::Exp const& c ) : _map{{{},c}} {}
 	Poly( int i ) : _map{{{},i}} {}
 	Poly( Var const& v ) : _map{{v,1}} {}
-	_Map const& map() const & {
+	Map<Vars,Smt::Exp> const& map() const & {
 		return _map;
 	}
 	Poly operator+( Poly const& p2 ) const & {
 		Poly ret;
 		iter2(_map,p2._map,[&]( auto& it1, auto& it2 ){
-			ret._map.insert({ it1->first, it1->second + it2->second });
+			ret._map.insert( it1->first, it1->second + it2->second );
 		},[&]( auto& it1 ){
 			ret._map.insert(*it1);
 		},[&]( auto& it2 ){
@@ -85,7 +85,7 @@ public:
 	Poly monom_mult( Smt::Exp const& c, Vars const& vs ) const {
 		Poly ret;
 		for( auto& [vs1,c1] : _map ) {
-			ret._map.insert({vs1 * vs, c * c1});
+			ret._map.insert(vs1 * vs, c * c1);
 		}
 		return std::move(ret);
 	}
@@ -144,6 +144,20 @@ inline Algebra::Intp<Poly> const Poly::ALGEBRA = Algebra::Intp<Poly>(
 		}
 		if( f == "*" ) {
 			return prod(args);
+		}
+		if( f == "ite" ) {
+			if( args.size() != 3 ) {
+				throw Algebra::Error{"#arity-mismatch",f};
+			}
+			auto const& i = args[0].map(), & t = args[1].map(), & e = args[2].map();
+			if( i.size() != 1 || t.size() != 1 || e.size() != 1 ) {
+				throw Algebra::Error{"#ite-poly"};
+			}
+			auto vi = i.find({}), vt = t.find({}), ve = e.find({});
+			if( !vi || !vt || !ve ) {
+				throw Algebra::Error{"#ite-poly"};
+			}
+			return Smt::Exp(f,{*vi,*vt,*ve});
 		}
 		assert( args.size() == 0 );
 		return Smt::Exp(f);

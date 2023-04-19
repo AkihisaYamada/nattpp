@@ -40,5 +40,18 @@ int Poly::test() {
 	Poly y = Poly::Var("y",Poly::NEG);
 	cout << (x + 5) * (y * 3 + 2) << endl;
 	cout << (x * Smt::Exp("c") + Smt::Exp("d")).ge(x * 5 + 3) << endl;
+
+	auto temp = Deriver::Template(
+		{"+",{"args","+",{"*",{"ite",{"var","bool"},0,1},"arg"}},
+			 {"var","int"}}
+	);
+	Trs::Sig sig;
+	sig.insert("f",2);
+	sig.insert("g",1);
+	sig.insert("a",0);
+	auto z3 = Smt::Z3(cout);
+	auto der = temp.deriver(sig,z3);
+	cout << der.subst({"f",{"g","x"},"a"}) << endl;
+	cout << der.derive(Poly::ALGEBRA).eval({"f",{"g","x"},"a"}) << endl;
 	return 0;
 }

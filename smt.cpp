@@ -73,9 +73,8 @@ Smt::Solver& Smt::Solver::result() & {
 	throw Error{"#smt:invalid-response",*ans};
 }
 
-Smt::Exp Smt::Solver::declare_const( string_view const& name, string_view const& sort ) & {
+void Smt::Solver::declare_const( string_view const& name, string_view const& sort ) & {
 	_proc.to << "(declare-const " << name << ' ' << sort << ')' << endl;
-	return name;
 }
 
 Smt::Exp Smt::Solver::define_fun(
@@ -227,12 +226,12 @@ int Smt::test() try {
 	cout << !(Exp("x").eq("y") && Exp("y").ge(3)) << endl;
 	auto z3 = Z3(cout);
 	z3.set_logic("QF_LIA");
-	auto x = z3.declare_const("x","Int");
+	z3.declare_const("x","Int");
 	auto five = z3.define_fun("five",{},"Int",5);
-	z3.ass( x.gt(five + 4) );
+	z3.ass( Smt::Exp("x").gt(five + 4) );
 	cout << z3.check_sat().result().is_sat() << endl;
 	auto xv = z3.get_value("x");
-	cout << x << " := " << xv << endl;
+	cout << "x" << " := " << xv << endl;
 
 	cout << z3.expand( Exp(FALSE) && []{ return Exp("BUG"); } ) << endl;
 

@@ -93,10 +93,11 @@ T Deriver::_intp( Algebra::Intp<T> const& intp, std::string_view const& f, std::
 
 class Deriver::Map : public ::Map<std::string,Exp>, public Deriver {
 public:
+	Map() {}
+	Map( std::initializer_list<value_type> list ) : ::Map<std::string,Exp>(list) {}
 	Opt<Exp const&> find( std::string_view const& f ) const {
 		return ::Map<std::string,Exp>::find(f);
 	}
-	Map( std::initializer_list<Value> list ) : ::Map<std::string,Exp>(list) {}
 };
 
 std::ostream& operator<<( std::ostream& os, Deriver::Map const& subst );
@@ -105,7 +106,7 @@ class Deriver::Template {
 	Exp _exp;
 public:
 	Template( Exp const& exp ) : _exp(exp) {}
-	Deriver::Map derive( Trs::Sig const& sig, Smt::Solver& solver );
+	Deriver::Map deriver( Trs::Sig const& sig, Smt::Solver& solver );
 };
 
 

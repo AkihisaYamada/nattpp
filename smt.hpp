@@ -143,7 +143,12 @@ public:
 		std::string _make_fresh() &;
 	public:
 		void set_logic( std::string_view const& logic ) &;
-		Exp declare_const( std::string_view const& name, std::string_view const& sort ) &;
+		void declare_const( std::string_view const& name, std::string_view const& sort ) &;
+		std::string declare_fresh( std::string_view const& sort ) {
+			std::string ret = _make_fresh();
+			declare_const(ret,sort);
+			return ret;
+		}
 		Exp define_fun(
 			std::string_view const& name,
 			std::initializer_list<std::pair<std::string_view,std::string_view>> const& params,

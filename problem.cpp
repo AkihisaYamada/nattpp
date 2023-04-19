@@ -76,8 +76,8 @@ Problem::Problem( istream& is ) {
 						throw Error{"#unknown-key",*key};
 					}
 				}
-				if( !sig.insert(fun,Trs::Rank{arity}) ) {
-					throw Error{"#duplicate-fun",fun};
+				if( auto prev = sig.insert(fun,Trs::Rank{arity}) ) {
+					throw Error{"#duplicate-fun",fun,prev->arity,arity};
 				}
 			} else if( eis.reads_sym("rule") ) {
 				auto l = tis.read(), r = tis.read();

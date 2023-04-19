@@ -36,6 +36,10 @@ public:
 };
 
 class Deriver {
+public:
+	class Map;
+	class Template;
+private:
 	template<typename T>
 	T _intp( Algebra::Intp<T> const& alg, std::string_view const& f, std::vector<T>&& args ) const;
 	Algebra::Intp<Exp> const _SUBST;
@@ -48,7 +52,7 @@ public:
 			return _intp(intp,f,std::move(args));
 		});
 	}
-	Exp apply( Exp const& exp ) const {
+	Exp subst( Exp const& exp ) const {
 		return _SUBST.eval(exp);
 	}
 };
@@ -87,19 +91,22 @@ T Deriver::_intp( Algebra::Intp<T> const& intp, std::string_view const& f, std::
 	return intp(f,std::move(vs));
 }
 
-class Subst : public Map<std::string,Exp>, public Deriver {
+class Deriver::Map : public ::Map<std::string,Exp>, public Deriver {
 public:
 	Opt<Exp const&> find( std::string_view const& f ) const {
-		return Map<std::string,Exp>::find(f);
+		return ::Map<std::string,Exp>::find(f);
 	}
-	Subst( std::initializer_list<Value> list ) : Map<std::string,Exp>(list) {}
+	Map( std::initializer_list<Value> list ) : ::Map<std::string,Exp>(list) {}
 };
 
-std::ostream& operator<<( std::ostream& os, Subst const& subst );
+std::ostream& operator<<( std::ostream& os, Deriver::Map const& subst );
 
-class Template : public Deriver {
+class Deriver::Template {
+	Exp _exp;
 public:
-	Template( Trs::Sig const& sig );
-	Opt<Exp const&> find( std::string_view const& f ) const;
+	Template( Exp const& exp ) : _exp(exp) {}
+	Deriver::Map derive( Trs::Sig const& sig, Smt::Solver& solver );
 };
+
+
 #endif

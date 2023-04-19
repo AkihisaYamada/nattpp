@@ -8,10 +8,16 @@ const Algebra::Intp<Exp> Algebra::TERM = {
 	}
 };
 
-ostream& operator<<( ostream& os, Subst const& subst ) {
+ostream& operator<<( ostream& os, Deriver::Map const& subst ) {
 	os << '[' << endl;
 	for( auto const& [key,val] : subst ) {
 		os << '\t' << key << " := " << val << endl;
 	}
 	return os << ']';
 }
+
+Deriver::Map Deriver::Template::derive( Trs::Sig const& sig, Smt::Solver& solver ) {
+
+}
+
+

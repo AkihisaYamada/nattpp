@@ -24,17 +24,17 @@ ostream& operator<<( ostream& os, Poly const& p ) {
 	return os;
 }
 int Poly::test() {
-	Subst subst = {{"x",{"g","y"}}};
-	cout << subst.apply({"f","x"}) << endl;
-	Subst subst2 = {{"x",{"g","x"}}};
-	cout << subst2.apply({"f","x","x"}) << endl;
-	Subst hsubst = {
+	Deriver::Map subst = {{"x",{"g","y"}}};
+	cout << subst.subst({"f","x"}) << endl;
+	Deriver::Map subst2 = {{"x",{"g","x"}}};
+	cout << subst2.subst({"f","x","x"}) << endl;
+	Deriver::Map hsubst = {
 		{"f",{"+",{"*","c1",{":in",0}},{"*","c2",{":in",1}}}},
 		{"a",{"+",{":in",0},"wa"}},
 		{"b",{"+",{":in",0},"wb"}},
 	};
 	Exp e = {"f",{"a","x"},{"b","x"}};
-	cout << e << hsubst << " = " << hsubst.apply(e) << endl;
+	cout << e << hsubst << " = " << hsubst.subst(e) << endl;
 	cout << hsubst.derive(Poly::ALGEBRA).eval(e) << endl;
 	Poly x = Poly::Var("x",Poly::POS);
 	Poly y = Poly::Var("y",Poly::NEG);

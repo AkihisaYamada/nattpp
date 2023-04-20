@@ -5,12 +5,13 @@
 using namespace std;
 
 ostream& operator<<( ostream& os, Smt::Exp const& e ) {
-	if( auto sym = e.sym() ) {
-		return os << *sym;
-	}
 	if( auto app = e.app() ) {
-		os << '(' << app->first;
-		for( auto const& arg : app->second ) {
+		auto const& [fun,args] = *app;
+		if( args.empty() ) {
+			return os << fun;
+		}
+		os << '(' << fun;
+		for( auto const& arg : args ) {
 			os << ' ' << arg;
 		}
 		return os << ')';
@@ -70,7 +71,7 @@ Smt::Solver& Smt::Solver::result() & {
 		_status = UNSAT;
 		return *this;
 	}
-	throw Error{"#smt:invalid-response",*ans};
+	throw Error{"#smt:invalid-response",{*ans}};
 }
 
 void Smt::Solver::declare_const( string_view const& name, string_view const& sort ) & {
@@ -111,14 +112,11 @@ std::string Smt::Solver::_make_fresh() & {
 }
 
 ::Exp Smt::Solver::expand( Exp const& p ) {
-	if( auto sym = p.sym() ) {
-		return *sym;
-	}
 	if( auto app = p.app() ) {
 		auto const& [fun,args] = *app;
-		auto const& efun = expand(fun);
-		auto eargs = std::vector<::Exp>();
-		if( efun == AND ) {
+		::Exp ret = fun;
+		auto& eargs = ret.args();
+		if( fun == AND ) {
 			for( auto const& arg : args ) {
 				auto const& earg = expand(arg);
 				if( earg == FALSE ) {
@@ -132,7 +130,7 @@ std::string Smt::Solver::_make_fresh() & {
 				case 0: return TRUE;
 				case 1: return eargs[0];
 			}
-		} else if( efun == OR ) {
+		} else if( fun == OR ) {
 			for( auto const& arg : args ) {
 				auto const& earg = expand(arg);
 				if( earg == TRUE ) {
@@ -146,7 +144,7 @@ std::string Smt::Solver::_make_fresh() & {
 				case 0: return FALSE;
 				case 1: return eargs[0];
 			}
-		} else if( efun == NOT ) {
+		} else if( fun == NOT ) {
 			assert( args.size() == 1 );
 			auto const& earg = expand(args[0]);
 			if( earg == TRUE ) {
@@ -155,13 +153,11 @@ std::string Smt::Solver::_make_fresh() & {
 			if( earg == FALSE ) {
 				return TRUE;
 			}
-			if( auto app = earg.app() ) {
-				if( app->first == NOT ) {
-					return app->second[0];
-				}
+			if( earg.fun() == NOT ) {
+				return earg.args()[0];
 			}
 			eargs.push_back(earg);
-		} else if( efun == ITE ) {
+		} else if( fun == ITE ) {
 			assert( args.size() == 3 );
 			auto const& i = expand(args[0]);
 			if( i == TRUE ) {
@@ -173,7 +169,7 @@ std::string Smt::Solver::_make_fresh() & {
 			eargs.push_back(i);
 			eargs.push_back(expand(args[1]));
 			eargs.push_back(expand(args[2]));
-		} else if( efun == ADD ) {
+		} else if( fun == ADD ) {
 			for( auto const& arg : args ) {
 				auto const& earg = expand(arg);
 				if( earg != ZERO ) {
@@ -184,7 +180,7 @@ std::string Smt::Solver::_make_fresh() & {
 				case 0: return ZERO;
 				case 1: return eargs[0];
 			}
-		} else if( efun == MUL ) {
+		} else if( fun == MUL ) {
 			for( auto const& arg : args ) {
 				auto const& earg = expand(arg);
 				if( earg == ZERO ) {
@@ -203,7 +199,7 @@ std::string Smt::Solver::_make_fresh() & {
 				eargs.push_back(expand(arg));
 			}
 		}
-		return ::Exp(efun,std::move(eargs));
+		return ret;
 	}
 	if( auto let = p.let() ) {
 		auto [val,sort,body] = *let;

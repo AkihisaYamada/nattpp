@@ -3,17 +3,6 @@
 
 using namespace std;
 
-Exp Exp::_construct( initializer_list<Exp> list ) {
-	auto it = list.begin(), end = list.end();
-	if( it == end ) {
-		return Exp();
-	} else {
-		Exp fun = *it;
-		it++;
-		return Exp(fun,it,end);
-	}
-}
-
 static void skip_comment_line( istream& is ) {
 	is.get();
 	for(;;) {
@@ -74,37 +63,34 @@ void Exp::Reader::_fetch() {
 
 Opt<Exp> Exp::Reader::reads_exp() {
 	if( auto sym = reads_sym() ) {
-		return Exp(*sym);
+		return Exp(std::move(*sym));
 	}
 	if( auto key = reads_key() ) {// keys are treated as symbols
 		return Exp(*key);
 	}
 	if( opens() ) {
 		if( closes() ) {
-			return Exp();
+			return Exp("()");
 		}
-		auto const& fun = read_exp();
-		vector<Exp> args;
+		Exp ret = read_sym();
 		while( !closes() ) {
-			args.push_back(read_exp());
+			ret.args().push_back(read_exp());
 		}
-		return Exp(fun,std::move(args));
+		return ret;
 	}
 	return {};
 }
 
 std::ostream& operator<<(std::ostream& os, Exp const& e) {
-	if( auto sym = e.sym() ) {
-		os << *sym;
-	} else if( auto app = e.app() ) {
-		os << '(' << app->first;
-		for( auto arg : app->second ) {
-			os << ' ' << arg;
-		}
-		os << ')';
-	} else {
-		assert(false);
+	auto const& fun = e.fun();
+	auto const& args = e.args();
+	if( args.empty() ) {
+		return os << fun;
 	}
-	return os;
+	os << '(' << fun;
+	for( auto arg : e.args() ) {
+		os << ' ' << arg;
+	}
+	return os << ')';
 }
 

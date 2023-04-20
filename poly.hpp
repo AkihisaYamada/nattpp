@@ -136,34 +136,6 @@ public:
 	static int test();
 };
 
-
-inline Algebra::Intp<Poly> const Poly::ALGEBRA = Algebra::Intp<Poly>(
-	[]( std::string_view const& f, std::vector<Poly> const& args )->Poly{
-		if( f == "+" ) {
-			return sum(args);
-		}
-		if( f == "*" ) {
-			return prod(args);
-		}
-		if( f == "ite" ) {
-			if( args.size() != 3 ) {
-				throw Algebra::Error{"#arity-mismatch",f};
-			}
-			auto const& i = args[0].map(), & t = args[1].map(), & e = args[2].map();
-			if( i.size() != 1 || t.size() != 1 || e.size() != 1 ) {
-				throw Algebra::Error{"#ite-poly"};
-			}
-			auto vi = i.find({}), vt = t.find({}), ve = e.find({});
-			if( !vi || !vt || !ve ) {
-				throw Algebra::Error{"#ite-poly"};
-			}
-			return Smt::Exp(f,{*vi,*vt,*ve});
-		}
-		assert( args.size() == 0 );
-		return Smt::Exp(f);
-	}
-);
-
 std::ostream& operator<<( std::ostream& os, Poly::Vars const& vs );
 
 std::ostream& operator<<( std::ostream& os, Poly const& p );

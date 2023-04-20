@@ -35,19 +35,19 @@ private:
 public:
 	class Exp {
 		friend Smt;
-		using App = std::pair<Exp,std::vector<Exp>>;
+		using App = std::pair<std::string,std::vector<Exp>>;
 		using Let = std::tuple<Exp,Sort,std::function<Exp(Exp const&)>>;
 		using Lazy = std::function<Exp()>;
-		Sum<std::string,Mem<App>,Mem<Let>,Lazy> _un;
+		Sum<Mem<App>,Mem<Let>,Lazy> _un;
 		explicit Exp( _LET_tag const&, Exp const& val, std::string_view const& sort, std::function<Exp(Exp const&)> body ) :
 			_un( std::in_place_type<Mem<Let>>, val, sort, body ) {}
 	public:
-		Exp( const char* str ) : _un(std::in_place_type<std::string>,str) {}
-		Exp( std::string_view const& str ) : _un(std::in_place_type<std::string>,str) {}
-		Exp( int n ) : _un(std::to_string(n)) {}
-		Exp( Exp const& fun, std::initializer_list<Exp> const& args ) :
+		Exp( const char* str ) : _un(Mem<App>(App(str,{}))) {}
+		Exp( std::string_view const& str ) : _un(Mem<App>(App(str,{}))) {}
+		Exp( int n ) : _un(Mem<App>(App(std::to_string(n),{}))) {}
+		Exp( std::string_view const& fun, std::initializer_list<Exp> const& args ) :
 			_un(std::in_place_type<Mem<App>>,fun,args) {}
-		Exp( Exp const& fun, std::vector<Exp>&& args ) :
+		Exp( std::string_view const& fun, std::vector<Exp>&& args ) :
 			_un(std::in_place_type<Mem<App>>,fun,std::move(args)) {}
 		template<typename T> requires std::is_convertible_v<T,Lazy>
 		Exp( T const& lazy ) : _un(lazy) {}
@@ -80,12 +80,6 @@ public:
 		}
 		Exp& operator*=( Exp const& y ) & {
 			return *this = *this * y;
-		}
-		Opt<std::string> sym() && {
-			return std::move(_un).ref<std::string>();
-		}
-		Opt<std::string const&> sym() const& {
-			return _un.ref<std::string>();
 		}
 		auto app() && {
 			return OptMem<App>(std::move(_un).ref<Mem<App>>());

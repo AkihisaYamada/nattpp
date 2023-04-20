@@ -16,20 +16,11 @@ public:
 	public:
 		Intp( auto const& fun ) : std::function<T(std::string_view const&,std::vector<T>&&)>(fun) {}
 		T eval( Exp const& e ) const {
-			if( auto const& sym = e.sym() ) {
-				return (*this)(*sym,{});
+			std::vector<T> vargs;
+			for( auto const& arg : e.args() ) {
+				vargs.push_back(eval(arg));
 			}
-			if( auto const& app = e.app() ) {
-				auto const& [fun,args] = *app;
-				auto fsym = fun.sym();
-				if( !fsym ) throw Error("#higher-order");
-				std::vector<T> eargs;
-				for( auto const& arg : args ) {
-					eargs.push_back(eval(arg));
-				}
-				return (*this)(*fsym,std::move(eargs));
-			}
-			assert(false);
+			return (*this)(e.fun(),std::move(vargs));
 		}
 	};
 	static const Intp<Exp> TERM;
@@ -59,28 +50,20 @@ public:
 
 template<typename T>
 static T _intp_inner( Algebra::Intp<T> const& intp, Exp const& e, std::vector<T> const& vs ) {
-	if( auto sym = e.sym() ) {
-		return intp(*sym,{});
+	auto const& fun = e.fun();
+	auto const& args = e.args();
+	if( fun == ":in" ) {// placeholder for applied variable arguments
+		assert( args.size() == 1 );
+		assert( args[0].args().size() == 0 );
+		int i = stoi(args[0].fun());
+		assert( i < vs.size() );
+		return vs[i];
 	}
-	if( auto app = e.app() ) {
-		auto const& [fun,args] = *app;
-		if( fun == ":in" ) {// placeholder for applied variable arguments
-			assert( args.size() == 1 );
-			auto s = args[0].sym();
-			assert(s);
-			int i = stoi(*s);
-			assert( i < vs.size() );
-			return vs[i];
-		}
-		auto const& sym = fun.sym();
-		assert(sym);
-		std::vector<T> rargs;
-		for( auto const& arg : args ) {
-			rargs.push_back(_intp_inner(intp,arg,vs));
-		}
-		return intp(*sym,std::move(rargs));
+	std::vector<T> vargs;
+	for( auto const& arg : args ) {
+		vargs.push_back(_intp_inner(intp,arg,vs));
 	}
-	assert(false);
+	return intp(fun,std::move(vargs));
 }
 
 template<typename T>
@@ -102,10 +85,9 @@ public:
 
 std::ostream& operator<<( std::ostream& os, Deriver::Map const& subst );
 
-class Deriver::Template {
-	Exp _exp;
+class Deriver::Template : public Exp {
 public:
-	Template( Exp const& exp ) : _exp(exp) {}
+	Template( Exp const& exp ) : Exp(exp) {}
 	Deriver::Map deriver( Trs::Sig const& sig, Smt::Solver& solver );
 };
 

@@ -97,13 +97,13 @@ public:
 	 */
 	Mem( Mem<T,false> const& org ) requires _nullable : _ptr(org._ptr) {}
 	Mem( Mem const& other ) = default;
-	/**
-	 * @brief Constructing a shared object.
-	 * 
-	 * @param args arguments to the object constructor
-	 */
+	Mem( Mem && other ) : _ptr(std::move(other._ptr)) {}
+	Mem& operator=( Mem && other ) & {
+		_ptr = std::move(other._ptr);
+		return *this;
+	}
 	template<typename... Ts>
-	explicit Mem(Ts... args) : _ptr(std::make_shared<T>(args...)) {}
+	explicit Mem(Ts... args) : _ptr(std::make_shared<T>(std::forward<Ts>(args)...)) {}
 	/**
 	 * @brief Optional non-null object can be seen as a nullable object
 	 */

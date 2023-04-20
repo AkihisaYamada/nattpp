@@ -26,11 +26,11 @@ static bool _process_number( string_view const& key, Exp::Reader& eis, int& num 
 	}
 	auto const& s = eis.read_sym();
 	if( num != 0 ) {
-		throw Problem::Error{"#duplicate-attr",{":number",{num,s}}};
+		throw Problem::Error{"#duplicate-attr",":number",num,s};
 	}
 	num = stoi(s);
 	if( num <= 0 || 10 < num ) {
-		throw Problem::Error{"#out-of-range",{":number",num}};
+		throw Problem::Error{"#out-of-range",":number",num};
 	}
 	return true;
 }

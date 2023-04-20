@@ -16,75 +16,51 @@ class Exp {
 	/**
 	 * @brief Application. The pair of the function and the vector of arguments.
 	 */
-	typedef std::pair<Exp,std::vector<Exp>> App;
-	Sum<std::string,Mem<App>> _un;
-	static Exp _construct( std::initializer_list<Exp> list );
+	typedef std::pair<std::string,std::vector<Exp>> App;
+	Mem<App> _mem;
 public:
 	struct Error;
 	class Reader;
 	/** @brief copy constructor */
 	Exp( Exp const& other ) = default;
 	/** @brief move constructor */
-	Exp( Exp && other ) = default;
-	/** @brief "nil" */
-	explicit Exp() {}
-	/** @brief Symbol */
-	Exp( std::string && str ) : _un(std::move(str)) {}
-	/** @brief Symbol */
-	Exp( std::string const& str ) : _un(str) {}
-	/** @brief Symbol */
-	Exp( std::string_view const& str ) : _un(std::in_place_type<std::string>,str) {}
-	/** @brief Symbol */
-	Exp( char const* str ) : _un(str) {}
+	Exp( Exp && other ) : _mem(std::move(other._mem)) {}
 	/** @brief Number as symbol */
-	Exp( int n ) : _un(std::to_string(n)) {}
+	Exp( int n ) : _mem(App(std::to_string(n),{})) {}
+	/** @brief Symbol */
+	template<typename S>
+		requires std::is_constructible_v<std::string,S>
+	Exp( S const& fun ) : _mem(App(fun,{})) {}
 	/** @brief Application */
-	explicit Exp( Exp const& fun, std::vector<Exp>&& args ) :
-		_un(std::in_place_type<Mem<App>>,fun,std::move(args)) {}
-	/** @brief Application */
-	explicit Exp( Exp const& fun, std::initializer_list<Exp> args ) :
-		_un(std::in_place_type<Mem<App>>,fun,args) {}
-	/** @brief Application */
-	template<typename It> requires std::input_iterator<It>
-	explicit Exp( Exp const& fun, It begin, It end ) :
-		_un(std::in_place_type<Mem<App>>,std::piecewise_construct,std::tuple<Exp>(fun),std::tuple<It,It>(begin,end)) {}
-	/** @brief For handy construction of applications. */
-	Exp( std::initializer_list<Exp> list ) : Exp(_construct(list)) {}
+	template<typename S, typename... Args> requires (
+		std::is_constructible_v<std::string,S> &&
+		(std::is_constructible_v<Exp,Args> && ...)
+	)
+	explicit Exp( S const& fun, Exp const& a1, Args const&... args ) :
+		_mem(App(fun,{a1,args...})) {}
 	/**
-	 * @brief Fast conditional reference to the string of a symbol expression.
-	 * @return r such that (bool)r is true iff this is a symbol, and *r is the string.
+	 * @brief accesses the function
 	 */
-	Opt<std::string const&> sym() const & {
-		return _un.ref<std::string>();
+	std::string& fun() & {
+		return _mem->first;
 	}
 	/**
-	 * @brief Conditional access to the string of a symbol expression.
-	 * @return an option that contains the string iff this is a symbol.
+	 * @brief accesses the function
 	 */
-	Opt<std::string> sym() && {
-		return std::move(_un).ref<std::string>();
+	std::string const& fun() const & {
+		return _mem->first;
 	}
 	/**
-	 * @brief Fast conditional reference to the body of an application.
+	 * @brief accesses the arguments
 	 */
-	Opt<App&> app() & {
-		if( auto p = _un.ref<Mem<App>>() ) {
-			return **p;
-		} else {
-			return {};
-		}
-	}
+	std::vector<Exp>& args() & {
+		return _mem->second;
+	};
 	/**
-	 * @brief Fast conditional reference to the body of an application.
+	 * @brief accesses the arguments
 	 */
-	auto app() const & {
-		return OptMem<App>(_un.ref<Mem<App>>());
-	}
-	/**
-	 * @brief Conditional reference to the body of an application.
-	 */
-	auto app() const && {
-		return OptMem<App>(std::move(_un).ref<Mem<App>>());
+	std::vector<Exp> const& args() const & {
+		return _mem->second;
 	};
 	Exp& operator=( Exp && other ) & = default;
 	Exp& operator=( Exp const& other ) & = default;

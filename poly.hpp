@@ -62,40 +62,10 @@ public:
 	Map<Vars,Smt::Exp> const& map() const & {
 		return _map;
 	}
-	Poly operator+( Poly const& p2 ) const & {
-		Poly ret;
-		iter2(_map,p2._map,[&]( auto& it1, auto& it2 ){
-			ret._map.insert( it1->first, it1->second + it2->second );
-		},[&]( auto& it1 ){
-			ret._map.insert(*it1);
-		},[&]( auto& it2 ){
-			ret._map.insert(*it2);
-		});
-		return std::move(ret);
-	}
-	Poly& operator+=( Poly const& p2 ) & {
-		iter2(_map,p2._map,[&]( auto it1, auto it2 ){
-			it1->second += it2->second;
-		},[&]( auto it1 ){
-		},[&]( auto it2 ){
-			_map.insert(*it2);
-		});
-		return *this;
-	}
-	Poly monom_mult( Smt::Exp const& c, Vars const& vs ) const {
-		Poly ret;
-		for( auto& [vs1,c1] : _map ) {
-			ret._map.insert(vs1 * vs, c * c1);
-		}
-		return std::move(ret);
-	}
-	Poly operator*( Poly const& p2 ) const {
-		Poly ret;
-		for( auto const& [vs2,c2] : p2._map ) {
-			ret += monom_mult(c2,vs2);
-		}
-		return std::move(ret);
-	}
+	Poly operator+( Poly const& p2 ) const &;
+	Poly& operator+=( Poly const& p2 ) &;
+	Poly monom_mult( Smt::Exp const& c, Vars const& vs ) const;
+	Poly operator*( Poly const& p2 ) const;
 	Poly operator*=( Poly const& p2 ) & {
 		return *this = *this * p2;
 	}
@@ -127,7 +97,7 @@ public:
 		return std::move(ret);
 	}
 	static Poly prod( std::vector<Poly> const& args ) {
-		Poly ret;
+		Poly ret = 1;
 		for( auto const& arg : args ) {
 			ret *= arg;
 		}

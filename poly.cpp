@@ -24,7 +24,40 @@ ostream& operator<<( ostream& os, Poly const& p ) {
 	}
 	return os;
 }
-
+Poly Poly::operator+( Poly const& p2 ) const & {
+	Poly ret;
+	iter2(_map,p2._map,[&]( auto& it1, auto& it2 ){
+		ret._map.insert( it1->first, it1->second + it2->second );
+	},[&]( auto& it1 ){
+		ret._map.insert(*it1);
+	},[&]( auto& it2 ){
+		ret._map.insert(*it2);
+	});
+	return std::move(ret);
+}
+Poly& Poly::operator+=( Poly const& p2 ) & {
+	iter2(_map,p2._map,[&]( auto it1, auto it2 ){
+		it1->second += it2->second;
+	},[&]( auto it1 ){
+	},[&]( auto it2 ){
+		_map.insert(*it2);
+	});
+	return *this;
+}
+Poly Poly::monom_mult( Smt::Exp const& c, Vars const& vs ) const {
+	Poly ret;
+	for( auto& [vs1,c1] : _map ) {
+		ret._map.insert(vs1 * vs, c * c1);
+	}
+	return std::move(ret);
+}
+Poly Poly::operator*( Poly const& p2 ) const {
+	Poly ret;
+	for( auto const& [vs2,c2] : p2._map ) {
+		ret += monom_mult(c2,vs2);
+	}
+	return std::move(ret);
+}
 
 Algebra::Intp<Poly> const Poly::ALGEBRA = Algebra::Intp<Poly>(
 	[]( std::string_view const& f, std::vector<Poly> const& args )->Poly{
@@ -84,7 +117,9 @@ int Poly::test() {
 	sig.insert("a",0);
 	auto z3 = Smt::Z3(cout);
 	auto der = temp.deriver(sig,z3);
-	cout << der.subst(Exp{"f",Exp{"g","x"},"a"}) << endl;
-	cout << der.derive(Poly::ALGEBRA).eval(Exp{"f",Exp{"g","x"},"a"}) << endl;
+	e = Exp{"f",Exp{"g","x"},"a"};
+	cout << der.subst(e) << endl;
+	cout << der << e << endl;
+	cout << der.derive(Poly::ALGEBRA).eval(e) << endl;
 	return 0;
 }

@@ -1,8 +1,8 @@
-#include"algebra.hpp"
+#include"template.hpp"
 
 using namespace std;
 
-const Algebra::Intp<Exp> Algebra::TERM = {
+Algebra::Intp<Exp> const Algebra::TERM = {
 	[](std::string_view const& f, std::vector<Exp>&& args )->Exp{
 		if( args.empty() ) {
 			return f;
@@ -21,6 +21,21 @@ ostream& operator<<( ostream& os, Deriver::Map const& subst ) {
 	return os << ']';
 }
 
+static void arity_check( bool test, Exp const& exp ) {
+	if( !test ) {
+		throw Algebra::Error{"#arity-mismatch",exp};
+	}
+}
+
+static Smt::BaseSort base_sort_of( Exp const& exp ) {
+	if( exp == "int" ) {
+		return Smt::INT;
+	}
+	if( exp == "bool" ) {
+		return Smt::BOOL;
+	}
+	throw Template::Error("#unknown-sort",exp);
+}
 static Exp derive_inner( string_view const& f, Trs::Rank const& rank, Smt::Solver& solver, Exp const& exp, int pos ) {
 	auto const& fun = exp.fun();
 	auto const& args = exp.args();
@@ -28,10 +43,26 @@ static Exp derive_inner( string_view const& f, Trs::Rank const& rank, Smt::Solve
 		return Exp(":in",pos);
 	}
 	if( fun == "var" ) {
-		if( args.size() != 1 ) {
-			throw Algebra::Error{"#arity-mismatch",exp};
+		auto it = args.begin();
+		arity_check( it != args.end(), exp );
+		Smt::BaseSort base = base_sort_of(*it);
+		arity_check( it->args().empty(), *it );
+		it++;
+		auto const& ret = solver.declare_fresh(base);
+		while( it != args.end() ) {
+			if( *it == ":constrain" ) {
+				it++;
+				if( it == args.end() ) {
+					throw Algebra::Error{"#missing-exp",exp};
+				}
+				Deriver::Map map = {{"_",ret}};
+				solver.ass(Smt::ALGEBRA.eval(map.subst(*it)));
+				it++;
+			} else {
+				throw Algebra::Error{"#malformed",exp};
+			}
 		}
-		return solver.declare_fresh(args[0].fun());
+		return ret;
 	}
 	if( fun == "args" ) {
 		if( args.size() != 2 ) {
@@ -65,7 +96,8 @@ static Exp derive_inner( string_view const& f, Trs::Rank const& rank, Smt::Solve
 	}
 	return ret;
 }
-Deriver::Map Deriver::Template::deriver( Trs::Sig const& sig, Smt::Solver& solver ) {
+
+Deriver::Map Template::deriver( Trs::Sig const& sig, Smt::Solver& solver ) const {
 	Deriver::Map ret;
 	for( auto [f,rank] : sig ) {
 		ret.insert(f,derive_inner(f,rank,solver,*this,0));
@@ -73,4 +105,25 @@ Deriver::Map Deriver::Template::deriver( Trs::Sig const& sig, Smt::Solver& solve
 	return ret;
 }
 
+Template const Template::SUM = Exp{
+	"arity",
+	Exp{"0",Exp{"var","int",":constrain",Exp{">=","_",0}}},
+	Exp{"1",
+		Exp{"+",
+			Exp{"*",
+				Exp{"var","int",":constrain",Exp{">","_",0}},
+				"arg"
+			},
+			Exp{"var","int",":constrain",Exp{">=","_",0}}
+		},
+	},
+	Exp{"t",
+		Exp{"+",
+			Exp{"args","+",
+				Exp{"*",Exp{"ite",Exp{"var","bool"},2,1},"arg"}
+			},
+			Exp{"var","int",":constrain",Exp{">=","_",0}}
+		}
+	}
+};
 

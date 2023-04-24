@@ -1,8 +1,9 @@
 #include"poly.hpp"
+#include"template.hpp"
 
 using namespace std;
 
-static ostream& put_monom( ostream& os, pair<Poly::Vars,Smt::Exp> const& m ) {
+static ostream& put_monom( ostream& os, pair<Poly::Vars,Smt::PreExp> const& m ) {
 	os << m.second;
 	for( auto const& var : m.first.vars() ) {
 		os << " * " << var;
@@ -44,7 +45,7 @@ Poly& Poly::operator+=( Poly const& p2 ) & {
 	});
 	return *this;
 }
-Poly Poly::monom_mult( Smt::Exp const& c, Vars const& vs ) const {
+Poly Poly::monom_mult( Smt::PreExp const& c, Vars const& vs ) const {
 	Poly ret;
 	for( auto& [vs1,c1] : _map ) {
 		ret._map.insert(vs1 * vs, c * c1);
@@ -57,6 +58,38 @@ Poly Poly::operator*( Poly const& p2 ) const {
 		ret += monom_mult(c2,vs2);
 	}
 	return std::move(ret);
+}
+
+static Smt::PreExp order_sub( Poly const& p1, Poly const& p2 ) {
+	Smt::PreExp ge = Smt::TRUE;
+	iter2(p1.map(),p2.map(),[&]( auto it1, auto it2 ){
+		switch( it1->first.range() ) {
+			case Poly::NONE: return;
+			case Poly::POS: ge = ge && it1->second.ge(it2->second); return;
+			case Poly::NEG: ge = ge && it2->second.ge(it1->second); return;
+			case Poly::FULL: ge = ge && it1->second.eq(it2->second); return;
+		}
+	},[&]( auto it1 ){
+		if( it1->first.range() != Poly::POS ) {
+			ge = ge && it1->second.eq(0);
+		}
+	},[&]( auto it2 ){
+		if( it2->first.range() != Poly::NEG ) {
+			ge = ge && it2->second.eq(0);
+		}
+	});
+	return ge;
+}
+
+Smt::PreExp Poly::ge( Poly const& p2 ) const {
+	return order_sub(*this,p2) && (*this)[{}].ge(p2[{}]);
+}
+Smt::PreExp Poly::order( Poly const& p2 ) const {
+	return Smt::Let(Smt::BOOL) ^ order_sub(*this,p2) ^ [&]( auto const& val ) {
+		auto const& c1 = (*this)[{}];
+		auto const& c2 = p2[{}];
+		return ( val && c1.ge(c2), val && c1.gt(c2) );
+	};
 }
 
 Algebra::Intp<Poly> const Poly::ALGEBRA = Algebra::Intp<Poly>(
@@ -79,12 +112,13 @@ Algebra::Intp<Poly> const Poly::ALGEBRA = Algebra::Intp<Poly>(
 			if( !vi || !vt || !ve ) {
 				throw Algebra::Error{"#ite-poly"};
 			}
-			return Smt::Exp(f,{*vi,*vt,*ve});
+			return Smt::If(*vi) ^ *vt ^ *ve;
 		}
 		assert( args.size() == 0 );
-		return Smt::Exp(f);
+		return Smt::PreExp(f);
 	}
 );
+
 
 int Poly::test() {
 	Deriver::Map subst = {{"x",Exp{"g","y"}}};
@@ -102,24 +136,16 @@ int Poly::test() {
 	Poly x = Poly::Var("x",Poly::POS);
 	Poly y = Poly::Var("y",Poly::NEG);
 	cout << (x + 5) * (y * 3 + 2) << endl;
-	cout << (x * Smt::Exp("c") + Smt::Exp("d")).ge(x * 5 + 3) << endl;
-
-	Deriver::Template temp = Exp{
-		"arity",
-		Exp{"0",Exp{"var","int"}},
-		Exp{"1",Exp{"+",Exp{"var","int"},Exp{"*",Exp{"var","int"},"arg"}}},
-		Exp{"t",Exp{"+",Exp{"args","+",Exp{"*",Exp{"ite",Exp{"var","bool"},1,0},"arg"}},Exp{"var","int"}}}
-	};
-	cout << temp << endl;
+	cout << (x * Smt::PreExp("c") + Smt::PreExp("d")).ge(x * 5 + 3) << endl;
 	Trs::Sig sig;
 	sig.insert("f",2);
 	sig.insert("g",1);
 	sig.insert("a",0);
-	auto z3 = Smt::Z3(cout);
-	auto der = temp.deriver(sig,z3);
+	auto z3 = Smt::Z3(Smt::QF_LIA,cout);
+	auto der = Template::SUM.deriver(sig,z3);
 	e = Exp{"f",Exp{"g","x"},"a"};
-	cout << der.subst(e) << endl;
 	cout << der << e << endl;
+	cout << der.subst(e) << endl;
 	cout << der.derive(Poly::ALGEBRA).eval(e) << endl;
 	return 0;
 }

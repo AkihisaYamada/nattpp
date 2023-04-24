@@ -1,27 +1,29 @@
 #ifndef _POLY_HPP
 #define _POLY_HPP
 #include"util.hpp"
-#include"algebra.hpp"
+#include"smt.hpp"
 #include"map.hpp"
 
 class Poly {
 public:
-	enum Range { POS, NEG, FULL };
+	enum Range { NONE, POS, NEG, FULL };
 	struct Var : std::string {
 		Range range;
 		Var( std::string_view const& str, Range range ) : std::string(str), range(range) {}
 	};
 	static Range range_mult( Range r1, Range r2 ) {
 		switch(r1) {
+		case NONE:
 		case POS:
 			switch(r2) {
+			case NONE: return NONE;
 			case POS: return POS;
 			case NEG: return NEG;
 			default: return FULL;
 			}
 		case NEG:
 			switch(r2) {
-			case POS: return NEG;
+			case NONE: case POS: return NEG;
 			case NEG: return POS;
 			default: return FULL;
 			}
@@ -34,8 +36,11 @@ public:
 		Range _range;
 		Vars( std::multiset<Var>&& org, Range range ) : _vars(std::move(org)), _range(range) {}
 	public:
-		Vars() : _range(POS) {}
+		Vars() : _range(NONE) {}
 		Vars( Var const& v ) : _vars{v}, _range(v.range) {}
+		Range range() const {
+			return _range;
+		}
 		std::multiset<Var> const& vars() const {
 			return _vars;
 		}
@@ -53,41 +58,30 @@ public:
 		friend Poly;
 	};
 private:
-	Map<Vars,Smt::Exp> _map;
+	Map<Vars,Smt::PreExp> _map;
 public:
 	Poly() {}
-	Poly( Smt::Exp const& c ) : _map{{{},c}} {}
+	Poly( Smt::PreExp const& c ) : _map{{{},c}} {}
 	Poly( int i ) : _map{{{},i}} {}
 	Poly( Var const& v ) : _map{{v,1}} {}
-	Map<Vars,Smt::Exp> const& map() const & {
+	Map<Vars,Smt::PreExp> const& map() const & {
 		return _map;
+	}
+	Smt::PreExp operator[]( Vars const& vars ) const& {
+		if( auto const& c = _map.find(vars) ) {
+			return *c;
+		}
+		return 0;
 	}
 	Poly operator+( Poly const& p2 ) const &;
 	Poly& operator+=( Poly const& p2 ) &;
-	Poly monom_mult( Smt::Exp const& c, Vars const& vs ) const;
+	Poly monom_mult( Smt::PreExp const& c, Vars const& vs ) const;
 	Poly operator*( Poly const& p2 ) const;
 	Poly operator*=( Poly const& p2 ) & {
 		return *this = *this * p2;
 	}
-	Smt::Exp ge( Poly const& p2 ) const {
-		Smt::Exp ge = Smt::TRUE;
-		iter2(_map,p2._map,[&]( auto it1, auto it2 ){
-			switch( it1->first._range ) {
-				case POS: ge = ge && it1->second.ge(it2->second); return;
-				case NEG: ge = ge && it2->second.ge(it1->second); return;
-				case FULL: ge = ge && it1->second.eq(it2->second); return;
-			}
-		},[&]( auto it1 ){
-			if( it1->first._range != POS ) {
-				ge = ge && it1->second.eq(0);
-			}
-		},[&]( auto it2 ){
-			if( it2->first._range != NEG ) {
-				ge = ge && it2->second.eq(0);
-			}
-		});
-		return ge;
-	}
+	Smt::PreExp ge( Poly const& p2 ) const;
+	Smt::PreExp order( Poly const& p2 ) const;
 	static Algebra::Intp<Poly> const ALGEBRA;
 	static Poly sum( std::vector<Poly> const& args ) {
 		Poly ret;

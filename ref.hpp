@@ -98,6 +98,10 @@ public:
 	Mem( Mem<T,false> const& org ) requires _nullable : _ptr(org._ptr) {}
 	Mem( Mem const& other ) = default;
 	Mem( Mem && other ) : _ptr(std::move(other._ptr)) {}
+	Mem& operator=( Mem const& other ) & {
+		_ptr = other._ptr;
+		return *this;
+	}
 	Mem& operator=( Mem && other ) & {
 		_ptr = std::move(other._ptr);
 		return *this;

@@ -12,32 +12,36 @@
 #include"ref.hpp"
 #include"sum.hpp"
 
-class Exp {
+class Exp;
+
+struct ExpView {
+	virtual Exp const& view_exp() const = 0;
+};
+
+class Exp : public ExpView {
 	/**
 	 * @brief Application. The pair of the function and the vector of arguments.
 	 */
 	typedef std::pair<std::string,std::vector<Exp>> App;
 	Mem<App> _mem;
+	static const Mem<App> _EMPTY;
 public:
 	struct Error;
 	class Reader;
+	Exp() : _mem(_EMPTY) {}
 	/** @brief copy constructor */
 	Exp( Exp const& other ) = default;
 	/** @brief move constructor */
 	Exp( Exp && other ) : _mem(std::move(other._mem)) {}
 	/** @brief Number as symbol */
 	Exp( int n ) : _mem(App(std::to_string(n),{})) {}
-	/** @brief Symbol */
-	template<typename S>
-		requires std::is_constructible_v<std::string,S>
-	Exp( S const& fun ) : _mem(App(fun,{})) {}
 	/** @brief Application */
 	template<typename S, typename... Args> requires (
 		std::is_constructible_v<std::string,S> &&
 		(std::is_constructible_v<Exp,Args> && ...)
 	)
-	explicit Exp( S const& fun, Exp const& a1, Args const&... args ) :
-		_mem(App(fun,{a1,args...})) {}
+	Exp( S const& fun, Args const&... args ) :
+		_mem(App(fun,{args...})) {}
 	/**
 	 * @brief accesses the function
 	 */
@@ -62,10 +66,21 @@ public:
 	std::vector<Exp> const& args() const & {
 		return _mem->second;
 	};
-	Exp& operator=( Exp && other ) & = default;
-	Exp& operator=( Exp const& other ) & = default;
-	bool operator==( Exp const& other ) const = default;
+	Exp& operator=( Exp && other ) & {
+		_mem = std::move(other._mem);
+		return *this;
+	}
+	Exp& operator=( Exp const& other ) & {
+		_mem = other._mem;
+		return *this;
+	}
+	bool operator==( Exp const& other ) const {
+		return _mem == other._mem;
+	}
+	Exp const& view_exp() const override { return *this; }
 };
+
+inline const Mem<Exp::App> Exp::_EMPTY = Mem<App>(Exp::App("",{}));
 
 struct Exp::Error : std::exception, Exp {
 	using Exp::Exp;
@@ -161,6 +176,6 @@ public:
 	}
 };
 
-std::ostream& operator<<( std::ostream& os, Exp const& e );
+std::ostream& operator<<( std::ostream& os, ExpView const& e );
 
 #endif

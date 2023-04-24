@@ -81,14 +81,14 @@ Opt<Exp> Exp::Reader::reads_exp() {
 	return {};
 }
 
-std::ostream& operator<<(std::ostream& os, Exp const& e) {
-	auto const& fun = e.fun();
-	auto const& args = e.args();
+std::ostream& operator<<(std::ostream& os, ExpView const& e) {
+	auto const& fun = e.view_exp().fun();
+	auto const& args = e.view_exp().args();
 	if( args.empty() ) {
 		return os << fun;
 	}
 	os << '(' << fun;
-	for( auto arg : e.args() ) {
+	for( auto arg : args ) {
 		os << ' ' << arg;
 	}
 	return os << ')';

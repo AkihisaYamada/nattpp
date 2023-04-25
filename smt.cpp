@@ -181,6 +181,19 @@ Smt::PostExp Smt::Cdr( PostExp const& arg ) {
 	return args[1];
 }
 
+Smt::PostExp Smt::PostExp::operator*( PostExp const& arg ) const {
+	if( *this == ZERO ) {
+		return *this;
+	}
+	if( *this == ONE || arg == ZERO ) {
+		return arg;
+	}
+	if( arg == ONE ) {
+		return *this;
+	}
+	return Exp{MUL,_exp,arg._exp};
+}
+
 Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 	if( auto app = p.app() ) {
 		auto const& [fun,args] = *app;
@@ -251,19 +264,33 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 				case 1: return eargs[0];
 			}
 		} else if( fun == MUL ) {
-			for( auto const& arg : args ) {
-				auto const& earg = expand(arg)._exp;
-				if( earg == ZERO ) {
-					return ZERO;
-				}
-				if( earg != ONE ) {
-					eargs.push_back(earg);
-				}
+			assert( args.size() == 2 );
+			auto const& earg1 = expand(args[0]);
+			if( earg1 == ZERO ) {
+				return ZERO;
 			}
-			switch( eargs.size() ) {
-				case 0: return ONE;
-				case 1: return eargs[0];
+			auto const& earg2 = expand(args[1]);
+			if( earg2 == ZERO || earg1 == ONE ) {
+				return earg2;
 			}
+			if( earg2 == ONE ) {
+				return earg1;
+			}
+			if( earg1._exp.fun() == ITE ) {
+				auto const& ite_args = earg1._exp.args();
+				assert( ite_args.size() == 3 );
+				PostExp t = PostExp(ite_args[1]) * earg2;
+				PostExp e = PostExp(ite_args[2]) * earg2;
+				return Exp{ITE,ite_args[0],t._exp,e._exp};
+			}
+			if( earg2._exp.fun() == ITE ) {
+				auto const& ite_args = earg2._exp.args();
+				assert( ite_args.size() == 3 );
+				PostExp t = earg1 * ite_args[1];
+				PostExp e = earg1 * ite_args[2];
+				return Exp{ITE,ite_args[0],t._exp,e._exp};
+			}
+			return Exp{MUL,earg1._exp,earg2._exp};
 		} else if( fun == CAR ) {
 			assert( args.size() == 1 );
 			return Car(expand(args[0]));

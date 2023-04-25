@@ -110,10 +110,7 @@ Template const Template::SUM = Exp{
 	Exp{"0",Exp{"var","int",":constrain",Exp{">=","_",0}}},
 	Exp{"1",
 		Exp{"+",
-			Exp{"*",
-				Exp{"var","int",":constrain",Exp{">","_",0}},
-				"arg"
-			},
+			Exp{"*",Exp{"ite",Exp{"var","bool"},2,1},"arg"},
 			Exp{"var","int",":constrain",Exp{">=","_",0}}
 		},
 	},

@@ -68,6 +68,7 @@ public:
 		PostExp() {}
 		PostExp( PostExp const& other ) : _exp(other._exp) {}
 		PostExp( PostExp && other ) : _exp(std::move(other._exp)) {}
+		PostExp operator *( PostExp const& arg ) const;
 		Exp const& view_exp() const override { return _exp; }
 		PostExp& disj_eq( PostExp const& arg ) &;
 		PostExp& conj_eq( PostExp const& arg ) &;

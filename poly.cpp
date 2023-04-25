@@ -92,6 +92,15 @@ Smt::PreExp Poly::order( Poly const& p2 ) const {
 	};
 }
 
+Algebra::Intp<Poly> const Poly::VAR_INTP = Algebra::Intp<Poly>(
+	[]( std::string_view const& f, std::vector<Poly> const& args )->Poly{
+		if( !args.empty() ) {
+			throw Poly::Error("#var-intp");
+		}
+		return Poly::Var(f,Poly::POS);
+	}
+);
+
 Algebra::Intp<Poly> const Poly::ALGEBRA = Algebra::Intp<Poly>(
 	[]( std::string_view const& f, std::vector<Poly> const& args )->Poly{
 		if( f == "+" ) {
@@ -102,15 +111,15 @@ Algebra::Intp<Poly> const Poly::ALGEBRA = Algebra::Intp<Poly>(
 		}
 		if( f == "ite" ) {
 			if( args.size() != 3 ) {
-				throw Algebra::Error{"#arity-mismatch",f};
+				throw Poly::Error{"#arity-mismatch",f};
 			}
 			auto const& i = args[0].map(), & t = args[1].map(), & e = args[2].map();
 			if( i.size() != 1 || t.size() != 1 || e.size() != 1 ) {
-				throw Algebra::Error{"#ite-poly"};
+				throw Poly::Error{"#ite-poly"};
 			}
 			auto vi = i.find({}), vt = t.find({}), ve = e.find({});
 			if( !vi || !vt || !ve ) {
-				throw Algebra::Error{"#ite-poly"};
+				throw Poly::Error{"#ite-poly"};
 			}
 			return Smt::If(*vi) ^ *vt ^ *ve;
 		}
@@ -132,7 +141,7 @@ int Poly::test() {
 	};
 	auto e = Exp{"f",Exp{"a","x"},Exp{"b","x"}};
 	cout << e << hsubst << " = " << hsubst.subst(e) << endl;
-	cout << hsubst.derive(Poly::ALGEBRA).eval(e) << endl;
+	cout << hsubst.derive(Poly::ALGEBRA,Poly::VAR_INTP).eval(e) << endl;
 	Poly x = Poly::Var("x",Poly::POS);
 	Poly y = Poly::Var("y",Poly::NEG);
 	cout << (x + 5) * (y * 3 + 2) << endl;
@@ -146,6 +155,6 @@ int Poly::test() {
 	e = Exp{"f",Exp{"g","x"},"a"};
 	cout << der << e << endl;
 	cout << der.subst(e) << endl;
-	cout << der.derive(Poly::ALGEBRA).eval(e) << endl;
+	cout << der.derive(Poly::ALGEBRA,Poly::VAR_INTP).eval(e) << endl;
 	return 0;
 }

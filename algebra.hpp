@@ -48,15 +48,20 @@ public:
 	class Map;
 private:
 	template<typename T>
-	T _intp( Algebra::Intp<T> const& alg, std::string_view const& f, std::vector<T>&& args ) const;
+	T _intp(
+		Algebra::Intp<T> const& intp,
+		Algebra::Intp<T> const& default_intp,
+		std::string_view const& f,
+		std::vector<T>&& args
+	) const;
 	Algebra::Intp<Exp> const _SUBST;
 public:
-	Deriver() : _SUBST(derive(Algebra::TERM)) {}
+	Deriver() : _SUBST(derive(Algebra::TERM,Algebra::TERM)) {}
 	virtual Opt<Exp const&> find( std::string_view const& ) const = 0;
 	template<typename T>
-	Algebra::Intp<T> derive( Algebra::Intp<T> const& intp ) & {
+	Algebra::Intp<T> derive( Algebra::Intp<T> const& intp, Algebra::Intp<T> const& default_intp ) & {
 		return [&]( std::string_view const& f, std::vector<T>&& args ){
-			return _intp(intp,f,std::move(args));
+			return _intp(intp,default_intp,f,std::move(args));
 		};
 	}
 	Exp subst( Exp const& exp ) const {
@@ -65,11 +70,16 @@ public:
 };
 
 template<typename T>
-T Deriver::_intp( Algebra::Intp<T> const& intp, std::string_view const& f, std::vector<T>&& vs ) const {
+T Deriver::_intp(
+	Algebra::Intp<T> const& intp,
+	Algebra::Intp<T> const& default_intp,
+	std::string_view const& f,
+	std::vector<T>&& vs
+) const {
 	if( auto e = find(f) ) {
 		return _intp_inner(intp,*e,vs);
 	}
-	return intp(f,std::move(vs));
+	return default_intp(f,std::move(vs));
 }
 
 class Deriver::Map : public ::Map<std::string,Exp>, public Deriver {

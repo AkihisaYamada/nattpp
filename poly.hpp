@@ -6,6 +6,9 @@
 
 class Poly {
 public:
+	struct Error : Exp::Error {
+		using Exp::Error::Error;
+	};
 	enum Range { NONE, POS, NEG, FULL };
 	struct Var : std::string {
 		Range range;
@@ -83,6 +86,7 @@ public:
 	Smt::PreExp ge( Poly const& p2 ) const;
 	Smt::PreExp order( Poly const& p2 ) const;
 	static Algebra::Intp<Poly> const ALGEBRA;
+	static Algebra::Intp<Poly> const VAR_INTP;
 	static Poly sum( std::vector<Poly> const& args ) {
 		Poly ret;
 		for( auto const& arg : args ) {

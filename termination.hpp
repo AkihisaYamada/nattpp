@@ -27,7 +27,7 @@ MonoProc::MonoProc(
 	Smt::Solver& solver
 ) : rules(rules), used(used), ords(rules.size()), solver(solver),
 	deriver(temp.deriver(sig,solver)),
-	intp(deriver.derive(Poly::ALGEBRA)) {
+	intp(deriver.derive(Poly::ALGEBRA,Poly::VAR_INTP)) {
 	for( size_t i : used ) {
 		auto const& ord = solver.expand(
 			Smt::Let((Smt::BOOL,Smt::BOOL)) ^ intp.eval(rules[i].first).order(intp.eval(rules[i].second)) ^ []( Smt::PreExp const& val ){

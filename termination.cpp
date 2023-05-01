@@ -1,18 +1,15 @@
 #include"termination.hpp"
 using namespace std;
 
-MonoProc::MonoProc(
-	Trs::Sig const& sig,
+RuleRemover::RuleRemover(
+	TermOrder& order,
 	Trs::Rules& rules,
 	std::set<size_t>& used,
-	Template const& temp,
 	Smt::Solver& solver
-) : rules(rules), used(used), ords(rules.size()), solver(solver),
-	deriver(temp.deriver(sig,solver)),
-	intp(deriver.derive(Poly::ALGEBRA,Poly::VAR_INTP)) {
+) : order(order), rules(rules), used(used), ords(rules.size()), solver(solver) {
 	for( size_t i : used ) {
 		auto const& ord = solver.expand(
-			Smt::Let((Smt::BOOL,Smt::BOOL)) ^ intp.eval(rules[i].first).order(intp.eval(rules[i].second)) ^ []( Smt::PreExp const& val ){
+			Smt::Let((Smt::BOOL,Smt::BOOL)) ^ order(rules[i].first,rules[i].second) ^ []( Smt::PreExp const& val ){
 				return val;
 			}
 		);
@@ -20,7 +17,7 @@ MonoProc::MonoProc(
 	}
 }
 
-std::vector<size_t> MonoProc::remove() {
+std::vector<size_t> RuleRemover::remove() {
 	Smt::PostExp conj = Smt::TRUE;
 	Smt::PostExp disj = Smt::FALSE;
 	solver.push();
@@ -44,4 +41,21 @@ std::vector<size_t> MonoProc::remove() {
 	}
 	solver.pop();
 	return ret;
+}
+DerivedTermOrder::DerivedTermOrder(
+	Trs::Sig const& sig,
+	Template const& temp,
+	Smt::Solver& solver
+) : deriver(temp.deriver(sig,solver)),
+	intp(deriver.derive(Poly::ALGEBRA,Poly::VAR_INTP)) {
+}
+
+DerivedRuleRemover::DerivedRuleRemover(
+	Trs::Sig const& sig,
+	Trs::Rules& rules,
+	std::set<size_t>& used,
+	Template const& temp,
+	Smt::Solver& solver
+) : DerivedTermOrder(sig,temp,solver),
+	RuleRemover(*this,rules,used,solver) {
 }

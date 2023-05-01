@@ -247,8 +247,6 @@ public:
 		}
 		PostExp get_value( PostExp const& e ) &;
 	};
-private:
-public:
 	class Z3 : private Proc, public Solver {
 	public:
 		Z3( Logic const& logic, Opt<std::ostream&> tee = {} ) : Proc("z3",{"z3","-smt2","-in"},tee), Solver((Proc&)*this,logic) {}

@@ -150,7 +150,8 @@ Smt::PostExp Smt::Solver::get_value( PostExp const& e ) & {
 	if( _status != SAT ) {
 		throw Error("#smt:get_value");
 	}
-	_proc.to << "(get-value (" << e << "))" << endl;
+cerr << "here: " << e << endl;
+	_proc.to << "(get-value (" << e._exp << "))" << endl;
 	_reader.open();
 	_reader.open();
 	assert( _reader.read_sym() == e._exp );

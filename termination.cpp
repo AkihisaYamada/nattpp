@@ -1,0 +1,47 @@
+#include"termination.hpp"
+using namespace std;
+
+MonoProc::MonoProc(
+	Trs::Sig const& sig,
+	Trs::Rules& rules,
+	std::set<size_t>& used,
+	Template const& temp,
+	Smt::Solver& solver
+) : rules(rules), used(used), ords(rules.size()), solver(solver),
+	deriver(temp.deriver(sig,solver)),
+	intp(deriver.derive(Poly::ALGEBRA,Poly::VAR_INTP)) {
+	for( size_t i : used ) {
+		auto const& ord = solver.expand(
+			Smt::Let((Smt::BOOL,Smt::BOOL)) ^ intp.eval(rules[i].first).order(intp.eval(rules[i].second)) ^ []( Smt::PreExp const& val ){
+				return val;
+			}
+		);
+		ords[i] = { Smt::Car(ord), Smt::Cdr(ord) };
+	}
+}
+
+std::vector<size_t> MonoProc::remove() {
+	Smt::PostExp conj = Smt::TRUE;
+	Smt::PostExp disj = Smt::FALSE;
+	solver.push();
+	for( size_t i : used ) {
+		conj.conj_eq(ords[i].first);
+		disj.disj_eq(ords[i].second);
+	}
+	solver.ass(conj);
+	solver.ass(disj);
+	solver.check_sat();
+	std::vector<size_t> ret;
+	if( solver.result().is_sat() ) {
+		for( auto it = used.begin(); it != used.end(); ) {
+			if( solver.get_value(ords[*it].second) == Smt::TRUE ) {
+				ret.push_back(*it);
+				it = used.erase(it);
+			} else {
+				it++;
+			}
+		}
+	}
+	solver.pop();
+	return ret;
+}

@@ -96,7 +96,7 @@ public:
 	 * @brief Non-null object can be considered nullable
 	 */
 	Mem( Mem<T,false> const& org ) requires _nullable : _ptr(org._ptr) {}
-	Mem( Mem const& other ) = default;
+	Mem( Mem const& other ) : _ptr(other._ptr) {}
 	Mem( Mem && other ) : _ptr(std::move(other._ptr)) {}
 	Mem& operator=( Mem const& other ) & {
 		_ptr = other._ptr;

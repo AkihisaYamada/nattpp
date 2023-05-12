@@ -65,30 +65,39 @@ static Smt::PreExp order_sub( Poly const& p1, Poly const& p2 ) {
 	iter2(p1.map(),p2.map(),[&]( auto it1, auto it2 ){
 		switch( it1->first.range() ) {
 			case Poly::NONE: return;
-			case Poly::POS: ge = ge && it1->second.ge(it2->second); return;
-			case Poly::NEG: ge = ge && it2->second.ge(it1->second); return;
-			case Poly::FULL: ge = ge && it1->second.eq(it2->second); return;
+			case Poly::POS: ge = ge && Smt::ge(it1->second,it2->second); return;
+			case Poly::NEG: ge = ge && Smt::ge(it2->second,it1->second); return;
+			case Poly::FULL: ge = ge && Smt::ge(it1->second,it2->second); return;
 		}
 	},[&]( auto it1 ){
-		if( it1->first.range() != Poly::POS ) {
-			ge = ge && it1->second.eq(0);
+		switch( it1->first.range() ) {
+			case Poly::NEG: case Poly::FULL:
+			ge = ge && Smt::eq(it1->second,0);
 		}
 	},[&]( auto it2 ){
-		if( it2->first.range() != Poly::NEG ) {
-			ge = ge && it2->second.eq(0);
+		switch( it2->first.range() ) {
+			case Poly::NEG: case Poly::FULL:
+			ge = ge && Smt::eq(it2->second,0);
 		}
 	});
 	return ge;
 }
 
 Smt::PreExp Poly::ge( Poly const& p2 ) const {
-	return order_sub(*this,p2) && (*this)[{}].ge(p2[{}]);
+	return order_sub(*this,p2) && Smt::ge((*this)[{}],p2[{}]);
 }
-Smt::PreExp Poly::order( Poly const& p2 ) const {
-	return Smt::Let(Smt::BOOL) ^ order_sub(*this,p2) ^ [&]( auto const& val ) {
+Smt::PreExp Poly::order( Poly const& p2 ) const & {
+	return Smt::Let( Smt::BOOL, order_sub(*this,p2) ) ^ [&]( auto const& val ) {
 		auto const& c1 = (*this)[{}];
 		auto const& c2 = p2[{}];
-		return ( val && c1.ge(c2), val && c1.gt(c2) );
+		return ( val && Smt::ge(c1,c2), val && Smt::gt(c1,c2) );
+	};
+}
+Smt::PreExp Poly::order( Poly const& p2 ) && {
+	return Smt::Let( Smt::BOOL, order_sub(*this,p2) ) ^ [*this,p2]( auto const& val ) {
+		auto const& c1 = (*this)[{}];
+		auto const& c2 = p2[{}];
+		return ( val && Smt::ge(c1,c2), val && Smt::gt(c1,c2) );
 	};
 }
 

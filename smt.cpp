@@ -16,12 +16,15 @@ Smt::BaseSort const Smt::BOOL = "Bool";
 Smt::BaseSort const Smt::INT = "Int";
 Smt::BaseSort const Smt::REAL = "Real";
 
-Smt::Const const Smt::TRUE = "true";
-Smt::Const const Smt::FALSE = "false";
-Smt::Const const Smt::ZERO = "0";
-Smt::Const const Smt::ONE = "1";
+Smt::PostExp const Smt::TRUE = "true";
+Smt::PostExp const Smt::FALSE = "false";
+Smt::PostExp const Smt::ZERO = "0";
+Smt::PostExp const Smt::ONE = "1";
 
 ostream& operator<<( ostream& os, Smt::PreExp const& e ) {
+	if( auto post = e.post() ) {
+		return os << *post;
+	}
 	if( auto app = e.app() ) {
 		auto const& [fun,args] = *app;
 		if( args.empty() ) {
@@ -44,35 +47,33 @@ ostream& operator<<( ostream& os, Smt::PreExp const& e ) {
 }
 
 Smt::PostExp& Smt::PostExp::disj_eq( Smt::PostExp const& arg ) & {
-	if( _exp == TRUE ) {
+	if( *this == TRUE ) {
 		return *this;
 	}
-	if( _exp == FALSE ) {
-		_exp = arg._exp;
+	if( *this == FALSE ) {
+		Exp::operator=(arg);
 		return *this;
 	}
-	if( _exp.fun() == OR ) {
-		_exp.args().push_back(arg._exp);
+	if( fun() == OR ) {
+		args().push_back(arg);
 		return *this;
 	}
-	PostExp ret = Exp{OR,_exp,arg._exp};
-	return *this = ret;
+	return *this = PostExp(OR,(Exp)*this,(Exp)arg);
 }
 
 Smt::PostExp& Smt::PostExp::conj_eq( Smt::PostExp const& arg ) & {
-	if( _exp == FALSE ) {
+	if( *this == FALSE ) {
 		return *this;
 	}
-	if( _exp == TRUE ) {
-		_exp = arg._exp;
+	if( *this == TRUE ) {
+		Exp::operator=(arg);
 		return *this;
 	}
-	if( _exp.fun() == AND ) {
-		_exp.args().push_back(arg._exp);
+	if( fun() == AND ) {
+		args().push_back(arg);
 		return *this;
 	}
-	PostExp ret = Exp{AND,_exp,arg._exp};
-	return *this = ret;
+	return *this = PostExp(AND,(Exp)*this,(Exp)arg);
 }
 
 Algebra::Intp<Smt::PreExp> const Smt::ALGEBRA = []( string_view const& fun, vector<Smt::PreExp>&& args ){
@@ -127,12 +128,12 @@ Smt::Solver& Smt::Solver::result() & {
 	throw Error{"#smt:invalid-response",*ans};
 }
 
-Smt::Const Smt::Solver::declare_const( string_view const& name, BaseSort const& sort ) & {
+Smt::PostExp Smt::Solver::declare_const( string_view const& name, BaseSort const& sort ) & {
 	_proc.to << "(declare-const " << name << ' ' << sort.name << ')' << endl;
 	return name;
 }
 
-Smt::Const Smt::Solver::define_fun(
+Smt::PostExp Smt::Solver::define_fun(
 	std::string_view const& name,
 	std::initializer_list<std::pair<std::string_view,std::string_view>> const& params,
 	BaseSort const& sort,
@@ -150,10 +151,10 @@ Smt::PostExp Smt::Solver::get_value( PostExp const& e ) & {
 	if( _status != SAT ) {
 		throw Error("#smt:get_value");
 	}
-	_proc.to << "(get-value (" << e._exp << "))" << endl;
+	_proc.to << "(get-value (" << e << "))" << endl;
 	_reader.open();
 	_reader.open();
-	assert( _reader.read_sym() == e._exp );
+	assert( _reader.read_sym() == e );
 	PostExp ret = _reader.read_exp();
 	_reader.close();
 	_reader.close();
@@ -164,19 +165,19 @@ std::string Smt::Solver::_make_fresh() & {
 	return string("_") + to_string(_var_count++);
 }
 
-Smt::PostExp Smt::Car( PostExp const& arg ) {
-	if( arg._exp.fun() != CONS ) {
-		throw Error{"#car-on",arg._exp};
+Smt::PostExp Smt::car( PostExp const& arg ) {
+	if( arg.fun() != CONS ) {
+		throw Error{"#car-on",(Exp)arg};
 	}
-	auto const& args = arg._exp.args();
+	auto const& args = arg.args();
 	assert( args.size() == 2 );
 	return args[0];
 }
-Smt::PostExp Smt::Cdr( PostExp const& arg ) {
-	if( arg._exp.fun() != CONS ) {
-		throw Error{"#cdr-on",arg._exp};
+Smt::PostExp Smt::cdr( PostExp const& arg ) {
+	if( arg.fun() != CONS ) {
+		throw Error{"#cdr-on",(Exp)arg};
 	}
-	auto const& args = arg._exp.args();
+	auto const& args = arg.args();
 	assert( args.size() == 2 );
 	return args[1];
 }
@@ -191,17 +192,20 @@ Smt::PostExp Smt::PostExp::operator*( PostExp const& arg ) const {
 	if( arg == ONE ) {
 		return *this;
 	}
-	return Exp{MUL,_exp,arg._exp};
+	return Exp{MUL,(Exp)*this,(Exp)arg};
 }
 
 Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
+	if( auto post = p.post() ) {
+		return *post;
+	}
 	if( auto app = p.app() ) {
 		auto const& [fun,args] = *app;
 		auto ret = Exp(fun);
 		auto& eargs = ret.args();
 		if( fun == AND ) {
 			for( auto const& arg : args ) {
-				auto const& earg = expand(arg)._exp;
+				auto const& earg = expand(arg);
 				if( earg == FALSE ) {
 					return FALSE;
 				}
@@ -215,7 +219,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 			}
 		} else if( fun == OR ) {
 			for( auto const& arg : args ) {
-				auto const& earg = expand(arg)._exp;
+				auto const& earg = expand(arg);
 				if( earg == TRUE ) {
 					return TRUE;
 				}
@@ -229,7 +233,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 			}
 		} else if( fun == NOT ) {
 			assert( args.size() == 1 );
-			auto const& earg = expand(args[0])._exp;
+			auto const& earg = expand(args[0]);
 			if( earg == TRUE ) {
 				return FALSE;
 			}
@@ -242,7 +246,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 			eargs.push_back(earg);
 		} else if( fun == ITE ) {
 			assert( args.size() == 3 );
-			auto const& i = expand(args[0])._exp;
+			auto const& i = expand(args[0]);
 			if( i == TRUE ) {
 				return expand(args[1]);
 			}
@@ -250,11 +254,11 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 				return expand(args[2]);
 			}
 			eargs.push_back(i);
-			eargs.push_back(expand(args[1])._exp);
-			eargs.push_back(expand(args[2])._exp);
+			eargs.push_back(expand(args[1]));
+			eargs.push_back(expand(args[2]));
 		} else if( fun == ADD ) {
 			for( auto const& arg : args ) {
-				auto const& earg = expand(arg)._exp;
+				auto const& earg = expand(arg);
 				if( earg != ZERO ) {
 					eargs.push_back(earg);
 				}
@@ -276,30 +280,30 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 			if( earg2 == ONE ) {
 				return earg1;
 			}
-			if( earg1._exp.fun() == ITE ) {
-				auto const& ite_args = earg1._exp.args();
+			if( earg1.fun() == ITE ) {
+				auto const& ite_args = earg1.args();
 				assert( ite_args.size() == 3 );
-				PostExp t = PostExp(ite_args[1]) * earg2;
-				PostExp e = PostExp(ite_args[2]) * earg2;
-				return Exp{ITE,ite_args[0],t._exp,e._exp};
+				Exp t = PostExp(ite_args[1]) * earg2;
+				Exp e = PostExp(ite_args[2]) * earg2;
+				return PostExp{ITE,ite_args[0],t,e};
 			}
-			if( earg2._exp.fun() == ITE ) {
-				auto const& ite_args = earg2._exp.args();
+			if( earg2.fun() == ITE ) {
+				auto const& ite_args = earg2.args();
 				assert( ite_args.size() == 3 );
-				PostExp t = earg1 * ite_args[1];
-				PostExp e = earg1 * ite_args[2];
-				return Exp{ITE,ite_args[0],t._exp,e._exp};
+				Exp t = earg1 * ite_args[1];
+				Exp e = earg1 * ite_args[2];
+				return PostExp{ITE,ite_args[0],t,e};
 			}
-			return Exp{MUL,earg1._exp,earg2._exp};
+			return PostExp{MUL,(Exp)earg1,(Exp)earg2};
 		} else if( fun == CAR ) {
 			assert( args.size() == 1 );
-			return Car(expand(args[0]));
+			return car(expand(args[0]));
 		} else if( fun == CDR ) {
 			assert( args.size() == 1 );
-			return Cdr(expand(args[0]));
+			return cdr(expand(args[0]));
 		} else {
 			for( auto const& arg : args ) {
-				eargs.push_back(expand(arg)._exp);
+				eargs.push_back(expand(arg));
 			}
 		}
 		return ret;
@@ -315,15 +319,15 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 };
 Smt::PreExp Smt::Solver::_expand_let( Sort const& sort, PostExp const& val ) {
 	if( auto const& base = sort.base() ) {
-		if( val._exp.args().empty() ) {
-			return val._exp.fun();
+		if( val.args().empty() ) {
+			return val;
 		}
 		auto var = _make_fresh();
 		return define_fun(var,{},*base,val);
 	}
 	auto const& sargs = sort._exp.args();
-	assert( val._exp.fun() == CONS );
-	auto const& vargs = val._exp.args();
+	assert( val.fun() == CONS );
+	auto const& vargs = val.args();
 	auto const& v1 = _expand_let(sargs[0],vargs[0]);
 	auto const& v2 = _expand_let(sargs[1],vargs[1]);
 	return (v1,v2);
@@ -334,11 +338,11 @@ int Smt::test() try {
 	cout << PreExp(1) + "x" << endl;
 	cout << !!(PreExp(0) + []{ return "x"; }) << endl;
 	cout << (If("p") ^ PreExp(3) * "x" * "y" ^ ZERO) << endl;
-	cout << !(PreExp("x").eq("y") && PreExp("y").ge(3)) << endl;
+	cout << !(Smt::eq("x","y") && Smt::ge("y",3)) << endl;
 	auto z3 = Z3(QF_LIA,cout);
 	auto x = z3.declare_const("x","Int");
-	auto five = z3.define_fun("five",{},Smt::INT,5);
-	z3.ass( x.gt(five + 4) );
+	auto five = z3.define_fun("five",{},Smt::INT,PostExp(5));
+	z3.ass( Smt::gt(x, five + 4) );
 	cout << z3.check_sat().result().is_sat() << endl;
 	auto xv = z3.get_value(x);
 	cout << x << " := " << xv << endl;
@@ -354,16 +358,16 @@ int Smt::test() try {
 	cout << z3.expand( If( "cond" ) ^ []{ return PreExp("then"); } ^ []{ return PreExp("else"); } ) << endl;
 
 	z3.ass(
-		Let(INT) ^ PreExp(x) + "five" ^ []( PreExp const& x5 ){ return (x5 + x5).ge("20"); }
+		Let(INT, x + "five") ^ []( PreExp const& x5 ){ return Smt::ge(x5 + x5, "20"); }
 	);
 
 	cout << z3.check_sat().result().is_sat() << endl;
 
-	auto car_xy = Car((x,"y"));
+	auto car_xy = car((x,"y"));
 	cout << car_xy << endl;
 	cout << z3.expand(car_xy) << endl;
 
-	auto cons_let = Let((BOOL,INT)) ^ (TRUE,x) ^ []( PreExp const& pair ) { return Cdr(pair); };
+	auto cons_let = Let((BOOL,INT), (TRUE,x)) ^ []( PreExp const& pair ) { return cdr(pair); };
 	cout << cons_let << endl;
 	cout << z3.expand(cons_let) << endl;
 

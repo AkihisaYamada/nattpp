@@ -4,7 +4,7 @@ TEST_SRC=test.cpp
 TGT=terma
 
 CPP=g++ -O3 -std=c++20 -Wfatal-errors
-DEBUG_CPP=g++ -O0 -ggdb3 -std=c++20 -Wfatal-errors
+DEBUG_CPP=g++ -O3 -ggdb3 -std=c++20 -Wfatal-errors
 
 DEPEND=_depend
 BUILD=_build

@@ -84,7 +84,8 @@ public:
 		return *this = *this * p2;
 	}
 	Smt::PreExp ge( Poly const& p2 ) const;
-	Smt::PreExp order( Poly const& p2 ) const;
+	Smt::PreExp order( Poly const& p2 ) const&;
+	Smt::PreExp order( Poly const& p2 ) &&;
 	static Algebra::Intp<Poly> const ALGEBRA;
 	static Algebra::Intp<Poly> const VAR_INTP;
 	static Poly sum( std::vector<Poly> const& args ) {

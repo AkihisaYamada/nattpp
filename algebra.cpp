@@ -55,14 +55,14 @@ static Exp derive_inner( string_view const& f, Trs::Rank const& rank, Smt::Solve
 				if( it == args.end() ) {
 					throw Algebra::Error{"#missing-exp",exp};
 				}
-				Deriver::Map map = {{"_",ret}};
+				Deriver::Map map = {{"_",ret.exp()}};
 				solver.ass(Smt::ALGEBRA.eval(map.subst(*it)));
 				it++;
 			} else {
 				throw Algebra::Error{"#malformed",exp};
 			}
 		}
-		return ret;
+		return ret.exp();
 	}
 	if( fun == "args" ) {
 		if( args.size() != 2 ) {

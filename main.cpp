@@ -17,7 +17,7 @@ int main( int argc, char** argv ) {
 			pis = new fstream(argv[1]);
 			exit_on_error = true;
 		}
-		Problem p(*pis);
+		auto p = Problem(*pis);
 		for( int i = 0; i < p.systems.size(); i++ ) {
 			cout << "TRS " << i+1 << ":" << endl << p.systems[i];
 		}

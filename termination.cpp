@@ -9,11 +9,11 @@ RuleRemover::RuleRemover(
 ) : order(order), rules(rules), used(used), ords(rules.size()), solver(solver) {
 	for( size_t i : used ) {
 		auto const& ord = solver.expand(
-			Smt::Let((Smt::BOOL,Smt::BOOL)) ^ order(rules[i].first,rules[i].second) ^ []( Smt::PreExp const& val ){
+			Smt::Let( (Smt::BOOL,Smt::BOOL), order(rules[i].first,rules[i].second) ) ^ []( Smt::PreExp const& val ){
 				return val;
 			}
 		);
-		ords[i] = { Smt::Car(ord), Smt::Cdr(ord) };
+		ords[i] = { Smt::car(ord), Smt::cdr(ord) };
 	}
 }
 

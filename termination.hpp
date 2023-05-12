@@ -41,6 +41,26 @@ public:
 	}
 };
 
+class PathOrder : public TermOrder {
+	struct SigInfo {
+		Smt::PostExp prec;
+	};
+	Map<std::string,SigInfo> _map;
+public:
+	TermOrder& weight;
+	PathOrder( Trs::Sig const& sig, TermOrder& weight, Smt::Solver& solver ) : weight(weight) {
+		for( auto it1 = sig.begin(); it1 != sig.end(); ) {
+			auto const& [fun1,rank1] = *it1;
+			for( auto it2 = sig.begin(); it2 != it1; it2++ ) {
+				_map.insert(fun1,SigInfo{solver.declare_fresh(Smt::INT)});
+				
+			}
+		}
+	}
+	Smt::PreExp operator()( Exp const& l, Exp const& r ) override {
+	}
+};
+
 class DerivedRuleRemover : public DerivedTermOrder, public RuleRemover {
 public:
 	DerivedRuleRemover( Trs::Sig const& sig, Trs::Rules& rules, std::set<size_t>& used, Template const& temp, Smt::Solver& solver );

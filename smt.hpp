@@ -60,47 +60,56 @@ public:
 		Exp const& view_exp() const override { return _exp; }
 	};
 	static BaseSort const BOOL, INT, REAL;
-	class PostExp : public ExpView {
+	class PostExp : private Exp {
 		friend Smt;
-		Exp _exp;
-		PostExp( Exp const& exp ) : _exp(exp) {}
+		using Exp::Exp;
+		PostExp( Exp&& x ) : Exp(std::move(x)) {}
+		PostExp( Exp const& x ) : Exp(x) {}
 	public:
 		PostExp() {}
-		PostExp( PostExp const& other ) : _exp(other._exp) {}
-		PostExp( PostExp && other ) : _exp(std::move(other._exp)) {}
+		PostExp( PostExp const& other ) : Exp(other) {}
+		PostExp( PostExp && other ) : Exp(std::move(other)) {}
+		PostExp( int n ) : Exp(n) {}
 		PostExp operator *( PostExp const& arg ) const;
-		Exp const& view_exp() const override { return _exp; }
 		PostExp& disj_eq( PostExp const& arg ) &;
 		PostExp& conj_eq( PostExp const& arg ) &;
 		bool operator==( PostExp const& other ) const {
-			return _exp == other._exp;
+			return Exp::operator==(other);
 		}
 		PostExp& operator=( PostExp const& other ) & {
-			_exp = other._exp;
+			Exp::operator=(other);
 			return *this;
 		}
 		PostExp& operator=( PostExp&& other ) & {
-			_exp = std::move(other._exp);
+			Exp::operator=(std::move(other));
+			return *this;
+		}
+		PostExp operator,( PostExp const& other ) const {
+			return Exp(CONS,(Exp)*this,(Exp)other);
+		}
+		Exp const exp() const {
 			return *this;
 		}
 	};
-	static PostExp Car( PostExp const& arg );
-	static PostExp Cdr( PostExp const& arg );
+	static PostExp const TRUE, FALSE, ZERO, ONE;
+	static PostExp car( PostExp const& arg );
+	static PostExp cdr( PostExp const& arg );
 	class PreExp {
 		friend Smt;
 		using App = std::pair<std::string,std::vector<PreExp>>;
 		using Let = std::tuple<PreExp,Sort,std::function<PreExp(PreExp const&)>>;
 		using Lazy = std::function<PreExp()>;
-		Sum<Mem<App>,Mem<Let>,Lazy> _un;
+		Sum<PostExp,Mem<App>,Mem<Let>,Lazy> _un;
 		explicit PreExp( Sort const& sort, PreExp const& val, std::function<PreExp(PreExp const&)> body ) :
 			_un( std::in_place_type<Mem<Let>>, val, sort, body ) {}
 		explicit PreExp( std::string_view const& fun, std::vector<PreExp>&& args ) :
 			_un(std::in_place_type<Mem<App>>,fun,std::move(args)) {}
 	public:
-		PreExp( const char* str ) : _un(Mem<App>(App(str,{}))) {}
-		PreExp( std::string const& str ) : _un(Mem<App>(App(str,{}))) {}
-		PreExp( std::string_view const& str ) : _un(Mem<App>(App(str,{}))) {}
-		PreExp( int n ) : _un(Mem<App>(App(std::to_string(n),{}))) {}
+		PreExp( const char* str ) : _un(std::in_place_type<PostExp>,str) {}
+		PreExp( std::string && str ) : _un(std::in_place_type<PostExp>,std::move(str)) {}
+		PreExp( std::string_view && str ) : _un(std::in_place_type<PostExp>,std::move(str)) {}
+		PreExp( int n ) : _un(std::in_place_type<PostExp>,std::to_string(n)) {}
+		PreExp( PostExp const& e ) : _un(e) {}
 		template<typename T> requires std::is_convertible_v<T,Lazy>
 		PreExp( T const& lazy ) : _un(lazy) {}
 		PreExp operator&&( PreExp const& y ) const {
@@ -112,29 +121,26 @@ public:
 		PreExp operator!() const {
 			return PreExp(NOT,{*this});
 		}
-		PreExp eq( PreExp const& y ) const {
-			return PreExp(EQ,{*this,y});
-		}
-		PreExp ge( PreExp const& y ) const {
-			return PreExp(GE,{*this,y});
-		}
-		PreExp gt( PreExp const& y ) const {
-			return PreExp(GT,{*this,y});
-		}
 		PreExp operator+( PreExp const& y ) const {
 			return PreExp(ADD,{*this,y});
 		}
-		PreExp& operator+=( PreExp const& y ) & {
-			return *this = *this + y;
-		}
 		PreExp operator*( PreExp const& y ) const {
 			return PreExp(MUL,{*this,y});
+		}
+		PreExp& operator+=( PreExp const& y ) & {
+			return *this = *this + y;
 		}
 		PreExp& operator*=( PreExp const& y ) & {
 			return *this = *this * y;
 		}
 		PreExp operator,( PreExp const& y ) const {
 			return PreExp(CONS,{*this,y});
+		}
+		auto post() && {
+			return std::move(_un).ref<PostExp>();
+		}
+		auto post() const& {
+			return _un.ref<PostExp>();
 		}
 		auto app() && {
 			return OptMem<App>(std::move(_un).ref<Mem<App>>());
@@ -155,16 +161,20 @@ public:
 			return _un.ref<Lazy>();
 		}
 	};
-	struct Const : PreExp, PostExp {
-		Const( char const* name ) : PreExp(name), PostExp(name) {}
-		Const( std::string_view const& name ) : PreExp(name), PostExp(name) {}
-	};
-	static Const const TRUE, FALSE, ZERO, ONE;
-	static PreExp Car( PreExp const& arg ) {
+	static PreExp car( PreExp const& arg ) {
 		return PreExp{CAR,{arg}};
 	}
-	static PreExp Cdr( PreExp const& arg ) {
+	static PreExp cdr( PreExp const& arg ) {
 		return PreExp{CDR,{arg}};
+	}
+	static PreExp eq( PreExp const& x, PreExp const& y ) {
+		return PreExp(EQ,{x,y});
+	}
+	static PreExp ge( PreExp const& x, PreExp const& y ) {
+		return PreExp(GE,{x,y});
+	}
+	static PreExp gt( PreExp const& x, PreExp const& y ) {
+		return PreExp(GT,{x,y});
 	}
 	class If {
 		PreExp const& i;
@@ -183,18 +193,12 @@ public:
 	};
 	class Let {
 		Sort const& sort;
+		PreExp const& val;
 		Let( Let const& ) = delete;
-		struct Let2 {
-			Sort const& sort;
-			PreExp const& val;
-			PreExp operator^( std::function<PreExp(PreExp const&)> body ) const {
-				return PreExp(sort,val,body);
-			}
-		};
 	public:
-		explicit Let( Sort const& sort ) : sort(sort) {}
-		Let2 operator^( PreExp const& val ) const {
-			return Let2{sort,val};
+		explicit Let( Sort const& sort, PreExp const& val ) : sort(sort), val(val) {}
+		PreExp operator^( std::function<PreExp(PreExp const&)> body ) const {
+			return PreExp(sort,val,body);
 		}
 	};
 	static Algebra::Intp<Smt::PreExp> const ALGEBRA;
@@ -210,20 +214,19 @@ public:
 		std::string _make_fresh() &;
 		PreExp _expand_let( Sort const& sort, PostExp const& val );
 	public:
-		Const declare_const( std::string_view const& name, BaseSort const& sort ) &;
-		std::string declare_fresh( BaseSort const& sort ) {
+		PostExp declare_const( std::string_view const& name, BaseSort const& sort ) &;
+		PostExp declare_fresh( BaseSort const& sort ) {
 			std::string ret = _make_fresh();
-			declare_const(ret,sort);
-			return ret;
+			return declare_const(ret,sort);
 		}
 		PostExp expand( PreExp const& p );
-		Const define_fun(
+		PostExp define_fun(
 			std::string_view const& name,
 			std::initializer_list<std::pair<std::string_view,std::string_view>> const& params,
 			BaseSort const& sort,
 			PostExp const& body
 		) &;
-		Const define_fun(
+		PostExp define_fun(
 			std::string_view const& name,
 			std::initializer_list<std::pair<std::string_view,std::string_view>> const& params,
 			BaseSort const& sort,
@@ -257,8 +260,20 @@ public:
 inline Smt::Sort Smt::BaseSort::operator,( Sort const& rest ) const {
 	return (Sort(*this), rest);
 }
-inline std::ostream& operator<<( std::ostream& os, Smt::Const const& e ) {
-	return os << (Smt::PostExp)e;
+inline Smt::PreExp operator+( Smt::PostExp const& x, Smt::PreExp const& y ) {
+	return Smt::PreExp(x) + y;
+}
+inline Smt::PreExp operator*( Smt::PostExp const& x, Smt::PreExp const& y ) {
+	return Smt::PreExp(x) * y;
+}
+inline Smt::PreExp operator&&( Smt::PostExp const& x, Smt::PreExp const& y ) {
+	return Smt::PreExp(x) && y;
+}
+inline Smt::PreExp operator||( Smt::PostExp const& x, Smt::PreExp const& y ) {
+	return Smt::PreExp(x) || y;
+}
+inline std::ostream& operator<<( std::ostream& os, Smt::PostExp const& e ) {
+	return os << e.exp();
 }
 std::ostream& operator<<( std::ostream& os, Smt::PreExp const& e );
 

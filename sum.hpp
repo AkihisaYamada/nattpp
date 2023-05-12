@@ -18,8 +18,8 @@ public:
 	Sum( T && v ) : _un(std::move(v)) {}
 	template <class T, class... Args>
 	constexpr explicit Sum(std::in_place_type_t<T> x, Args&&... args) :
-		_un(x,std::move(args)...)
-		{};
+		_un(x,std::forward<Args>(args)...)
+		{}
 	template<std::size_t n>
 	Opt<std::variant_alternative_t<n,std::variant<Ts...>> const&> ref() const& {
 		if( auto p = std::get_if<n>(&_un) ) {

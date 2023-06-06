@@ -45,6 +45,24 @@ ostream& operator<<( ostream& os, Smt::PreExp const& e ) {
 	}
 	assert(false);
 }
+Smt::PostExp Smt::PostExp::operator&&( Smt::PostExp const& y ) const {
+	if( *this == FALSE || y == TRUE ) {
+		return *this;
+	}
+	if( *this == TRUE || y == FALSE ) {
+		return y;
+	}
+	return PostExp(AND,(Exp)*this,(Exp)y);
+}
+Smt::PostExp Smt::PostExp::operator||( Smt::PostExp const& y ) const {
+	if( *this == TRUE || y == FALSE ) {
+		return *this;
+	}
+	if( *this == FALSE || y == TRUE ) {
+		return y;
+	}
+	return PostExp(OR,(Exp)*this,(Exp)y);
+}
 
 Smt::PostExp& Smt::PostExp::disj_eq( Smt::PostExp const& arg ) & {
 	if( *this == TRUE ) {
@@ -181,18 +199,56 @@ Smt::PostExp Smt::cdr( PostExp const& arg ) {
 	assert( args.size() == 2 );
 	return args[1];
 }
+Smt::PostExp Smt::PostExp::operator!() const {
+	if( *this == TRUE ) {
+		return FALSE;
+	}
+	if( *this == FALSE ) {
+		return TRUE;
+	}
+	if( fun() == NOT ) {
+		return args()[0];
+	}
+	return PostExp(NOT,(Exp)*this);
+}
+Smt::PostExp Smt::PostExp::operator+( PostExp const& arg ) const {
+	if( *this == ZERO ) {
+		return arg;
+	}
+	if( arg == ZERO ) {
+		return *this;
+	}
+	return Exp{ADD,(Exp)*this,(Exp)arg};
+}
+
+Smt::PostExp& Smt::PostExp::operator+=( PostExp const& arg ) & {
+	if( *this == ZERO ) {
+		return *this = arg;
+	}
+	if( arg == ZERO ) {
+		return *this;
+	}
+	return *this = Exp{ADD,(Exp)*this,(Exp)arg};
+}
 
 Smt::PostExp Smt::PostExp::operator*( PostExp const& arg ) const {
-	if( *this == ZERO ) {
+	if( *this == ZERO || arg == ONE ) {
 		return *this;
 	}
 	if( *this == ONE || arg == ZERO ) {
 		return arg;
 	}
-	if( arg == ONE ) {
+	return Exp{MUL,(Exp)*this,(Exp)arg};
+}
+
+Smt::PostExp& Smt::PostExp::operator*=( PostExp const& arg ) & {
+	if( *this == ZERO || arg == ONE ) {
 		return *this;
 	}
-	return Exp{MUL,(Exp)*this,(Exp)arg};
+	if( *this == ONE || arg == ZERO ) {
+		return *this = arg;
+	}
+	return *this = Exp{MUL,(Exp)*this,(Exp)arg};
 }
 
 Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
@@ -233,17 +289,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 			}
 		} else if( fun == NOT ) {
 			assert( args.size() == 1 );
-			auto const& earg = expand(args[0]);
-			if( earg == TRUE ) {
-				return FALSE;
-			}
-			if( earg == FALSE ) {
-				return TRUE;
-			}
-			if( earg.fun() == NOT ) {
-				return earg.args()[0];
-			}
-			eargs.push_back(earg);
+			return !expand(args[0]);
 		} else if( fun == ITE ) {
 			assert( args.size() == 3 );
 			auto const& i = expand(args[0]);
@@ -308,16 +354,16 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 		}
 		return ret;
 	}
-	if( auto let = p.let() ) {
-		auto const& [val,sort,body] = *let;
-		return expand(body(_expand_let(sort._exp,expand(val))));
+	if( auto tp = p.let() ) {
+		auto const& [val,sort,body] = *tp;
+		return expand(body(let(sort,expand(val))));
 	}
 	if( auto lazy = p.lazy() ) {
 		return expand((*lazy)());
 	}
 	assert(false);
 };
-Smt::PreExp Smt::Solver::_expand_let( Sort const& sort, PostExp const& val ) {
+Smt::PostExp Smt::Solver::let( Sort const& sort, PostExp const& val ) & {
 	if( auto const& base = sort.base() ) {
 		if( val.args().empty() ) {
 			return val;
@@ -328,8 +374,8 @@ Smt::PreExp Smt::Solver::_expand_let( Sort const& sort, PostExp const& val ) {
 	auto const& sargs = sort._exp.args();
 	assert( val.fun() == CONS );
 	auto const& vargs = val.args();
-	auto const& v1 = _expand_let(sargs[0],vargs[0]);
-	auto const& v2 = _expand_let(sargs[1],vargs[1]);
+	auto const& v1 = let(sargs[0],vargs[0]);
+	auto const& v2 = let(sargs[1],vargs[1]);
 	return (v1,v2);
 };
 
@@ -341,8 +387,8 @@ int Smt::test() try {
 	cout << !(Smt::eq("x","y") && Smt::ge("y",3)) << endl;
 	auto z3 = Z3(QF_LIA,cout);
 	auto x = z3.declare_const("x","Int");
-	auto five = z3.define_fun("five",{},Smt::INT,PostExp(5));
-	z3.ass( Smt::gt(x, five + 4) );
+	auto five = z3.define_fun("five",{},Smt::INT,5);
+	z3.ass( Smt::gt( x, five + 4 ) );
 	cout << z3.check_sat().result().is_sat() << endl;
 	auto xv = z3.get_value(x);
 	cout << x << " := " << xv << endl;

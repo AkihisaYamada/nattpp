@@ -61,32 +61,38 @@ public:
 		friend Poly;
 	};
 private:
-	Map<Vars,Smt::PreExp> _map;
+	Map<Vars,Smt::PostExp> _map;
 public:
 	Poly() {}
-	Poly( Smt::PreExp const& c ) : _map{{{},c}} {}
+	Poly( Smt::PostExp const& c ) : _map{{{},c}} {}
 	Poly( int i ) : _map{{{},i}} {}
 	Poly( Var const& v ) : _map{{v,1}} {}
-	Map<Vars,Smt::PreExp> const& map() const & {
+	Map<Vars,Smt::PostExp> const& map() const & {
 		return _map;
 	}
-	Smt::PreExp operator[]( Vars const& vars ) const& {
+	Smt::PostExp operator[]( Vars const& vars ) const& {
 		if( auto const& c = _map.find(vars) ) {
 			return *c;
 		}
 		return 0;
 	}
+	/**
+	 * @brief Turn coefficients into temporary variables
+	 * 
+	 * @param solver 
+	 * @return Poly& 
+	 */
+	Poly& memoize( Smt::Solver& solver, Smt::BaseSort const& sort );
 	Poly operator+( Poly const& p2 ) const &;
 	Poly& operator+=( Poly const& p2 ) &;
-	Poly monom_mult( Smt::PreExp const& c, Vars const& vs ) const;
+	Poly monom_mult( Smt::PostExp const& c, Vars const& vs ) const;
 	Poly operator*( Poly const& p2 ) const;
 	Poly operator*=( Poly const& p2 ) & {
 		return *this = *this * p2;
 	}
-	Smt::PreExp ge( Poly const& p2 ) const;
-	Smt::PreExp order( Poly const& p2 ) const&;
-	Smt::PreExp order( Poly const& p2 ) &&;
-	static Algebra::Intp<Poly> const ALGEBRA;
+	Smt::PostExp ge( Poly const& p2 ) const;
+	static Smt::PostExp order( Poly const& p1, Poly const& p2, Smt::Solver& solver );
+	static Algebra::Intp<Poly> algebra( Smt::Solver& solver, Smt::BaseSort const& sort );
 	static Algebra::Intp<Poly> const VAR_INTP;
 	static Poly sum( std::vector<Poly> const& args ) {
 		Poly ret;

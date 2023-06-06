@@ -70,7 +70,8 @@ public:
 		PostExp( PostExp const& other ) : Exp(other) {}
 		PostExp( PostExp && other ) : Exp(std::move(other)) {}
 		PostExp( int n ) : Exp(n) {}
-		PostExp operator *( PostExp const& arg ) const;
+		Smt::PostExp operator&&( Smt::PostExp const& y ) const;
+		Smt::PostExp operator||( Smt::PostExp const& y ) const;
 		PostExp& disj_eq( PostExp const& arg ) &;
 		PostExp& conj_eq( PostExp const& arg ) &;
 		bool operator==( PostExp const& other ) const {
@@ -84,6 +85,11 @@ public:
 			Exp::operator=(std::move(other));
 			return *this;
 		}
+		PostExp operator!() const;
+		PostExp operator+( PostExp const& arg ) const;
+		PostExp& operator+=( PostExp const& other ) &;
+		PostExp operator*( PostExp const& arg ) const;
+		PostExp& operator*=( PostExp const& other ) &;
 		PostExp operator,( PostExp const& other ) const {
 			return Exp(CONS,(Exp)*this,(Exp)other);
 		}
@@ -167,30 +173,86 @@ public:
 	static PreExp cdr( PreExp const& arg ) {
 		return PreExp{CDR,{arg}};
 	}
-	static PreExp eq( PreExp const& x, PreExp const& y ) {
+	static PostExp eq( PostExp const& x, PostExp const& y ) {
+		return PostExp{EQ,(Exp)x,(Exp)y};
+	}
+	template<class T>
+		requires (!std::is_convertible_v<T,PostExp> && std::is_convertible_v<T,PreExp>)
+	static PreExp eq( T const& x, PreExp const& y ) {
 		return PreExp(EQ,{x,y});
 	}
-	static PreExp ge( PreExp const& x, PreExp const& y ) {
+	template<class T>
+		requires (!std::is_convertible_v<T,PostExp> && std::is_convertible_v<T,PreExp>)
+	static PreExp eq( PreExp const& x, T const& y ) {
+		return PreExp(EQ,{x,y});
+	}
+	static PostExp ge( PostExp const& x, PostExp const& y ) {
+		return PostExp{GE,(Exp)x,(Exp)y};
+	}
+	template<class T>
+		requires (!std::is_convertible_v<T,PostExp> && std::is_convertible_v<T,PreExp>)
+	static PreExp ge( T const& x, PreExp const& y ) {
 		return PreExp(GE,{x,y});
 	}
-	static PreExp gt( PreExp const& x, PreExp const& y ) {
+	template<class T>
+		requires (!std::is_convertible_v<T,PostExp> && std::is_convertible_v<T,PreExp>)
+	static PreExp ge( PreExp const& x, T const& y ) {
+		return PreExp(GE,{x,y});
+	}
+	static PostExp gt( PostExp const& x, PostExp const& y ) {
+		return PostExp{GT,(Exp)x,(Exp)y};
+	}
+	template<class T>
+		requires (!std::is_convertible_v<T,PostExp> && std::is_convertible_v<T,PreExp>)
+	static PreExp gt( T const& x, PreExp const& y ) {
 		return PreExp(GT,{x,y});
 	}
-	class If {
+	template<class T>
+		requires (!std::is_convertible_v<T,PostExp> && std::is_convertible_v<T,PreExp>)
+	static PreExp gt( PreExp const& x, T const& y ) {
+		return PreExp(GT,{x,y});
+	}
+private:
+	struct _PostIf2 {
+		PostExp const& i;
+		PostExp const& t;
+		PostExp operator^( PostExp const& e ) const {
+			return PostExp(ITE,(Exp)i,(Exp)t,(Exp)e);
+		}
+		PreExp operator^( PreExp const& e ) const {
+			return PreExp(ITE,{i,t,e});
+		}
+	};
+	struct _PreIf2 {
 		PreExp const& i;
-		struct _If2 {
-			PreExp const& i;
-			PreExp const& t;
-			PreExp operator^( PreExp const& e ) const {
-				return PreExp(ITE,{i,t,e});
-			}
-		};
-	public:
-		explicit If( PreExp const& i ) : i(i) {}
-		_If2 operator^( PreExp const& t ) const {
+		PreExp const& t;
+		PreExp operator^( PreExp const& e ) const {
+			return PreExp(ITE,{i,t,e});
+		}
+	};
+	struct _PostIf1 {
+		PostExp const& i;
+		_PostIf2 operator^( PostExp const& t ) const {
+			return {i,t};
+		}
+		_PreIf2 operator^( PreExp const& t ) const {
 			return {i,t};
 		}
 	};
+	struct _PreIf1 {
+		PreExp const& i;
+		_PreIf2 operator^( PreExp const& t ) const {
+			return {i,t};
+		}
+	};
+public:
+	static _PostIf1 If( PostExp const& i ) {
+		return {i};
+	}
+	template<class T> requires (!std::is_convertible_v<T,PostExp>)
+	static _PreIf1 If( T const& i ) {
+		return {i};
+	}
 	class Let {
 		Sort const& sort;
 		PreExp const& val;
@@ -212,7 +274,6 @@ public:
 		Solver( Solver const& other ) = delete;
 		Solver& operator=( Solver const& other ) = delete;
 		std::string _make_fresh() &;
-		PreExp _expand_let( Sort const& sort, PostExp const& val );
 	public:
 		PostExp declare_const( std::string_view const& name, BaseSort const& sort ) &;
 		PostExp declare_fresh( BaseSort const& sort ) {
@@ -226,16 +287,26 @@ public:
 			BaseSort const& sort,
 			PostExp const& body
 		) &;
+		template<class T>
+			requires (!std::is_convertible_v<T,PostExp> && std::is_convertible_v<T,PreExp>)
 		PostExp define_fun(
 			std::string_view const& name,
 			std::initializer_list<std::pair<std::string_view,std::string_view>> const& params,
 			BaseSort const& sort,
-			PreExp const& body
+			T const& body
 		) & {
 			return define_fun(name,params,sort,expand(body));
 		}
+		PostExp let( Sort const& sort, PostExp const& val ) &;
+		template<class T>
+			requires (!std::is_convertible_v<T,PostExp> && std::is_convertible_v<T,PreExp>)
+		PostExp let( Sort const& sort, T const& val ) & {
+			return let(sort,expand(val));
+		}
 		Solver& ass( PostExp const& e ) &;
-		Solver& ass( PreExp const& p ) & {
+		template<class T>
+			requires (!std::is_convertible_v<T,PostExp> && std::is_convertible_v<T,PreExp>)
+		Solver& ass( T const& p ) & {
 			return ass(expand(p));
 		}
 		Solver& push() &;
@@ -260,16 +331,24 @@ public:
 inline Smt::Sort Smt::BaseSort::operator,( Sort const& rest ) const {
 	return (Sort(*this), rest);
 }
-inline Smt::PreExp operator+( Smt::PostExp const& x, Smt::PreExp const& y ) {
+template<class T>
+	requires (!std::is_convertible_v<T,Smt::PostExp> && std::is_convertible_v<T,Smt::PreExp>)
+inline Smt::PreExp operator+( Smt::PostExp const& x, T const& y ) {
 	return Smt::PreExp(x) + y;
 }
-inline Smt::PreExp operator*( Smt::PostExp const& x, Smt::PreExp const& y ) {
+template<class T>
+	requires (!std::is_convertible_v<T,Smt::PostExp> && std::is_convertible_v<T,Smt::PreExp>)
+inline Smt::PreExp operator*( Smt::PostExp const& x, T const& y ) {
 	return Smt::PreExp(x) * y;
 }
-inline Smt::PreExp operator&&( Smt::PostExp const& x, Smt::PreExp const& y ) {
+template<class T>
+	requires (!std::is_convertible_v<T,Smt::PostExp> && std::is_convertible_v<T,Smt::PreExp>)
+inline Smt::PreExp operator&&( Smt::PostExp const& x, T const& y ) {
 	return Smt::PreExp(x) && y;
 }
-inline Smt::PreExp operator||( Smt::PostExp const& x, Smt::PreExp const& y ) {
+template<class T>
+	requires (!std::is_convertible_v<T,Smt::PostExp> && std::is_convertible_v<T,Smt::PreExp>)
+inline Smt::PreExp operator||( Smt::PostExp const& x, T const& y ) {
 	return Smt::PreExp(x) || y;
 }
 inline std::ostream& operator<<( std::ostream& os, Smt::PostExp const& e ) {

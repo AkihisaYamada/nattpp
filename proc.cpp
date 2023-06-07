@@ -44,6 +44,7 @@ Proc::Proc( _Maker const& maker, Opt<ostream&> tee ) :
 }
 
 void Proc::test() {
+	cout << "=== Proc test ===" << endl;
 	auto cout2 = ofstream("/dev/stdout");
 	auto teebuf = TeeBuf(*cout2.rdbuf(),cout);
 	auto teeos = ostream(&teebuf);

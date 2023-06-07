@@ -3,7 +3,7 @@
 using namespace std;
 
 Algebra::Intp<Exp> const Algebra::TERM = {
-	[](std::string_view const& f, std::vector<Exp>&& args )->Exp{
+	[](std::string const& f, std::vector<Exp>&& args )->Exp{
 		if( args.empty() ) {
 			return f;
 		}
@@ -36,7 +36,7 @@ static Smt::BaseSort base_sort_of( Exp const& exp ) {
 	}
 	throw Template::Error("#unknown-sort",exp);
 }
-static Exp derive_inner( string_view const& f, Trs::Rank const& rank, Smt::Solver& solver, Exp const& exp, int pos ) {
+static Exp derive_inner( string const& f, Trs::Rank const& rank, Smt::Solver& solver, Exp const& exp, int pos ) {
 	auto const& fun = exp.fun();
 	auto const& args = exp.args();
 	if( fun == "arg" ) {

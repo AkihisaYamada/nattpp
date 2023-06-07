@@ -60,87 +60,75 @@ public:
 		Exp const& view_exp() const override { return _exp; }
 	};
 	static BaseSort const BOOL, INT, REAL;
-	class PostExp : private Exp {
+	class PostExp {
 		friend Smt;
-		using Exp::Exp;
-		PostExp( Exp&& x ) : Exp(std::move(x)) {}
-		PostExp( Exp const& x ) : Exp(x) {}
+		typedef std::pair<std::string,std::vector<PostExp>> App;
+		Sum<int,Mem<App>> _un;
+		explicit PostExp( std::string&& fun, std::vector<PostExp>&& args ) :
+			_un(Mem<App>(std::move(fun),std::move(args)) ) {}
+		explicit PostExp( std::string const& fun, std::vector<PostExp>&& args ) :
+			_un(Mem<App>(fun,std::move(args)) ) {}
+		explicit PostExp( std::string&& fun ) : PostExp(std::move(fun),{}) {}
+		explicit PostExp( std::string_view const& fun ) : _un(Mem<App>(fun,std::vector<PostExp>())) {}
+		explicit PostExp( char const* fun ) : _un(Mem<App>(fun,std::vector<PostExp>())) {}
 	public:
-		PostExp() {}
-		PostExp( PostExp const& other ) : Exp(other) {}
-		PostExp( PostExp && other ) : Exp(std::move(other)) {}
-		PostExp( int n ) : Exp(n) {}
-		Smt::PostExp operator&&( Smt::PostExp const& y ) const;
-		Smt::PostExp operator||( Smt::PostExp const& y ) const;
-		PostExp& disj_eq( PostExp const& arg ) &;
-		PostExp& conj_eq( PostExp const& arg ) &;
+		PostExp( PostExp const& other ) : _un(other._un) {}
+		PostExp( PostExp && other ) : _un(std::move(other._un)) {}
+		PostExp( int n ) : _un(n) {}
+		Opt<int const&> num() const & { return _un.ref<0>(); }// ref<int> doesn't work!
+		Opt<int&> num() & { return _un.ref<0>(); }
+		Opt<App> app() && = delete;
+		OptMem<App> app() const & {
+			if( auto ref = _un.ref<Mem<App>>() ) {
+				return *ref;
+			}
+			return {};
+		}
+		OptMem<App> app() & { return OptMem<App>(_un.ref<Mem<App>>()); }
 		bool operator==( PostExp const& other ) const {
-			return Exp::operator==(other);
+			return _un == other._un;
 		}
 		PostExp& operator=( PostExp const& other ) & {
-			Exp::operator=(other);
+			_un = other._un;
 			return *this;
 		}
 		PostExp& operator=( PostExp&& other ) & {
-			Exp::operator=(std::move(other));
+			_un = std::move(other._un);
 			return *this;
 		}
+		PostExp conj( PostExp const& y ) const;
+		PostExp& conj_eq( PostExp const& y ) &;
+		PostExp disj( PostExp const& y ) const;
+		PostExp& disj_eq( PostExp const& y ) &;
 		PostExp operator!() const;
-		PostExp operator+( PostExp const& arg ) const;
-		PostExp& operator+=( PostExp const& other ) &;
-		PostExp operator*( PostExp const& arg ) const;
-		PostExp& operator*=( PostExp const& other ) &;
-		PostExp operator,( PostExp const& other ) const {
-			return Exp(CONS,(Exp)*this,(Exp)other);
+		PostExp add( PostExp const& y ) const;
+		PostExp& operator+=( PostExp const& y ) &;
+		PostExp mul( PostExp const& y ) const;
+		PostExp& operator*=( PostExp const& y ) &;
+		PostExp cons( PostExp const& y ) const {
+			return PostExp(CONS,{*this,y});
 		}
-		Exp const exp() const {
-			return *this;
-		}
+		Exp exp() const;
 	};
-	static PostExp const TRUE, FALSE, ZERO, ONE;
+	static PostExp const TRUE, FALSE;
 	static PostExp car( PostExp const& arg );
 	static PostExp cdr( PostExp const& arg );
 	class PreExp {
 		friend Smt;
 		using App = std::pair<std::string,std::vector<PreExp>>;
-		using Let = std::tuple<PreExp,Sort,std::function<PreExp(PreExp const&)>>;
+		using Let = std::tuple<PreExp,Sort,std::function<PreExp(PostExp const&)>>;
 		using Lazy = std::function<PreExp()>;
 		Sum<PostExp,Mem<App>,Mem<Let>,Lazy> _un;
-		explicit PreExp( Sort const& sort, PreExp const& val, std::function<PreExp(PreExp const&)> body ) :
+		explicit PreExp( Sort const& sort, PreExp const& val, std::function<PreExp(PostExp const&)> body ) :
 			_un( std::in_place_type<Mem<Let>>, val, sort, body ) {}
 		explicit PreExp( std::string_view const& fun, std::vector<PreExp>&& args ) :
 			_un(std::in_place_type<Mem<App>>,fun,std::move(args)) {}
 	public:
-		PreExp( const char* str ) : _un(std::in_place_type<PostExp>,str) {}
-		PreExp( std::string && str ) : _un(std::in_place_type<PostExp>,std::move(str)) {}
-		PreExp( std::string_view && str ) : _un(std::in_place_type<PostExp>,std::move(str)) {}
-		PreExp( int n ) : _un(std::in_place_type<PostExp>,std::to_string(n)) {}
 		PreExp( PostExp const& e ) : _un(e) {}
 		template<typename T> requires std::is_convertible_v<T,Lazy>
 		PreExp( T const& lazy ) : _un(lazy) {}
-		PreExp operator&&( PreExp const& y ) const {
-			return PreExp(AND,{*this,y});
-		}
-		PreExp operator||( PreExp const& y ) const {
-			return PreExp(OR,{*this,y});
-		}
 		PreExp operator!() const {
 			return PreExp(NOT,{*this});
-		}
-		PreExp operator+( PreExp const& y ) const {
-			return PreExp(ADD,{*this,y});
-		}
-		PreExp operator*( PreExp const& y ) const {
-			return PreExp(MUL,{*this,y});
-		}
-		PreExp& operator+=( PreExp const& y ) & {
-			return *this = *this + y;
-		}
-		PreExp& operator*=( PreExp const& y ) & {
-			return *this = *this * y;
-		}
-		PreExp operator,( PreExp const& y ) const {
-			return PreExp(CONS,{*this,y});
 		}
 		auto post() && {
 			return std::move(_un).ref<PostExp>();
@@ -166,6 +154,27 @@ public:
 		auto lazy() const& {
 			return _un.ref<Lazy>();
 		}
+		PreExp conj( PreExp const& y ) const {
+			return PreExp(AND,{*this,y});
+		}
+		PreExp disj( PreExp const& y ) const {
+			return PreExp(OR,{*this,y});
+		}
+		PreExp add( PreExp const& y ) const {
+			return PreExp(ADD,{*this,y});
+		}
+		PreExp& operator+=( PreExp const& y ) & {
+			return *this = add(y);
+		}
+		PreExp mul( PreExp const& y ) const {
+			return PreExp(MUL,{*this,y});
+		}
+		PreExp& operator*=( PreExp const& y ) & {
+			return *this = mul(y);
+		}
+		PreExp cons( PreExp const& y ) const {
+			return PreExp(CONS,{*this,y});
+		}
 	};
 	static PreExp car( PreExp const& arg ) {
 		return PreExp{CAR,{arg}};
@@ -173,102 +182,69 @@ public:
 	static PreExp cdr( PreExp const& arg ) {
 		return PreExp{CDR,{arg}};
 	}
-	static PostExp eq( PostExp const& x, PostExp const& y ) {
-		return PostExp{EQ,(Exp)x,(Exp)y};
-	}
-	template<class T>
-		requires (!std::is_convertible_v<T,PostExp> && std::is_convertible_v<T,PreExp>)
-	static PreExp eq( T const& x, PreExp const& y ) {
+	static PostExp eq( PostExp const& x, PostExp const& y );
+	static PreExp eq( PreExp const& x, PreExp const& y ) {
 		return PreExp(EQ,{x,y});
 	}
-	template<class T>
-		requires (!std::is_convertible_v<T,PostExp> && std::is_convertible_v<T,PreExp>)
-	static PreExp eq( PreExp const& x, T const& y ) {
-		return PreExp(EQ,{x,y});
-	}
-	static PostExp ge( PostExp const& x, PostExp const& y ) {
-		return PostExp{GE,(Exp)x,(Exp)y};
-	}
-	template<class T>
-		requires (!std::is_convertible_v<T,PostExp> && std::is_convertible_v<T,PreExp>)
-	static PreExp ge( T const& x, PreExp const& y ) {
+	static PostExp ge( PostExp const& x, PostExp const& y );
+	static PreExp ge( PreExp const& x, PreExp const& y ) {
 		return PreExp(GE,{x,y});
 	}
-	template<class T>
-		requires (!std::is_convertible_v<T,PostExp> && std::is_convertible_v<T,PreExp>)
-	static PreExp ge( PreExp const& x, T const& y ) {
-		return PreExp(GE,{x,y});
-	}
-	static PostExp gt( PostExp const& x, PostExp const& y ) {
-		return PostExp{GT,(Exp)x,(Exp)y};
-	}
-	template<class T>
-		requires (!std::is_convertible_v<T,PostExp> && std::is_convertible_v<T,PreExp>)
-	static PreExp gt( T const& x, PreExp const& y ) {
+	static PostExp gt( PostExp const& x, PostExp const& y );
+	static PreExp gt( PreExp const& x, PreExp const& y ) {
 		return PreExp(GT,{x,y});
 	}
-	template<class T>
-		requires (!std::is_convertible_v<T,PostExp> && std::is_convertible_v<T,PreExp>)
-	static PreExp gt( PreExp const& x, T const& y ) {
-		return PreExp(GT,{x,y});
+	static PostExp ite( PostExp const& i, PostExp const& t, PostExp const& e );
+	static PreExp ite( PreExp const& i, PreExp const& t, PreExp const& e ) {
+		return PreExp(ITE,{i,t,e});
+	}
+	static PreExp ite( PreExp const& i, PreExp const& t, PostExp const& e ) {
+		return PreExp(ITE,{i,t,e});
+	}
+	static PreExp ite( PreExp const& i, PostExp const& t, PreExp const& e ) {
+		return PreExp(ITE,{i,t,e});
+	}
+	static PreExp ite( PreExp const& i, PostExp const& t, PostExp const& e ) {
+		return PreExp(ITE,{i,t,e});
 	}
 private:
-	struct _PostIf2 {
-		PostExp const& i;
-		PostExp const& t;
-		PostExp operator^( PostExp const& e ) const {
-			return PostExp(ITE,(Exp)i,(Exp)t,(Exp)e);
-		}
-		PreExp operator^( PreExp const& e ) const {
-			return PreExp(ITE,{i,t,e});
-		}
-	};
-	struct _PreIf2 {
+	struct _If2 {
 		PreExp const& i;
 		PreExp const& t;
 		PreExp operator^( PreExp const& e ) const {
 			return PreExp(ITE,{i,t,e});
 		}
 	};
-	struct _PostIf1 {
-		PostExp const& i;
-		_PostIf2 operator^( PostExp const& t ) const {
-			return {i,t};
-		}
-		_PreIf2 operator^( PreExp const& t ) const {
-			return {i,t};
-		}
-	};
-	struct _PreIf1 {
-		PreExp const& i;
-		_PreIf2 operator^( PreExp const& t ) const {
-			return {i,t};
-		}
-	};
 public:
-	static _PostIf1 If( PostExp const& i ) {
-		return {i};
-	}
-	template<class T> requires (!std::is_convertible_v<T,PostExp>)
-	static _PreIf1 If( T const& i ) {
-		return {i};
-	}
+	class If {
+		PreExp const& i;
+	public:
+		If( PreExp const& i ) : i(i) {}
+		_If2 operator^( PreExp const& t ) const {
+			return {i,t};
+		}
+	};
 	class Let {
 		Sort const& sort;
 		PreExp const& val;
 		Let( Let const& ) = delete;
 	public:
 		explicit Let( Sort const& sort, PreExp const& val ) : sort(sort), val(val) {}
-		PreExp operator^( std::function<PreExp(PreExp const&)> body ) const {
+		PreExp operator^( std::function<PreExp(PostExp const&)> body ) const {
 			return PreExp(sort,val,body);
 		}
 	};
 	static Algebra::Intp<Smt::PreExp> const ALGEBRA;
+	class Reader : public Exp::Reader {
+	public:
+		using Exp::Reader::Reader;
+		PostExp read_post_exp();
+	};
 	class Solver {
 		friend Smt;
 		enum { UNKNOWN, SOLVING, SAT, UNSAT } _status;
 		Proc& _proc;
-		::Exp::Reader _reader;
+		Reader _reader;
 		size_t _var_count;
 		Solver( Proc& proc, Logic const& logic );
 		Solver( Solver const& other ) = delete;
@@ -331,29 +307,39 @@ public:
 inline Smt::Sort Smt::BaseSort::operator,( Sort const& rest ) const {
 	return (Sort(*this), rest);
 }
-template<class T>
-	requires (!std::is_convertible_v<T,Smt::PostExp> && std::is_convertible_v<T,Smt::PreExp>)
-inline Smt::PreExp operator+( Smt::PostExp const& x, T const& y ) {
-	return Smt::PreExp(x) + y;
+
+inline Smt::PostExp operator&&( Smt::PostExp const& x, Smt::PostExp const& y ) {
+	return x.conj(y);
 }
-template<class T>
-	requires (!std::is_convertible_v<T,Smt::PostExp> && std::is_convertible_v<T,Smt::PreExp>)
-inline Smt::PreExp operator*( Smt::PostExp const& x, T const& y ) {
-	return Smt::PreExp(x) * y;
+inline Smt::PostExp operator||( Smt::PostExp const& x, Smt::PostExp const& y ) {
+	return x.disj(y);
 }
-template<class T>
-	requires (!std::is_convertible_v<T,Smt::PostExp> && std::is_convertible_v<T,Smt::PreExp>)
-inline Smt::PreExp operator&&( Smt::PostExp const& x, T const& y ) {
-	return Smt::PreExp(x) && y;
+inline Smt::PostExp operator+( Smt::PostExp const& x, Smt::PostExp const& y ) {
+	return x.add(y);
 }
-template<class T>
-	requires (!std::is_convertible_v<T,Smt::PostExp> && std::is_convertible_v<T,Smt::PreExp>)
-inline Smt::PreExp operator||( Smt::PostExp const& x, T const& y ) {
-	return Smt::PreExp(x) || y;
+inline Smt::PostExp operator*( Smt::PostExp const& x, Smt::PostExp const& y ) {
+	return x.mul(y);
 }
-inline std::ostream& operator<<( std::ostream& os, Smt::PostExp const& e ) {
-	return os << e.exp();
+inline Smt::PostExp operator,( Smt::PostExp const& x, Smt::PostExp const& y ) {
+	return x.cons(y);
 }
+
+inline Smt::PreExp operator&&( Smt::PreExp const& x, Smt::PreExp const& y ) {
+	return x.conj(y);
+}
+inline Smt::PreExp operator||( Smt::PreExp const& x, Smt::PreExp const& y ) {
+	return x.disj(y);
+}
+inline Smt::PreExp operator+( Smt::PreExp const& x, Smt::PreExp const& y ) {
+	return x.add(y);
+}
+inline Smt::PreExp operator*( Smt::PreExp const& x, Smt::PreExp const& y ) {
+	return x.mul(y);
+}
+inline Smt::PreExp operator,( Smt::PreExp const& x, Smt::PreExp const& y ) {
+	return x.cons(y);
+}
+std::ostream& operator<<( std::ostream& os, Smt::PostExp const& e );
 std::ostream& operator<<( std::ostream& os, Smt::PreExp const& e );
 
 #endif

@@ -94,7 +94,7 @@ Smt::PostExp Poly::order( Poly const& p1, Poly const& p2, Smt::Solver& solver ) 
 }
 
 Algebra::Intp<Poly> const Poly::VAR_INTP = Algebra::Intp<Poly>(
-	[]( std::string_view const& f, std::vector<Poly> const& args )->Poly{
+	[]( std::string const& f, std::vector<Poly> const& args )->Poly{
 		if( !args.empty() ) {
 			throw Poly::Error("#var-intp");
 		}
@@ -110,7 +110,7 @@ Poly& Poly::memoize( Smt::Solver& solver, Smt::BaseSort const& sort ) {
 }
 
 Algebra::Intp<Poly> Poly::algebra( Smt::Solver& solver, Smt::BaseSort const& sort ) {
-	return [&solver,sort]( std::string_view const& f, std::vector<Poly> const& args )->Poly{
+	return [&solver,sort]( std::string const& f, std::vector<Poly> const& args )->Poly{
 		if( f == "+" ) {
 			return sum(args).memoize(solver,sort);
 		}
@@ -129,10 +129,10 @@ Algebra::Intp<Poly> Poly::algebra( Smt::Solver& solver, Smt::BaseSort const& sor
 			if( !vi || !vt || !ve ) {
 				throw Poly::Error{"#ite-poly"};
 			}
-			return Smt::If(*vi) ^ *vt ^ *ve;
+			return Smt::ite(*vi,*vt,*ve);
 		}
 		assert( args.size() == 0 );
-		return Smt::PostExp(f);
+		return Smt::PostExp(std::stoi(f));
 	};
 }
 
@@ -155,8 +155,10 @@ int Poly::test() {
 	cout << hsubst.derive(z3alg,Poly::VAR_INTP).eval(e) << endl;
 	Poly x = Poly::Var("x",Poly::POS);
 	Poly y = Poly::Var("y",Poly::NEG);
+	auto c = z3.declare_const("c",Smt::INT);
+	auto d = z3.declare_const("d",Smt::INT);
 	cout << (x + 5) * (y * 3 + 2) << endl;
-	cout << (x * Smt::PostExp("c") + Smt::PostExp("d")).ge(x * 5 + 3) << endl;
+	cout << (x * c + d).ge(x * 5 + 3) << endl;
 	Trs::Sig sig;
 	sig.insert("f",2);
 	sig.insert("g",1);

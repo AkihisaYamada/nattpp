@@ -11,8 +11,8 @@ public:
 		using Exp::Error::Error;
 	};
 	template<class T>
-	struct Intp : std::function<T(std::string_view const&,std::vector<T>&&)> {
-		Intp( auto const& fun ) : std::function<T(std::string_view const&,std::vector<T>&&)>(fun) {}
+	struct Intp : std::function<T(std::string const&,std::vector<T>&&)> {
+		Intp( auto const& fun ) : std::function<T(std::string const&,std::vector<T>&&)>(fun) {}
 		T eval( Exp const& e ) const {
 			std::vector<T> vargs;
 			for( auto const& arg : e.args() ) {
@@ -51,16 +51,16 @@ private:
 	T _intp(
 		Algebra::Intp<T> const& intp,
 		Algebra::Intp<T> const& default_intp,
-		std::string_view const& f,
+		std::string const& f,
 		std::vector<T>&& args
 	) const;
 	Algebra::Intp<Exp> const _SUBST;
 public:
 	Deriver() : _SUBST(derive(Algebra::TERM,Algebra::TERM)) {}
-	virtual Opt<Exp const&> find( std::string_view const& ) const = 0;
+	virtual Opt<Exp const&> find( std::string const& ) const = 0;
 	template<typename T>
 	Algebra::Intp<T> derive( Algebra::Intp<T> const& intp, Algebra::Intp<T> const& default_intp ) & {
-		return [&]( std::string_view const& f, std::vector<T>&& args ){
+		return [&]( std::string const& f, std::vector<T>&& args ){
 			return _intp(intp,default_intp,f,std::move(args));
 		};
 	}
@@ -73,7 +73,7 @@ template<typename T>
 T Deriver::_intp(
 	Algebra::Intp<T> const& intp,
 	Algebra::Intp<T> const& default_intp,
-	std::string_view const& f,
+	std::string const& f,
 	std::vector<T>&& vs
 ) const {
 	if( auto e = find(f) ) {
@@ -86,7 +86,7 @@ class Deriver::Map : public ::Map<std::string,Exp>, public Deriver {
 public:
 	Map() {}
 	Map( std::initializer_list<value_type> list ) : ::Map<std::string,Exp>(list) {}
-	Opt<Exp const&> find( std::string_view const& f ) const {
+	Opt<Exp const&> find( std::string const& f ) const {
 		return ::Map<std::string,Exp>::find(f);
 	}
 };

@@ -45,7 +45,7 @@ int main( int argc, char** argv ) {
 		}
 	} catch( Trs::Reader::Error const& e ) {
 		cerr << e << endl;
-	} catch( Exp::Error const& e ) {
+	} catch( Error const& e ) {
 		cerr << e << endl;
 	}
 }

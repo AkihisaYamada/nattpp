@@ -20,21 +20,21 @@ static void _switch(
 static bool _unknown_key( string_view const& key ) {
 	throw Problem::Error{"#unknown-key",key};
 }
-static bool _process_number( string_view const& key, Exp::Reader& eis, int& num ) {
+static bool _process_number( string_view const& key, ::Reader& eis, int& num ) {
 	if( key != ":number" ) {
 		return false;
 	}
 	auto const& s = eis.read_sym();
 	if( num != 0 ) {
-		throw Problem::Error{"#duplicate-attr",":number",num,s};
+		throw Problem::Error{"#duplicate-attr",":number",to_string(num),s};
 	}
 	num = stoi(s);
 	if( num <= 0 || 10 < num ) {
-		throw Problem::Error{"#out-of-range",":number",num};
+		throw Problem::Error{"#out-of-range",":number",to_string(num)};
 	}
 	return true;
 }
-static bool _process_index( Problem& x, string_view const& key, Exp::Reader& eis, int& index ) {
+static bool _process_index( Problem& x, string_view const& key, ::Reader& eis, int& index ) {
 	if( key != ":index" ) {
 		return false;
 	}
@@ -43,13 +43,13 @@ static bool _process_index( Problem& x, string_view const& key, Exp::Reader& eis
 	}
 	index = eis.read_int();
 	if( index < 1 || x.systems.size() < index ) {
-		throw Problem::Error{"#index-out-of-range",index};
+		throw Problem::Error{"#index-out-of-range",to_string(index)};
 	}
 	return true;
 }
 
 Problem::Problem( istream& is ) {
-	auto eis = Exp::Reader(is);
+	auto eis = Reader(is);
 	eis.open();
 	eis.read_sym("format");
 	if( eis.reads_sym("TRS") ) {
@@ -77,7 +77,7 @@ Problem::Problem( istream& is ) {
 					}
 				}
 				if( auto prev = sig.insert(fun,Trs::Rank{arity}) ) {
-					throw Error{"#duplicate-fun",fun,prev->arity,arity};
+					throw Error{"#duplicate-fun",fun,to_string(prev->arity),to_string(arity)};
 				}
 			} else if( eis.reads_sym("rule") ) {
 				auto l = tis.read(), r = tis.read();

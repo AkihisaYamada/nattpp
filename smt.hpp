@@ -7,8 +7,8 @@
 
 class Smt {
 public:
-	struct Error : ::Exp::Error {
-		using ::Exp::Error::Error;
+	struct Error : ::Error {
+		using ::Error::Error;
 	};
 	class Logic {
 		friend Smt;
@@ -31,33 +31,26 @@ public:
 	static constexpr char CDR[] = "cdr";
 	static constexpr char LIST[] = "list";
 	static constexpr char NTH[] = "nth";
-	class Sort;
 	class BaseSort {
 	public:
 		std::string const name;
-		Sort operator,( Sort const& rest ) const;
 	private:
 		friend Smt;
 		BaseSort( char const* name ) : name(name) {}
 		BaseSort( std::string const& name ) : name(name) {}
 	};
-	class Sort : public ExpView {
-		friend Smt;
-		Exp _exp;
-		Sort( Exp const& exp ) : _exp(exp) {}
+	class Sort {
+		using _Cons = std::pair<Sort,Sort>;
+		Sum<BaseSort,Mem<_Cons>> _un;
 	public:
-		Sort( BaseSort const& base ) : _exp(base.name) {}
-		Sort operator,( Sort const& rest ) const {
-			return Sort({CONS,_exp,rest._exp});
+		Sort( BaseSort const& base ) : _un(base) {}
+		Sort( Sort const& x, Sort const& y ) : _un(Mem<_Cons>(x,y)) {}
+		Opt<BaseSort const&> base() const & {
+			return _un.ref<BaseSort>();
 		}
-		Opt<BaseSort> base() const & {
-			auto const& fun = _exp.fun();
-			if( fun == CONS ) {
-				return {};
-			}
-			return BaseSort(fun);
+		OptMem<_Cons> cons() const & {
+			return OptMem<_Cons>(_un.ref<Mem<_Cons>>());
 		}
-		Exp const& view_exp() const override { return _exp; }
 	};
 	static BaseSort const BOOL, INT, REAL;
 	class PostExp {
@@ -235,9 +228,9 @@ public:
 		}
 	};
 	static Algebra::Intp<Smt::PreExp> const ALGEBRA;
-	class Reader : public Exp::Reader {
+	class Reader : public ::Reader {
 	public:
-		using Exp::Reader::Reader;
+		using ::Reader::Reader;
 		PostExp read_post_exp();
 	};
 	class Solver {
@@ -304,8 +297,8 @@ public:
 	static int test();
 };
 
-inline Smt::Sort Smt::BaseSort::operator,( Sort const& rest ) const {
-	return (Sort(*this), rest);
+inline Smt::Sort operator,( Smt::Sort const& x, Smt::Sort const& y ) {
+	return Smt::Sort(x,y);
 }
 
 inline Smt::PostExp operator&&( Smt::PostExp const& x, Smt::PostExp const& y ) {
@@ -339,6 +332,10 @@ inline Smt::PreExp operator*( Smt::PreExp const& x, Smt::PreExp const& y ) {
 inline Smt::PreExp operator,( Smt::PreExp const& x, Smt::PreExp const& y ) {
 	return x.cons(y);
 }
+inline std::ostream& operator<<( std::ostream& os, Smt::BaseSort const& x ) {
+	return os << x.name;
+}
+std::ostream& operator<<( std::ostream& os, Smt::Sort const& e );
 std::ostream& operator<<( std::ostream& os, Smt::PostExp const& e );
 std::ostream& operator<<( std::ostream& os, Smt::PreExp const& e );
 

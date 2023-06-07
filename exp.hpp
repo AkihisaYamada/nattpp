@@ -12,81 +12,70 @@
 #include"ref.hpp"
 #include"sum.hpp"
 
-class Exp;
-
-struct ExpView {
-	virtual Exp const& view_exp() const = 0;
-};
-
-class Exp : public ExpView {
+template<typename F>
+class Tree {
+	typedef F Fun;
 	/**
 	 * @brief Application. The pair of the function and the vector of arguments.
 	 */
-	typedef std::pair<std::string,std::vector<Exp>> App;
+	typedef std::pair<Fun,std::vector<Tree>> App;
 	Mem<App> _mem;
-	static const Mem<App> _EMPTY;
 public:
-	struct Error;
-	class Reader;
-	Exp() : _mem(_EMPTY) {}
 	/** @brief copy constructor */
-	Exp( Exp const& other ) = default;
+	Tree( Tree const& other ) = default;
 	/** @brief move constructor */
-	Exp( Exp && other ) : _mem(std::move(other._mem)) {}
-	/** @brief Number as symbol */
-	Exp( int n ) : _mem(App(std::to_string(n),{})) {}
+	Tree( Tree && other ) : _mem(std::move(other._mem)) {}
 	/** @brief Application */
 	template<typename S, typename... Args> requires (
-		std::is_constructible_v<std::string,S> &&
-		(std::is_constructible_v<Exp,Args> && ...)
+		std::is_constructible_v<F,S> &&
+		(std::is_constructible_v<Tree,Args> && ...)
 	)
-	Exp( S const& fun, Args const&... args ) :
+	Tree( S const& fun, Args const&... args ) :
 		_mem(App(fun,{args...})) {}
 	/**
 	 * @brief accesses the function
 	 */
-	std::string& fun() & {
+	F& fun() & {
 		return _mem->first;
 	}
 	/**
 	 * @brief accesses the function
 	 */
-	std::string const& fun() const & {
+	F const& fun() const & {
 		return _mem->first;
 	}
 	/**
 	 * @brief accesses the arguments
 	 */
-	std::vector<Exp>& args() & {
+	std::vector<Tree>& args() & {
 		return _mem->second;
 	};
 	/**
 	 * @brief accesses the arguments
 	 */
-	std::vector<Exp> const& args() const & {
+	std::vector<Tree> const& args() const & {
 		return _mem->second;
 	};
-	Exp& operator=( Exp && other ) & {
+	Tree& operator=( Tree && other ) & {
 		_mem = std::move(other._mem);
 		return *this;
 	}
-	Exp& operator=( Exp const& other ) & {
+	Tree& operator=( Tree const& other ) & {
 		_mem = other._mem;
 		return *this;
 	}
-	bool operator==( Exp const& other ) const {
+	bool operator==( Tree const& other ) const {
 		return _mem == other._mem;
 	}
-	Exp const& view_exp() const override { return *this; }
 };
 
-inline const Mem<Exp::App> Exp::_EMPTY = Mem<App>(Exp::App("",{}));
+using Exp = Tree<std::string>;
 
-struct Exp::Error : std::exception, Exp {
+struct Error : std::exception, Exp {
 	using Exp::Exp;
 };
 
-class Exp::Reader {
+class Reader {
 	std::istream& _is;
 	class LPar {};
 	class RPar {};
@@ -176,6 +165,19 @@ public:
 	}
 };
 
-std::ostream& operator<<( std::ostream& os, ExpView const& e );
+template<typename F>
+std::ostream& operator<<( std::ostream& os, Tree<F> const& e ) {
+	auto const& fun = e.fun();
+	auto const& args = e.args();
+	if( args.empty() ) {
+		return os << fun;
+	}
+	os << '(' << fun;
+	for( auto arg : args ) {
+		os << ' ' << arg;
+	}
+	return os << ')';
+}
+
 
 #endif

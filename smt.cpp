@@ -19,6 +19,17 @@ Smt::BaseSort const Smt::REAL = "Real";
 Smt::PostExp const Smt::TRUE = PostExp("true");
 Smt::PostExp const Smt::FALSE = PostExp("false");
 
+ostream& operator<<( ostream& os, Smt::Sort const& e ) {
+	if( auto base = e.base() ) {
+		return os << *base;
+	}
+	if( auto cons = e.cons() ) {
+		auto const& [e1,e2] = *cons;
+		return os << "(cons " << e1 << ' ' << e2 << ')';
+	}
+	assert(false);
+}
+
 ostream& operator<<( ostream& os, Smt::PostExp const& e ) {
 	if( auto num = e.num() ) {
 		return os << *num;
@@ -374,7 +385,7 @@ Smt::PostExp& Smt::PostExp::operator*=( PostExp const& arg ) & {
 }
 Exp Smt::PostExp::exp() const {
 	if( auto num = this->num() ) {
-		return *num;
+		return to_string(*num);
 	}
 	if( auto app = this->app() ) {
 		auto const& [fun,args] = *app;
@@ -516,14 +527,17 @@ Smt::PostExp Smt::Solver::let( Sort const& sort, PostExp const& val ) & {
 		}
 		return val;
 	}
-	auto const& sargs = sort._exp.args();
-	auto app = val.app();
-	assert(app);
-	auto const& [fun,vargs] = *app;
-	assert( fun == CONS );
-	auto const& v1 = let(sargs[0],vargs[0]);
-	auto const& v2 = let(sargs[1],vargs[1]);
-	return (v1,v2);
+	if( auto const& cons = sort.cons() ) {
+		auto const& [sort1,sort2] = *cons;
+		auto app = val.app();
+		assert(app);
+		auto const& [fun,vargs] = *app;
+		assert( fun == CONS );
+		auto const& v1 = let(sort1,vargs[0]);
+		auto const& v2 = let(sort2,vargs[1]);
+		return (v1,v2);
+	}
+	assert(false);
 };
 
 int Smt::test() try {
@@ -565,7 +579,7 @@ int Smt::test() try {
 	cout << z3.expand(cons_let) << endl;
 
 	return 0;
-} catch( ::Exp::Error const& e ) {
+} catch( ::Error const& e ) {
 	cerr << e << endl;
 	return -1;
 }

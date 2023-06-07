@@ -27,7 +27,7 @@ static string read_sym_rest( istream& is ) {
 		}
 	}
 }
-void Exp::Reader::_fetch() {
+void Reader::_fetch() {
 	if( _fetched.ref<None>() ) {
 		for(;;) {
 			switch( _is.peek() ) {
@@ -61,7 +61,7 @@ void Exp::Reader::_fetch() {
 	}
 }
 
-Opt<Exp> Exp::Reader::reads_exp() {
+Opt<Exp> Reader::reads_exp() {
 	if( auto sym = reads_sym() ) {
 		return Exp(std::move(*sym));
 	}
@@ -79,18 +79,5 @@ Opt<Exp> Exp::Reader::reads_exp() {
 		return ret;
 	}
 	return {};
-}
-
-std::ostream& operator<<(std::ostream& os, ExpView const& e) {
-	auto const& fun = e.view_exp().fun();
-	auto const& args = e.view_exp().args();
-	if( args.empty() ) {
-		return os << fun;
-	}
-	os << '(' << fun;
-	for( auto arg : args ) {
-		os << ' ' << arg;
-	}
-	return os << ')';
 }
 

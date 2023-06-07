@@ -29,16 +29,16 @@ struct Trs::Rank {
 
 class Trs::Reader {
 	Sig const& _sig;
-	::Exp::Reader& _reader;
+	::Reader& _reader;
 	/**
 	 * @brief Do not construct with rvalue Sig
 	 */
 	Reader(std::istream&,Sig&&) = delete;
 public:
-	struct Error : Exp::Error {
-		using Exp::Error::Error;
+	struct Error : ::Error {
+		using ::Error::Error;
 	};
-	Reader( ::Exp::Reader& reader, Sig const& sig ) : _reader(reader), _sig(sig) {}
+	Reader( ::Reader& reader, Sig const& sig ) : _reader(reader), _sig(sig) {}
 	Opt<Exp> reads();
 	Exp read() {
 		auto t = reads();

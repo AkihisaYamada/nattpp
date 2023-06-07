@@ -6,8 +6,8 @@
 
 class Poly {
 public:
-	struct Error : Exp::Error {
-		using Exp::Error::Error;
+	struct Error : ::Error {
+		using ::Error::Error;
 	};
 	enum Range { NONE, POS, NEG, FULL };
 	struct Var : std::string {

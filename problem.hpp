@@ -5,8 +5,8 @@
 
 class Problem {
 public:
-	struct Error : Exp::Error {
-		using Exp::Error::Error;
+	struct Error : ::Error {
+		using ::Error::Error;
 	};
 	enum {
 		TRS,

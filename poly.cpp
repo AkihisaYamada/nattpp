@@ -144,9 +144,9 @@ int Poly::test() {
 	Deriver::Map subst2 = {{"x",Exp{"g","x"}}};
 	cout << subst2.subst(Exp{"f","x","x"}) << endl;
 	Deriver::Map hsubst = {
-		{"f",Exp{"+",Exp{"*","c1",Exp{":in",0}},Exp{"*","c2",Exp{":in",1}}}},
-		{"a",Exp{"+",Exp{":in",0},"wa"}},
-		{"b",Exp{"+",Exp{":in",0},"wb"}},
+		{"f",Exp{"+",Exp{"*","c1",Exp{":in","0"}},Exp{"*","c2",Exp{":in","1"}}}},
+		{"a",Exp{"+",Exp{":in","0"},"wa"}},
+		{"b",Exp{"+",Exp{":in","0"},"wb"}},
 	};
 	auto e = Exp{"f",Exp{"a","x"},Exp{"b","x"}};
 	cout << e << hsubst << " = " << hsubst.subst(e) << endl;

@@ -7,8 +7,8 @@
 
 class Algebra {
 public:
-	struct Error : Exp::Error {
-		using Exp::Error::Error;
+	struct Error : ::Error {
+		using ::Error::Error;
 	};
 	template<class T>
 	struct Intp : std::function<T(std::string const&,std::vector<T>&&)> {

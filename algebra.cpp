@@ -40,7 +40,7 @@ static Exp derive_inner( string const& f, Trs::Rank const& rank, Smt::Solver& so
 	auto const& fun = exp.fun();
 	auto const& args = exp.args();
 	if( fun == "arg" ) {
-		return Exp(":in",pos);
+		return Exp(":in",to_string(pos));
 	}
 	if( fun == "var" ) {
 		auto it = args.begin();
@@ -107,19 +107,19 @@ Deriver::Map Template::deriver( Trs::Sig const& sig, Smt::Solver& solver ) const
 
 Template const Template::SUM = Exp{
 	"arity",
-	Exp{"0",Exp{"var","int",":constrain",Exp{">=","_",0}}},
+	Exp{"0",Exp{"var","int",":constrain",Exp{">=","_","0"}}},
 	Exp{"1",
 		Exp{"+",
-			Exp{"*",Exp{"ite",Exp{"var","bool"},2,1},"arg"},
-			Exp{"var","int",":constrain",Exp{">=","_",0}}
+			Exp{"*",Exp{"ite",Exp{"var","bool"},"2","1"},"arg"},
+			Exp{"var","int",":constrain",Exp{">=","_","0"}}
 		},
 	},
 	Exp{"t",
 		Exp{"+",
 			Exp{"args","+",
-				Exp{"*",Exp{"ite",Exp{"var","bool"},2,1},"arg"}
+				Exp{"*",Exp{"ite",Exp{"var","bool"},"2","1"},"arg"}
 			},
-			Exp{"var","int",":constrain",Exp{">=","_",0}}
+			Exp{"var","int",":constrain",Exp{">=","_","0"}}
 		}
 	}
 };

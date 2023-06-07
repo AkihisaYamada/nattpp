@@ -5,6 +5,9 @@
 
 class Template : public Exp {
 public:
+	struct Error : ::Error {
+		using ::Error::Error;
+	};
 	Template( Exp const& exp ) : Exp(exp) {}
 	Deriver::Map deriver( Trs::Sig const& sig, Smt::Solver& solver ) const;
 	static Template const SUM;

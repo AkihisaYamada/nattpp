@@ -118,11 +118,22 @@ public:
 	class Template : public Exp {
 	public:
 		Template( Exp const& exp ) : Exp(exp) {}
-		Algebra::Deriver<std::string,Sig> deriver( Trs::Sig const& sig, Smt::Solver& solver ) const;
+		Algebra::Deriver<std::string,Sig> deriver(
+			Trs::Sig const& sig,
+			Smt::Solver& solver,
+			Smt::BaseSort const& sort
+		) const;
 		static Template const SUM;
 		static Template const MONO_SUM;
 	private:
-		static Tree<Sum<Sig,Algebra::Arg>> _deriver_inner( std::string const& f, Trs::Rank const& rank, Smt::Solver& solver, Exp const& exp, int pos );
+		static Tree<Sum<Sig,Algebra::Arg>> _deriver_inner(
+			std::string const& f,
+			Trs::Rank const& rank,
+			Smt::Solver& solver,
+			Smt::BaseSort const& sort,
+			Exp const& exp,
+			int pos
+		);
 	};
 };
 

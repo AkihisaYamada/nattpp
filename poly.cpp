@@ -177,7 +177,7 @@ int Poly::test() {
 	sig.insert("f",2);
 	sig.insert("g",1);
 	sig.insert("a",0);
-	auto der = Template::SUM.deriver(sig,z3);
+	auto der = Template::SUM.deriver(sig,z3,Smt::INT);
 	e = Exp{"f",Exp{"g","x"},"a"};
 	cout << der.derive(Algebra::TERM<Sig>).eval(e) << endl;
 	cout << der.derive(z3poly).eval(e) << endl;

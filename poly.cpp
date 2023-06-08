@@ -45,7 +45,7 @@ Poly& Poly::operator+=( Poly const& p2 ) & {
 	});
 	return *this;
 }
-Poly Poly::monom_mult( Smt::PostExp const& c, Vars const& vs ) const {
+Poly Poly::monom_mult( Smt::PreExp const& c, Vars const& vs ) const {
 	Poly ret;
 	for( auto& [vs1,c1] : _map ) {
 		ret._map.insert(vs1 * vs, c * c1);
@@ -60,8 +60,8 @@ Poly Poly::operator*( Poly const& p2 ) const {
 	return std::move(ret);
 }
 
-static Smt::PostExp order_sub( Poly const& p1, Poly const& p2 ) {
-	Smt::PostExp ge = Smt::TRUE;
+static Smt::PreExp order_sub( Poly const& p1, Poly const& p2 ) {
+	Smt::PreExp ge = Smt::TRUE;
 	iter2(p1.map(),p2.map(),[&]( auto it1, auto it2 ){
 		switch( it1->first.range() ) {
 			case Poly::NONE: return;
@@ -72,21 +72,21 @@ static Smt::PostExp order_sub( Poly const& p1, Poly const& p2 ) {
 	},[&]( auto it1 ){
 		switch( it1->first.range() ) {
 			case Poly::NEG: case Poly::FULL:
-			ge = ge && Smt::eq(it1->second,0);
+			ge = ge && Smt::eq(it1->second,Smt::PreExp(0));
 		}
 	},[&]( auto it2 ){
 		switch( it2->first.range() ) {
 			case Poly::NEG: case Poly::FULL:
-			ge = ge && Smt::eq(it2->second,0);
+			ge = ge && Smt::eq(it2->second,Smt::PreExp(0));
 		}
 	});
 	return ge;
 }
 
-Smt::PostExp Poly::ge( Poly const& p2 ) const {
+Smt::PreExp Poly::ge( Poly const& p2 ) const {
 	return order_sub(*this,p2) && Smt::ge((*this)[{}],p2[{}]);
 }
-Smt::PostExp Poly::order( Poly const& p1, Poly const& p2, Smt::Solver& solver ) {
+Smt::PreExp Poly::order( Poly const& p1, Poly const& p2, Smt::Solver& solver ) {
 	auto const& val = solver.let(Smt::BOOL,order_sub(p1,p2));
 	auto const& c1 = p1[{}];
 	auto const& c2 = p2[{}];
@@ -94,8 +94,8 @@ Smt::PostExp Poly::order( Poly const& p1, Poly const& p2, Smt::Solver& solver ) 
 }
 
 Poly& Poly::memoize( Smt::Solver& solver, Smt::BaseSort const& sort ) {
-	for( auto& [key,val] : _map ) {
-		val = solver.let(sort,val);
+	if( auto val = _map.find({}) ) {
+		*val = solver.let(sort,*val);
 	}
 	return *this;
 }
@@ -110,7 +110,7 @@ ostream& operator<<( ostream& os, Poly::Sig const& f ) {
 	if( auto var = f.ref<Poly::Var>() ) {
 		return os << *var;
 	}
-	if( auto e = f.ref<Smt::PostExp>() ) {
+	if( auto e = f.ref<Smt::PreExp>() ) {
 		return os << *e;
 	}
 	assert(false);
@@ -119,16 +119,16 @@ ostream& operator<<( ostream& os, Poly::Sig const& f ) {
 Algebra::Intp<Poly::Sig,Poly> Poly::algebra( Smt::Solver& solver, Smt::BaseSort const& sort ) {
 	return [&solver,sort]( Poly::Sig const& f, std::vector<Poly> const& args )->Poly{
 		if( f.ref<Add>() ) {
-			return sum(args).memoize(solver,sort);
+			return sum(args);
 		}
 		if( f.ref<Mul>() ) {
-			return prod(args).memoize(solver,sort);
+			return prod(args);
 		}
 		assert( args.size() == 0 );
 		if( auto var = f.ref<Var>() ) {
 			return Var(*var,Poly::POS);
 		}
-		if( auto c = f.ref<Smt::PostExp>() ) {
+		if( auto c = f.ref<Smt::PreExp>() ) {
 			return *c;
 		}
 		assert(false);

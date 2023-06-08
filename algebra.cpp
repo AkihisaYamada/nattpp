@@ -116,16 +116,16 @@ Tree<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 		auto tt = _deriver_inner(f,rank,solver,sort,args[1],pos);
 		auto et = _deriver_inner(f,rank,solver,sort,args[2],pos);
 		try {
-			auto i = *it.fun().ref<Sig>()->ref<Smt::PostExp>();
-			auto t = *tt.fun().ref<Sig>()->ref<Smt::PostExp>();
-			auto e = *et.fun().ref<Sig>()->ref<Smt::PostExp>();
-			return solver.let(sort,Smt::ite(i,t,e));
+			auto i = *it.fun().ref<Sig>()->ref<Smt::PreExp>();
+			auto t = *tt.fun().ref<Sig>()->ref<Smt::PreExp>();
+			auto e = *et.fun().ref<Sig>()->ref<Smt::PreExp>();
+			return Smt::ite(i,t,e);
 		} catch( exception e ) {
 			throw Error{"#template-format",exp};
 		}
 	}
 	if( auto i = safe_stoi(fun) ) {
-		return Smt::PostExp(*i);
+		return Smt::PreExp(*i);
 	}
 	throw Error{"#template-format",exp};
 }

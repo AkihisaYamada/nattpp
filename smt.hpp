@@ -119,8 +119,9 @@ public:
 			_un(std::in_place_type<Mem<App>>,fun,std::move(args)) {}
 	public:
 		PreExp( PostExp const& e ) : _un(e) {}
-		template<typename T> requires std::is_convertible_v<T,Lazy>
-		PreExp( T const& lazy ) : _un(lazy) {}
+		template<typename T>
+			requires std::is_constructible_v<Lazy,T>
+		PreExp( T const& lazy ) : _un(std::in_place_type<Lazy>,lazy) {}
 		PreExp operator!() const {
 			return PreExp(NOT,{*this});
 		}

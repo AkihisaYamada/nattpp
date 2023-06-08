@@ -18,8 +18,8 @@ public:
 		Range range;
 		Var( std::string_view const& str, Range range ) : std::string(str), range(range) {}
 	};
-	using Sig = Sum<Add,Mul,Smt::PostExp,Var>;
-	static Algebra::Intp<Sig,Smt::PostExp> const ALGEBRA;
+	using Sig = Sum<Add,Mul,Smt::PreExp,Var>;
+	static Algebra::Intp<Sig,Smt::PreExp> const ALGEBRA;
 	static Range range_mult( Range r1, Range r2 ) {
 		switch(r1) {
 		case NONE:
@@ -67,20 +67,21 @@ public:
 		friend Poly;
 	};
 private:
-	Map<Vars,Smt::PostExp> _map;
+	Map<Vars,Smt::PreExp> _map;
 public:
 	Poly() {}
-	Poly( Smt::PostExp const& c ) : _map{{{},c}} {}
-	Poly( int i ) : _map{{{},i}} {}
-	Poly( Var const& v ) : _map{{v,1}} {}
-	Map<Vars,Smt::PostExp> const& map() const & {
+	template<typename T> requires std::is_constructible_v<Smt::PreExp,T>
+	Poly( T const& c ) : _map{{{},c}} {}
+	Poly( int i ) : _map{{{},Smt::PreExp(i)}} {}
+	Poly( Var const& v ) : _map{{v,Smt::PreExp(1)}} {}
+	Map<Vars,Smt::PreExp> const& map() const & {
 		return _map;
 	}
-	Smt::PostExp operator[]( Vars const& vars ) const& {
+	Smt::PreExp operator[]( Vars const& vars ) const& {
 		if( auto const& c = _map.find(vars) ) {
 			return *c;
 		}
-		return 0;
+		return Smt::PreExp(0);
 	}
 	/**
 	 * @brief Turn coefficients into temporary variables
@@ -91,13 +92,13 @@ public:
 	Poly& memoize( Smt::Solver& solver, Smt::BaseSort const& sort );
 	Poly operator+( Poly const& p2 ) const &;
 	Poly& operator+=( Poly const& p2 ) &;
-	Poly monom_mult( Smt::PostExp const& c, Vars const& vs ) const;
+	Poly monom_mult( Smt::PreExp const& c, Vars const& vs ) const;
 	Poly operator*( Poly const& p2 ) const;
 	Poly operator*=( Poly const& p2 ) & {
 		return *this = *this * p2;
 	}
-	Smt::PostExp ge( Poly const& p2 ) const;
-	static Smt::PostExp order( Poly const& p1, Poly const& p2, Smt::Solver& solver );
+	Smt::PreExp ge( Poly const& p2 ) const;
+	static Smt::PreExp order( Poly const& p1, Poly const& p2, Smt::Solver& solver );
 	static Algebra::Intp<Sig,Poly> algebra( Smt::Solver& solver, Smt::BaseSort const& sort );
 	static Poly sum( std::vector<Poly> const& args ) {
 		Poly ret;

@@ -351,10 +351,10 @@ Smt::PostExp Smt::PostExp::mul( PostExp const& arg ) const {
 			return *num * *num2;
 		}
 	} else if( auto num2 = arg.num() ) {
-		if( num2 == 0 ) {
+		if( *num2 == 0 ) {
 			return arg;
 		}
-		if( num2 == 1 ) {
+		if( *num2 == 1 ) {
 			return *this;
 		}
 	}
@@ -483,7 +483,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 				if( efun1 == ITE ) {
 					assert( eargs1.size() == 3 );
 					auto v = let(INT,earg2);//TODO
-					return PostExp( ITE, { eargs1[0], eargs1[1] * v, eargs1[2] * v } );
+					return ite( eargs1[0], eargs1[1] * v, eargs1[2] * v );
 				}
 			}
 			if( auto eapp2 = earg2.app() ) {
@@ -491,7 +491,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 				if( efun2 == ITE ) {
 					assert( eargs2.size() == 3 );
 					auto v = let(INT,earg1);//TODO
-					return PostExp( ITE, {eargs[0], v * eargs[1], v * eargs[2]} );
+					return ite( eargs2[0], v * eargs2[1], v * eargs2[2] );
 				}
 			}
 			return PostExp(MUL,{earg1,earg2});
@@ -518,24 +518,37 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 	assert(false);
 };
 Smt::PostExp Smt::Solver::let( Sort const& sort, PostExp const& val ) & {
-	if( auto const& base = sort.base() ) {
-		if( auto app = val.app() ) {
-			if( !app->second.empty() ) {
+	if( val.num() ) {
+		return val;
+	}
+	if( auto app = val.app() ) {
+		auto const& [fun,args] = *app;
+/*		if( fun == "*" ) {
+			return val;
+		}
+		if( fun == "ite" ) {
+			auto i = let(BOOL,args[0]);
+			auto t = let(sort,args[1]);
+			auto e = let(sort,args[2]);
+			return Smt::ite(i,t,e);
+		}
+*/		if( auto const& base = sort.base() ) {
+			if( !args.empty() ) {
 				auto var = _make_fresh();
 				return define_fun(var,{},*base,val);
 			}
+			return val;
 		}
-		return val;
-	}
-	if( auto const& cons = sort.cons() ) {
-		auto const& [sort1,sort2] = *cons;
-		auto app = val.app();
-		assert(app);
-		auto const& [fun,vargs] = *app;
-		assert( fun == CONS );
-		auto const& v1 = let(sort1,vargs[0]);
-		auto const& v2 = let(sort2,vargs[1]);
-		return (v1,v2);
+		if( auto const& cons = sort.cons() ) {
+			auto const& [sort1,sort2] = *cons;
+			auto app = val.app();
+			assert(app);
+			auto const& [fun,vargs] = *app;
+			assert( fun == CONS );
+			auto const& v1 = let(sort1,vargs[0]);
+			auto const& v2 = let(sort2,vargs[1]);
+			return (v1,v2);
+		}
 	}
 	assert(false);
 };
@@ -577,6 +590,9 @@ int Smt::test() try {
 	auto cons_let = Let((BOOL,INT), (TRUE,x)) ^ []( PreExp const& pair ) { return cdr(pair); };
 	cout << cons_let << endl;
 	cout << z3.expand(cons_let) << endl;
+
+	auto xy = PreExp(x) * ite(y,0,1);
+	cout << xy << "  -->  " << z3.expand(xy) << endl;
 
 	return 0;
 } catch( ::Error const& e ) {

@@ -16,7 +16,7 @@ public:
 	public:
 		char const* const str;
 	};
-	static const Logic QF_LIA, QF_LRA, LIA, LRA, QF_IA, QF_RA, IA, RA;
+	static const Logic QF_LIA, QF_LRA, LIA, LRA, QF_NIA, QF_NRA, NIA, NRA;
 	static constexpr char AND[] = "and";
 	static constexpr char OR[] = "or";
 	static constexpr char NOT[] = "not";
@@ -65,6 +65,7 @@ public:
 		explicit PostExp( std::string_view const& fun ) : _un(Mem<App>(fun,std::vector<PostExp>())) {}
 		explicit PostExp( char const* fun ) : _un(Mem<App>(fun,std::vector<PostExp>())) {}
 	public:
+		PostExp() : _un(std::in_place_type<int>) {}
 		PostExp( PostExp const& other ) : _un(other._un) {}
 		PostExp( PostExp && other ) : _un(std::move(other._un)) {}
 		PostExp( int n ) : _un(n) {}

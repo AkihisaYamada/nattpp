@@ -66,6 +66,12 @@ public:
 	public:
 		using std::function<Tree<Sum<G,Arg>>(F const&)>::function;
 		template<typename T>
+		Intp<F,T> derive( Intp<G,T> && intp ) & {
+			return [intp=std::move(intp),*this]( F const& f, std::vector<T>&& args ){
+				return _intp_inner(intp,(*this)(f),std::move(args));
+			};
+		}
+		template<typename T>
 		Intp<F,T> derive( Intp<G,T> const& intp ) & {
 			return [&]( F const& f, std::vector<T>&& args ){
 				return _intp_inner(intp,(*this)(f),std::move(args));

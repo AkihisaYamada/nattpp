@@ -25,7 +25,7 @@ int main( int argc, char** argv ) {
 		for( size_t i = 0; i < p.systems[0].size(); i++ ) {
 			used.insert(i);
 		}
-		auto z3 = Smt::Z3(Smt::QF_LIA,cout);
+		auto z3 = Smt::Z3(Smt::QF_NIA,cout);
 		auto proc = DerivedRuleRemover(p.sig,p.systems[0],used,Poly::Template::SUM,z3,Smt::INT);
 		for(;;) {
 			auto const& rem = proc.remove();

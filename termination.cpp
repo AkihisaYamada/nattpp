@@ -6,7 +6,7 @@ RuleRemover::RuleRemover(
 	Trs::Rules& rules,
 	std::set<size_t>& used,
 	Smt::Solver& solver
-) : order(order), rules(rules), used(used), ords(), solver(solver) {
+) : order(order), rules(rules), used(used), ords(rules.size()), solver(solver) {
 	for( size_t i : used ) {
 		auto const& ord = solver.expand(
 			Smt::Let( (Smt::BOOL,Smt::BOOL), order(rules[i].first,rules[i].second) ) ^ []( Smt::PreExp const& val ){

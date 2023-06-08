@@ -15,8 +15,9 @@ class Sum {
 public:
 	Sum() {}
 	template<typename T>
-	Sum( T && v ) : _un(std::move(v)) {}
-	template <class T, class... Args>
+		requires std::is_constructible_v<std::variant<Ts...>,T>
+	constexpr Sum( T && v ) : _un(std::move(v)) {}
+	template<class T, class... Args>
 	constexpr explicit Sum(std::in_place_type_t<T> x, Args&&... args) :
 		_un(x,std::forward<Args>(args)...)
 		{}

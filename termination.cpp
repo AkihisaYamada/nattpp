@@ -44,19 +44,19 @@ std::vector<size_t> RuleRemover::remove() {
 }
 DerivedTermOrder::DerivedTermOrder(
 	Trs::Sig const& sig,
-	Template const& temp,
+	Poly::Template const& temp,
 	Smt::Solver& solver,
 	Smt::BaseSort const& sort
 ) : solver(solver),
 	deriver(temp.deriver(sig,solver)),
-	intp(deriver.derive(Poly::algebra(solver,sort),Poly::VAR_INTP)) {
+	intp(deriver.derive(Poly::algebra(solver,sort))) {
 }
 
 DerivedRuleRemover::DerivedRuleRemover(
 	Trs::Sig const& sig,
 	Trs::Rules& rules,
 	std::set<size_t>& used,
-	Template const& temp,
+	Poly::Template const& temp,
 	Smt::Solver& solver,
 	Smt::BaseSort const& sort
 ) : DerivedTermOrder(sig,temp,solver,sort),

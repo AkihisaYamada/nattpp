@@ -227,7 +227,7 @@ public:
 			return PreExp(sort,val,body);
 		}
 	};
-	static Algebra::Intp<Smt::PreExp> const ALGEBRA;
+	static Algebra::Intp<std::string,Smt::PreExp> const ALGEBRA;
 	class Reader : public ::Reader {
 	public:
 		using ::Reader::Reader;

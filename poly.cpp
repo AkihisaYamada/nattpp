@@ -93,15 +93,6 @@ Smt::PostExp Poly::order( Poly const& p1, Poly const& p2, Smt::Solver& solver ) 
 	return ( val && Smt::ge(c1,c2), val && Smt::gt(c1,c2) );
 }
 
-Algebra::Intp<Poly> const Poly::VAR_INTP = Algebra::Intp<Poly>(
-	[]( std::string const& f, std::vector<Poly> const& args )->Poly{
-		if( !args.empty() ) {
-			throw Poly::Error("#var-intp");
-		}
-		return Poly::Var(f,Poly::POS);
-	}
-);
-
 Poly& Poly::memoize( Smt::Solver& solver, Smt::BaseSort const& sort ) {
 	for( auto& [key,val] : _map ) {
 		val = solver.let(sort,val);
@@ -109,50 +100,73 @@ Poly& Poly::memoize( Smt::Solver& solver, Smt::BaseSort const& sort ) {
 	return *this;
 }
 
-Algebra::Intp<Poly> Poly::algebra( Smt::Solver& solver, Smt::BaseSort const& sort ) {
-	return [&solver,sort]( std::string const& f, std::vector<Poly> const& args )->Poly{
-		if( f == "+" ) {
+ostream& operator<<( ostream& os, Poly::Sig const& f ) {
+	if( f.ref<Poly::Add>() ) {
+		return os << '+';
+	}
+	if( f.ref<Poly::Mul>() ) {
+		return os << '*';
+	}
+	if( auto var = f.ref<Poly::Var>() ) {
+		return os << *var;
+	}
+	if( auto e = f.ref<Smt::PostExp>() ) {
+		return os << *e;
+	}
+	assert(false);
+}
+
+Algebra::Intp<Poly::Sig,Poly> Poly::algebra( Smt::Solver& solver, Smt::BaseSort const& sort ) {
+	return [&solver,sort]( Poly::Sig const& f, std::vector<Poly> const& args )->Poly{
+		if( f.ref<Add>() ) {
 			return sum(args).memoize(solver,sort);
 		}
-		if( f == "*" ) {
+		if( f.ref<Mul>() ) {
 			return prod(args).memoize(solver,sort);
 		}
-		if( f == "ite" ) {
-			if( args.size() != 3 ) {
-				throw Poly::Error{"#arity-mismatch",f};
-			}
-			auto const& i = args[0].map(), & t = args[1].map(), & e = args[2].map();
-			if( i.size() != 1 || t.size() != 1 || e.size() != 1 ) {
-				throw Poly::Error{"#ite-poly"};
-			}
-			auto vi = i.find({}), vt = t.find({}), ve = e.find({});
-			if( !vi || !vt || !ve ) {
-				throw Poly::Error{"#ite-poly"};
-			}
-			return Smt::ite(*vi,*vt,*ve);
-		}
 		assert( args.size() == 0 );
-		return Smt::PostExp(std::stoi(f));
+		if( auto var = f.ref<Var>() ) {
+			return Var(*var,Poly::POS);
+		}
+		if( auto c = f.ref<Smt::PostExp>() ) {
+			return *c;
+		}
+		assert(false);
 	};
 }
 
 
 int Poly::test() {
 	cout << "=== Poly test ===" << endl;
-	Deriver::Map subst = {{"x",Exp{"g","y"}}};
-	cout << subst.subst(Exp{"f","x"}) << endl;
-	Deriver::Map subst2 = {{"x",Exp{"g","x"}}};
-	cout << subst2.subst(Exp{"f","x","x"}) << endl;
-	Deriver::Map hsubst = {
-		{"f",Exp{"+",Exp{"*","c1",Exp{":in","0"}},Exp{"*","c2",Exp{":in","1"}}}},
-		{"a",Exp{"+",Exp{":in","0"},"wa"}},
-		{"b",Exp{"+",Exp{":in","0"},"wb"}},
+	Subst<string> subst = {{"x",Exp{"g","y"}}};
+	cout << subst.eval(Exp{"f","x"}) << endl;
+	Subst<string> subst2 = {{"x",Exp{"g","x"}}};
+	cout << subst2.eval(Exp{"f","x","x"}) << endl;
+	auto z3 = Smt::Z3(Smt::QF_LIA,cout);
+	auto c1 = z3.declare_const("c1",Smt::INT);
+	auto c2 = z3.declare_const("c2",Smt::INT);
+	auto wa = z3.declare_const("wa",Smt::INT);
+	auto wb = z3.declare_const("wb",Smt::INT);
+	Algebra::Deriver<string,Sig> hsubst = [&]( string const& f ){
+		if( f == "f" ) {
+			return Tree<Sum<Sig,Algebra::Arg>>{
+				ADD,
+				Tree<Sum<Sig,Algebra::Arg>>{MUL,c1,Algebra::Arg(0)},
+				Tree<Sum<Sig,Algebra::Arg>>{MUL,c2,Algebra::Arg(1)}
+			};
+		}
+		if( f == "a" ) {
+			return Tree<Sum<Sig,Algebra::Arg>>{ADD,Algebra::Arg(0),wa};
+		}
+		if( f == "b" ) {
+			return Tree<Sum<Sig,Algebra::Arg>>{ADD,Algebra::Arg(0),wb};
+		}
+		return Tree<Sum<Sig,Algebra::Arg>>(Poly::Var(f,POS));
 	};
 	auto e = Exp{"f",Exp{"a","x"},Exp{"b","x"}};
-	cout << e << hsubst << " = " << hsubst.subst(e) << endl;
-	auto z3 = Smt::Z3(Smt::QF_LIA,cout);
-	auto z3alg = Poly::algebra(z3,Smt::INT);
-	cout << hsubst.derive(z3alg,Poly::VAR_INTP).eval(e) << endl;
+	cout << e << " = " << hsubst.derive(Algebra::TERM<Sig>).eval(e) << endl;
+	auto z3poly = Poly::algebra(z3,Smt::INT);
+	cout << hsubst.derive(z3poly).eval(e) << endl;
 	Poly x = Poly::Var("x",Poly::POS);
 	Poly y = Poly::Var("y",Poly::NEG);
 	auto c = z3.declare_const("c",Smt::INT);
@@ -165,8 +179,7 @@ int Poly::test() {
 	sig.insert("a",0);
 	auto der = Template::SUM.deriver(sig,z3);
 	e = Exp{"f",Exp{"g","x"},"a"};
-	cout << der << e << endl;
-	cout << der.subst(e) << endl;
-	cout << der.derive(z3alg,Poly::VAR_INTP).eval(e) << endl;
+	cout << der.derive(Algebra::TERM<Sig>).eval(e) << endl;
+	cout << der.derive(z3poly).eval(e) << endl;
 	return 0;
 }

@@ -3,7 +3,6 @@
 
 #include<list>
 #include"trs.hpp"
-#include"template.hpp"
 #include"poly.hpp"
 
 class TermOrder {
@@ -31,12 +30,12 @@ private:
 };
 
 class DerivedTermOrder : public TermOrder {
-	Deriver::Map deriver;
-	Algebra::Intp<Poly> intp;
+	Algebra::Deriver<std::string,Poly::Sig> deriver;
+	Algebra::Intp<std::string,Poly> intp;
 	Smt::Solver& solver;
 	DerivedTermOrder( DerivedTermOrder const& ) = delete;
 public:
-	DerivedTermOrder( Trs::Sig const& sig, Template const& temp, Smt::Solver& solver,Smt::BaseSort const& sort );
+	DerivedTermOrder( Trs::Sig const& sig, Poly::Template const& temp, Smt::Solver& solver,Smt::BaseSort const& sort );
 	Smt::PreExp operator()( Exp const& l, Exp const& r ) override {
 		return Poly::order(intp.eval(l),intp.eval(r),solver);
 	}
@@ -64,7 +63,7 @@ public:
 
 class DerivedRuleRemover : public DerivedTermOrder, public RuleRemover {
 public:
-	DerivedRuleRemover( Trs::Sig const& sig, Trs::Rules& rules, std::set<size_t>& used, Template const& temp, Smt::Solver& solver, Smt::BaseSort const& sort );
+	DerivedRuleRemover( Trs::Sig const& sig, Trs::Rules& rules, std::set<size_t>& used, Poly::Template const& temp, Smt::Solver& solver, Smt::BaseSort const& sort );
 };
 
 class DpProc {

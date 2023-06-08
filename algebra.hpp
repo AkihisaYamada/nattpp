@@ -6,14 +6,21 @@
 #include"trs.hpp"
 
 class Algebra {
+	Algebra() = delete;
 public:
 	struct Error : ::Error {
 		using ::Error::Error;
 	};
-	template<class T>
-	struct Intp : std::function<T(std::string const&,std::vector<T>&&)> {
-		Intp( auto const& fun ) : std::function<T(std::string const&,std::vector<T>&&)>(fun) {}
-		T eval( Exp const& e ) const {
+	/**
+	 * @brief Interpretation
+	 * 
+	 * @tparam F signature
+	 * @tparam T carrier
+	 */
+	template<typename F, typename T>
+	struct Intp : public std::function<T(F const&,std::vector<T>&&)> {
+		using std::function<T(F const&,std::vector<T>&&)>::function;
+		T eval( Tree<F> const& e ) const {
 			std::vector<T> vargs;
 			for( auto const& arg : e.args() ) {
 				vargs.push_back(eval(arg));
@@ -21,76 +28,81 @@ public:
 			return (*this)(e.fun(),std::move(vargs));
 		}
 	};
+
 	/** @brief The term algebra */
-	static Intp<Exp> const TERM;
-};
+	template<typename F>
+	static Intp<F,Tree<F>> const TERM;
 
-template<typename T>
-static T _intp_inner( Algebra::Intp<T> const& intp, Exp const& e, std::vector<T> const& vs ) {
-	auto const& fun = e.fun();
-	auto const& args = e.args();
-	if( fun == ":in" ) {// placeholder for applied variable arguments
-		assert( args.size() == 1 );
-		assert( args[0].args().size() == 0 );
-		int i = stoi(args[0].fun());
-		assert( i < vs.size() );
-		return vs[i];
-	}
-	std::vector<T> vargs;
-	for( auto const& arg : args ) {
-		vargs.push_back(_intp_inner(intp,arg,vs));
-	}
-	return intp(fun,std::move(vargs));
-}
-
-class Deriver {
-public:
-	class Map;
-private:
-	template<typename T>
-	T _intp(
-		Algebra::Intp<T> const& intp,
-		Algebra::Intp<T> const& default_intp,
-		std::string const& f,
-		std::vector<T>&& args
-	) const;
-	Algebra::Intp<Exp> const _SUBST;
-public:
-	Deriver() : _SUBST(derive(Algebra::TERM,Algebra::TERM)) {}
-	virtual Opt<Exp const&> find( std::string const& ) const = 0;
-	template<typename T>
-	Algebra::Intp<T> derive( Algebra::Intp<T> const& intp, Algebra::Intp<T> const& default_intp ) & {
-		return [&]( std::string const& f, std::vector<T>&& args ){
-			return _intp(intp,default_intp,f,std::move(args));
+	/** @brief For Deriver: Placeholder for argument position. */
+	class Arg {
+		friend Algebra;
+		int pos;
+	public:
+		Arg( int pos ) : pos(pos) {}
+	};
+	template<typename F, typename G>
+	class Deriver :
+		public std::function<Tree<Sum<G,Arg>>(F const&)>
+	{
+	private:
+		template<typename T>
+		static T _intp_inner( Intp<G,T> const& intp, Tree<Sum<G,Arg>> const& e, std::vector<T> const& vs ) {
+		Sum<G,Arg> const& ifun = e.fun();
+			auto const& args = e.args();
+			if( auto i = ifun.template ref<1>() ) {// placeholder for applied variable arguments
+				assert( args.empty() );
+				assert( i->pos < vs.size() );
+				return vs[i->pos];
+			}
+			if( auto fun = ifun.template ref<0>() ) {
+				std::vector<T> vargs;
+				for( auto const& arg : args ) {
+					vargs.push_back(_intp_inner(intp,arg,vs));
+				}
+				return intp(*fun,std::move(vargs));
+			}
+			assert(false);
 		};
-	}
-	Exp subst( Exp const& exp ) const {
-		return _SUBST.eval(exp);
-	}
+	public:
+		using std::function<Tree<Sum<G,Arg>>(F const&)>::function;
+		template<typename T>
+		Intp<F,T> derive( Intp<G,T> const& intp ) & {
+			return [&]( F const& f, std::vector<T>&& args ){
+				return _intp_inner(intp,(*this)(f),std::move(args));
+			};
+		}
+	};
 };
 
-template<typename T>
-T Deriver::_intp(
-	Algebra::Intp<T> const& intp,
-	Algebra::Intp<T> const& default_intp,
-	std::string const& f,
-	std::vector<T>&& vs
-) const {
-	if( auto e = find(f) ) {
-		return _intp_inner(intp,*e,vs);
+template<typename F>
+Algebra::Intp<F,Tree<F>> const Algebra::TERM = []( F const& f, std::vector<Tree<F>>&& args ){
+	Tree<F> ret = f;
+	ret.args() = std::move(args);
+	return ret;
+};
+
+template<typename F>
+struct Subst : Map<F,Tree<F>>, Algebra::Intp<F,Tree<F>> {
+	Subst( std::initializer_list<typename Map<F,Tree<F>>::value_type> list ) :
+		Map<F,Tree<F>>(list),
+		Algebra::Intp<F,Tree<F>>([&]( F const& f, std::vector<Tree<F>>&& args ){
+			if( auto const& t = Map<F,Tree<F>>::find(f) ) {
+				return *t;
+			}
+			Tree<F> ret = f;
+			ret.args() = std::move(args);
+			return ret;
+		})
+	{}
+};
+
+template<typename F>
+std::ostream& operator<<( std::ostream& os, Subst<F> const& subst ) {
+	os << '[' << std::endl;
+	for( auto const& [key,val] : subst ) {
+		os << '\t' << key << " := " << val << std::endl;
 	}
-	return default_intp(f,std::move(vs));
+	return os << ']';
 }
-
-class Deriver::Map : public ::Map<std::string,Exp>, public Deriver {
-public:
-	Map() {}
-	Map( std::initializer_list<value_type> list ) : ::Map<std::string,Exp>(list) {}
-	Opt<Exp const&> find( std::string const& f ) const {
-		return ::Map<std::string,Exp>::find(f);
-	}
-};
-
-std::ostream& operator<<( std::ostream& os, Deriver::Map const& subst );
 
 #endif

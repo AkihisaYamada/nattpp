@@ -15,6 +15,7 @@ int main( int argc, char const** argv ) try {
 	Smt::test();
 	Problem::test();
 	Poly::test();
+	cout << "=== Test Done ===" << endl;
 } catch( Error const& e ) {
 	cerr << e << endl;
 }

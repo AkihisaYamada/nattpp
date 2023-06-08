@@ -166,7 +166,7 @@ Smt::PostExp Smt::ite( PostExp const& i, PostExp const& t, PostExp const& e ) {
 }
 
 
-Algebra::Intp<Smt::PreExp> const Smt::ALGEBRA = []( string_view const& fun, vector<Smt::PreExp>&& args ){
+Algebra::Intp<string,Smt::PreExp> const Smt::ALGEBRA = []( string const& fun, vector<Smt::PreExp>&& args ){
 	return Smt::PreExp(fun,std::move(args));
 };
 

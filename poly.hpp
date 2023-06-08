@@ -10,10 +10,16 @@ public:
 		using ::Error::Error;
 	};
 	enum Range { NONE, POS, NEG, FULL };
+	class Add {};
+	static Add constexpr ADD = {};
+	class Mul {};
+	static Mul constexpr MUL = {};
 	struct Var : std::string {
 		Range range;
 		Var( std::string_view const& str, Range range ) : std::string(str), range(range) {}
 	};
+	using Sig = Sum<Add,Mul,Smt::PostExp,Var>;
+	static Algebra::Intp<Sig,Smt::PostExp> const ALGEBRA;
 	static Range range_mult( Range r1, Range r2 ) {
 		switch(r1) {
 		case NONE:
@@ -92,8 +98,7 @@ public:
 	}
 	Smt::PostExp ge( Poly const& p2 ) const;
 	static Smt::PostExp order( Poly const& p1, Poly const& p2, Smt::Solver& solver );
-	static Algebra::Intp<Poly> algebra( Smt::Solver& solver, Smt::BaseSort const& sort );
-	static Algebra::Intp<Poly> const VAR_INTP;
+	static Algebra::Intp<Sig,Poly> algebra( Smt::Solver& solver, Smt::BaseSort const& sort );
 	static Poly sum( std::vector<Poly> const& args ) {
 		Poly ret;
 		for( auto const& arg : args ) {
@@ -109,7 +114,19 @@ public:
 		return std::move(ret);
 	}
 	static int test();
+
+	class Template : public Exp {
+	public:
+		Template( Exp const& exp ) : Exp(exp) {}
+		Algebra::Deriver<std::string,Sig> deriver( Trs::Sig const& sig, Smt::Solver& solver ) const;
+		static Template const SUM;
+		static Template const MONO_SUM;
+	private:
+		static Tree<Sum<Sig,Algebra::Arg>> _deriver_inner( std::string const& f, Trs::Rank const& rank, Smt::Solver& solver, Exp const& exp, int pos );
+	};
 };
+
+std::ostream& operator<<( std::ostream& os, Poly::Sig const& f );
 
 std::ostream& operator<<( std::ostream& os, Poly::Vars const& vs );
 

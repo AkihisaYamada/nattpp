@@ -27,6 +27,21 @@ public:
 			}
 			return (*this)(e.fun(),std::move(vargs));
 		}
+		using ATerm = Term<std::pair<F,T>>;
+		/**
+		 * @brief Annotates a term with its evaluation
+		 */
+		ATerm annotate( Term<F> const& e ) {
+			std::vector<ATerm> aargs;
+			std::vector<T> vargs;
+			for( auto& arg : e.args() ) {
+				ATerm aarg = annotate(arg);
+				vargs.push_back(aarg.fun().first);
+				aargs.push_back(std::move(aarg));
+			}
+			T v = (*this)( e.fun(), std::move(vargs) );
+			return ATerm(std::in_place,{e.fun(),std::move(v)},std::move(aargs));
+		}
 	};
 
 	/** @brief The term algebra */

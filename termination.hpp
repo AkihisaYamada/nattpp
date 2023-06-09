@@ -58,6 +58,7 @@ public:
 		}
 	}
 	Smt::PreExp operator()( Exp const& l, Exp const& r ) override {
+		throw Error("#unsupported");
 	}
 };
 

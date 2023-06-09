@@ -17,11 +17,6 @@ public:
 		char const* const str;
 	};
 	static Logic const QF_LIA, QF_LRA, LIA, LRA, QF_NIA, QF_NRA, NIA, NRA;
-	static char constexpr
-		AND[] = "and", OR[] = "or", NOT[] = "not", ITE[] = "ite",
-		ADD[] = "+", MUL[] = "*", EQ[] = "=", GE[] = ">=", GT[] = ">",
-		CONS[] = "cons", CAR[] = "car", CDR[] = "cdr",
-		LIST[] = "list", NTH[] = "nth";
 	class BaseSort {
 	public:
 		std::string const name;
@@ -44,43 +39,38 @@ public:
 		}
 	};
 	static BaseSort const BOOL, INT, REAL;
+	using Sig = Sum<int,std::string>;
+	static Sig const AND, OR, NOT, ITE, ADD, MUL, EQ, GE, GT, CONS, CAR, CDR, LIST, NTH;
 	class PostExp {
 		friend Smt;
-		typedef std::pair<std::string,std::vector<PostExp>> App;
-		Sum<int,Mem<App>> _un;
-		explicit PostExp( std::string&& fun, std::vector<PostExp>&& args ) :
-			_un(Mem<App>(std::move(fun),std::move(args)) ) {}
-		explicit PostExp( std::string const& fun, std::vector<PostExp>&& args ) :
-			_un(Mem<App>(fun,std::move(args)) ) {}
-		explicit PostExp( std::string&& fun ) : PostExp(std::move(fun),{}) {}
-		explicit PostExp( std::string_view const& fun ) : _un(Mem<App>(fun,std::vector<PostExp>())) {}
-		explicit PostExp( char const* fun ) : _un(Mem<App>(fun,std::vector<PostExp>())) {}
+		Term<Sig> _term;
+		PostExp( Term<Sig> const& term ) : _term(term) {}
 	public:
-		PostExp() : _un(std::in_place_type<int>) {}
-		PostExp( PostExp const& other ) : _un(other._un) {}
-		PostExp( PostExp && other ) : _un(std::move(other._un)) {}
-		PostExp( int n ) : _un(n) {}
-		Opt<int const&> num() const & { return _un.ref<int>(); }
-		Opt<int&> num() & { return _un.ref<int>(); }
-		Opt<App> app() && = delete;
-		OptMem<App> app() const & {
-			if( auto ref = _un.ref<Mem<App>>() ) {
-				return *ref;
-			}
-			return {};
-		}
-		OptMem<App> app() & { return OptMem<App>(_un.ref<Mem<App>>()); }
-		bool operator==( PostExp const& other ) const {
-			return _un == other._un;
+		PostExp( PostExp const& ) = default;
+		PostExp( PostExp && ) = default;
+		PostExp() : _term(std::in_place_type<int>) {}
+		PostExp( int i ) : _term(i) {}
+		operator Term<Sig> const() const {
+			return _term;
 		}
 		PostExp& operator=( PostExp const& other ) & {
-			_un = other._un;
+			_term = other;
 			return *this;
 		}
 		PostExp& operator=( PostExp&& other ) & {
-			_un = std::move(other._un);
+			_term = std::move(other);
 			return *this;
 		}
+		bool operator==( PostExp const& other ) const {
+			return _term == other._term;
+		}
+		bool operator!=( PostExp const& other ) const {
+			return _term != other._term;
+		}
+		Opt<int const&> num() const & { return _term.fun().ref<int>(); }
+private:
+		Opt<int&> num() & { return _term.fun().ref<int>(); }
+public:
 		PostExp conj( PostExp const& y ) const;
 		PostExp& conj_eq( PostExp const& y ) &;
 		PostExp disj( PostExp const& y ) const;
@@ -91,7 +81,7 @@ public:
 		PostExp mul( PostExp const& y ) const;
 		PostExp& operator*=( PostExp const& y ) &;
 		PostExp cons( PostExp const& y ) const {
-			return PostExp(CONS,{*this,y});
+			return Term<Sig>(CONS,*this,y);
 		}
 		Exp exp() const;
 	};
@@ -100,13 +90,13 @@ public:
 	static PostExp cdr( PostExp const& arg );
 	class PreExp {
 		friend Smt;
-		using App = std::pair<std::string,std::vector<PreExp>>;
+		using App = std::pair<Sig,std::vector<PreExp>>;
 		using Let = std::tuple<PreExp,Sort,std::function<PreExp(PostExp const&)>>;
 		using Lazy = std::function<PreExp()>;
 		Sum<PostExp,Mem<App>,Mem<Let>,Lazy> _un;
 		explicit PreExp( Sort const& sort, PreExp const& val, std::function<PreExp(PostExp const&)> body ) :
 			_un( std::in_place_type<Mem<Let>>, val, sort, body ) {}
-		explicit PreExp( std::string_view const& fun, std::vector<PreExp>&& args ) :
+		explicit PreExp( Sig const& fun, std::vector<PreExp>&& args ) :
 			_un(std::in_place_type<Mem<App>>,fun,std::move(args)) {}
 	public:
 		PreExp( PostExp const& e ) : _un(e) {}
@@ -237,23 +227,23 @@ public:
 		Solver& operator=( Solver const& other ) = delete;
 		std::string _make_fresh() &;
 	public:
-		PostExp declare_const( std::string_view const& name, BaseSort const& sort ) &;
+		PostExp declare_const( std::string const& name, BaseSort const& sort ) &;
 		PostExp declare_fresh( BaseSort const& sort ) {
 			std::string ret = _make_fresh();
 			return declare_const(ret,sort);
 		}
 		PostExp expand( PreExp const& p );
 		PostExp define_fun(
-			std::string_view const& name,
-			std::initializer_list<std::pair<std::string_view,std::string_view>> const& params,
+			std::string const& name,
+			std::initializer_list<std::pair<std::string,std::string>> const& params,
 			BaseSort const& sort,
 			PostExp const& body
 		) &;
 		template<class T>
 			requires (!std::is_convertible_v<T,PostExp> && std::is_convertible_v<T,PreExp>)
 		PostExp define_fun(
-			std::string_view const& name,
-			std::initializer_list<std::pair<std::string_view,std::string_view>> const& params,
+			std::string const& name,
+			std::initializer_list<std::pair<std::string,std::string>> const& params,
 			BaseSort const& sort,
 			T const& body
 		) & {
@@ -329,7 +319,10 @@ inline std::ostream& operator<<( std::ostream& os, Smt::BaseSort const& x ) {
 	return os << x.name;
 }
 std::ostream& operator<<( std::ostream& os, Smt::Sort const& e );
-std::ostream& operator<<( std::ostream& os, Smt::PostExp const& e );
+std::ostream& operator<<( std::ostream& os, Smt::Sig const& f );
+inline std::ostream& operator<<( std::ostream& os, Smt::PostExp const& e ) {
+	return os << (Term<Smt::Sig>)e;
+}
 std::ostream& operator<<( std::ostream& os, Smt::PreExp const& e );
 
 #endif

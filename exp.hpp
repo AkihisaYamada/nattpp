@@ -25,6 +25,9 @@ public:
 	Term( Term const& other ) = default;
 	/** @brief move constructor */
 	Term( Term && other ) : _mem(std::move(other._mem)) {}
+	template<typename S> requires std::is_constructible_v<F,S>
+	Term( std::in_place_t const&, S const& fun, std::vector<Term>&& args ) :
+		_mem(App(fun,std::move(args))) {}
 	/** @brief Application */
 	template<typename S, typename... Args> requires (
 		std::is_constructible_v<F,S> &&
@@ -56,6 +59,14 @@ public:
 	std::vector<Term> const& args() const & {
 		return _mem->second;
 	};
+	template<typename G>
+	Term<G> map( std::function<G(F const&)> f ) const {
+		Term<G> ret = f(fun());
+		for( auto& arg : args() ) {
+			ret.args().push_back(arg.map(f));
+		}
+		return ret;
+	}
 	Term& operator=( Term && other ) & {
 		_mem = std::move(other._mem);
 		return *this;

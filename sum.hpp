@@ -71,17 +71,11 @@ public:
 	}
 	template<typename... Ss>
 	friend bool operator==( Sum<Ss...> const& l, Sum<Ss...> const& r );
-	template<typename T,typename... Ss>
-	friend bool operator==( Sum<Ss...> const& l, T const& r );
 };
 
 template<typename... Ts>
 bool operator==( Sum<Ts...> const& l, Sum<Ts...> const& r ) {
 	return l._un == r._un;
-}
-template<typename T,typename... Ts>
-bool operator==( Sum<Ts...> const& l, T const& r ) {
-	return l._un == r;
 }
 
 #endif

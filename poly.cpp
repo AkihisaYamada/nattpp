@@ -149,19 +149,19 @@ int Poly::test() {
 	auto wb = z3.declare_const("wb",Smt::INT);
 	Algebra::Deriver<string,Sig> hsubst = [&]( string const& f ){
 		if( f == "f" ) {
-			return Tree<Sum<Sig,Algebra::Arg>>{
+			return Term<Sum<Sig,Algebra::Arg>>{
 				ADD,
-				Tree<Sum<Sig,Algebra::Arg>>{MUL,c1,Algebra::Arg(0)},
-				Tree<Sum<Sig,Algebra::Arg>>{MUL,c2,Algebra::Arg(1)}
+				Term<Sum<Sig,Algebra::Arg>>{MUL,c1,Algebra::Arg(0)},
+				Term<Sum<Sig,Algebra::Arg>>{MUL,c2,Algebra::Arg(1)}
 			};
 		}
 		if( f == "a" ) {
-			return Tree<Sum<Sig,Algebra::Arg>>{ADD,Algebra::Arg(0),wa};
+			return Term<Sum<Sig,Algebra::Arg>>{ADD,Algebra::Arg(0),wa};
 		}
 		if( f == "b" ) {
-			return Tree<Sum<Sig,Algebra::Arg>>{ADD,Algebra::Arg(0),wb};
+			return Term<Sum<Sig,Algebra::Arg>>{ADD,Algebra::Arg(0),wb};
 		}
-		return Tree<Sum<Sig,Algebra::Arg>>(Poly::Var(f,POS));
+		return Term<Sum<Sig,Algebra::Arg>>(Poly::Var(f,POS));
 	};
 	auto e = Exp{"f",Exp{"a","x"},Exp{"b","x"}};
 	cout << e << " = " << hsubst.derive(Algebra::TERM<Sig>).eval(e) << endl;
@@ -171,15 +171,16 @@ int Poly::test() {
 	Poly y = Poly::Var("y",Poly::NEG);
 	auto c = z3.declare_const("c",Smt::INT);
 	auto d = z3.declare_const("d",Smt::INT);
-	cout << (x + 5) * (y * 3 + 2) << endl;
-	cout << (x * c + d).ge(x * 5 + 3) << endl;
+	Poly p = x * c + d, q = x * 5 + 3;
+	cout << "Poly: " << p << " <= " << q << endl;
+	cout << "Smt: " << z3.expand(p.ge(q)) << endl;
 	Trs::Sig sig;
 	sig.insert("f",2);
 	sig.insert("g",1);
 	sig.insert("a",0);
 	auto der = Template::SUM.deriver(sig,z3,Smt::INT);
 	e = Exp{"f",Exp{"g","x"},"a"};
-	cout << der.derive(Algebra::TERM<Sig>).eval(e) << endl;
-	cout << der.derive(z3poly).eval(e) << endl;
+	cout << "SUM⟦" << e << "⟧ = " << der.derive(Algebra::TERM<Sig>).eval(e) << endl;
+	cout << "Poly: " << der.derive(z3poly).eval(e) << endl;
 	return 0;
 }

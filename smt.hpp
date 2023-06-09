@@ -16,21 +16,12 @@ public:
 	public:
 		char const* const str;
 	};
-	static const Logic QF_LIA, QF_LRA, LIA, LRA, QF_NIA, QF_NRA, NIA, NRA;
-	static constexpr char AND[] = "and";
-	static constexpr char OR[] = "or";
-	static constexpr char NOT[] = "not";
-	static constexpr char ADD[] = "+";
-	static constexpr char MUL[] = "*";
-	static constexpr char EQ[] = "=";
-	static constexpr char GE[] = ">=";
-	static constexpr char GT[] = ">";
-	static constexpr char ITE[] = "ite";
-	static constexpr char CONS[] = "cons";
-	static constexpr char CAR[] = "car";
-	static constexpr char CDR[] = "cdr";
-	static constexpr char LIST[] = "list";
-	static constexpr char NTH[] = "nth";
+	static Logic const QF_LIA, QF_LRA, LIA, LRA, QF_NIA, QF_NRA, NIA, NRA;
+	static char constexpr
+		AND[] = "and", OR[] = "or", NOT[] = "not", ITE[] = "ite",
+		ADD[] = "+", MUL[] = "*", EQ[] = "=", GE[] = ">=", GT[] = ">",
+		CONS[] = "cons", CAR[] = "car", CDR[] = "cdr",
+		LIST[] = "list", NTH[] = "nth";
 	class BaseSort {
 	public:
 		std::string const name;
@@ -69,8 +60,8 @@ public:
 		PostExp( PostExp const& other ) : _un(other._un) {}
 		PostExp( PostExp && other ) : _un(std::move(other._un)) {}
 		PostExp( int n ) : _un(n) {}
-		Opt<int const&> num() const & { return _un.ref<0>(); }// ref<int> doesn't work!
-		Opt<int&> num() & { return _un.ref<0>(); }
+		Opt<int const&> num() const & { return _un.ref<int>(); }
+		Opt<int&> num() & { return _un.ref<int>(); }
 		Opt<App> app() && = delete;
 		OptMem<App> app() const & {
 			if( auto ref = _un.ref<Mem<App>>() ) {

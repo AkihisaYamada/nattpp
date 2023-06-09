@@ -20,7 +20,7 @@ public:
 	template<typename F, typename T>
 	struct Intp : public std::function<T(F const&,std::vector<T>&&)> {
 		using std::function<T(F const&,std::vector<T>&&)>::function;
-		T eval( Tree<F> const& e ) const {
+		T eval( Term<F> const& e ) const {
 			std::vector<T> vargs;
 			for( auto const& arg : e.args() ) {
 				vargs.push_back(eval(arg));
@@ -31,7 +31,7 @@ public:
 
 	/** @brief The term algebra */
 	template<typename F>
-	static Intp<F,Tree<F>> const TERM;
+	static Intp<F,Term<F>> const TERM;
 
 	/** @brief For Deriver: Placeholder for argument position. */
 	class Arg {
@@ -42,11 +42,11 @@ public:
 	};
 	template<typename F, typename G>
 	class Deriver :
-		public std::function<Tree<Sum<G,Arg>>(F const&)>
+		public std::function<Term<Sum<G,Arg>>(F const&)>
 	{
 	private:
 		template<typename T>
-		static T _intp_inner( Intp<G,T> const& intp, Tree<Sum<G,Arg>> const& e, std::vector<T> const& vs ) {
+		static T _intp_inner( Intp<G,T> const& intp, Term<Sum<G,Arg>> const& e, std::vector<T> const& vs ) {
 		Sum<G,Arg> const& ifun = e.fun();
 			auto const& args = e.args();
 			if( auto i = ifun.template ref<1>() ) {// placeholder for applied variable arguments
@@ -64,7 +64,7 @@ public:
 			assert(false);
 		};
 	public:
-		using std::function<Tree<Sum<G,Arg>>(F const&)>::function;
+		using std::function<Term<Sum<G,Arg>>(F const&)>::function;
 		template<typename T>
 		Intp<F,T> derive( Intp<G,T> && intp ) & {
 			return [intp=std::move(intp),*this]( F const& f, std::vector<T>&& args ){
@@ -81,21 +81,21 @@ public:
 };
 
 template<typename F>
-Algebra::Intp<F,Tree<F>> const Algebra::TERM = []( F const& f, std::vector<Tree<F>>&& args ){
-	Tree<F> ret = f;
+Algebra::Intp<F,Term<F>> const Algebra::TERM = []( F const& f, std::vector<Term<F>>&& args ){
+	Term<F> ret = f;
 	ret.args() = std::move(args);
 	return ret;
 };
 
 template<typename F>
-struct Subst : Map<F,Tree<F>>, Algebra::Intp<F,Tree<F>> {
-	Subst( std::initializer_list<typename Map<F,Tree<F>>::value_type> list ) :
-		Map<F,Tree<F>>(list),
-		Algebra::Intp<F,Tree<F>>([&]( F const& f, std::vector<Tree<F>>&& args ){
-			if( auto const& t = Map<F,Tree<F>>::find(f) ) {
+struct Subst : Map<F,Term<F>>, Algebra::Intp<F,Term<F>> {
+	Subst( std::initializer_list<typename Map<F,Term<F>>::value_type> list ) :
+		Map<F,Term<F>>(list),
+		Algebra::Intp<F,Term<F>>([&]( F const& f, std::vector<Term<F>>&& args ){
+			if( auto const& t = Map<F,Term<F>>::find(f) ) {
 				return *t;
 			}
-			Tree<F> ret = f;
+			Term<F> ret = f;
 			ret.args() = std::move(args);
 			return ret;
 		})

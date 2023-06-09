@@ -127,7 +127,7 @@ public:
 		static Template const SUM;
 		static Template const MONO_SUM;
 	private:
-		static Tree<Sum<Sig,Algebra::Arg>> _deriver_inner(
+		static Term<Sum<Sig,Algebra::Arg>> _deriver_inner(
 			std::string const& f,
 			Trs::Rank const& rank,
 			Smt::Solver& solver,

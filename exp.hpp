@@ -13,24 +13,24 @@
 #include"sum.hpp"
 
 template<typename F>
-class Tree {
+class Term {
 	typedef F Fun;
 	/**
 	 * @brief Application. The pair of the function and the vector of arguments.
 	 */
-	typedef std::pair<Fun,std::vector<Tree>> App;
+	typedef std::pair<Fun,std::vector<Term>> App;
 	Mem<App> _mem;
 public:
 	/** @brief copy constructor */
-	Tree( Tree const& other ) = default;
+	Term( Term const& other ) = default;
 	/** @brief move constructor */
-	Tree( Tree && other ) : _mem(std::move(other._mem)) {}
+	Term( Term && other ) : _mem(std::move(other._mem)) {}
 	/** @brief Application */
 	template<typename S, typename... Args> requires (
 		std::is_constructible_v<F,S> &&
-		(std::is_constructible_v<Tree,Args> && ...)
+		(std::is_constructible_v<Term,Args> && ...)
 	)
-	Tree( S const& fun, Args const&... args ) :
+	Term( S const& fun, Args const&... args ) :
 		_mem(App(fun,{args...})) {}
 	/**
 	 * @brief accesses the function
@@ -47,29 +47,29 @@ public:
 	/**
 	 * @brief accesses the arguments
 	 */
-	std::vector<Tree>& args() & {
+	std::vector<Term>& args() & {
 		return _mem->second;
 	};
 	/**
 	 * @brief accesses the arguments
 	 */
-	std::vector<Tree> const& args() const & {
+	std::vector<Term> const& args() const & {
 		return _mem->second;
 	};
-	Tree& operator=( Tree && other ) & {
+	Term& operator=( Term && other ) & {
 		_mem = std::move(other._mem);
 		return *this;
 	}
-	Tree& operator=( Tree const& other ) & {
+	Term& operator=( Term const& other ) & {
 		_mem = other._mem;
 		return *this;
 	}
-	bool operator==( Tree const& other ) const {
+	bool operator==( Term const& other ) const {
 		return _mem == other._mem;
 	}
 };
 
-using Exp = Tree<std::string>;
+using Exp = Term<std::string>;
 
 struct Error : std::exception, Exp {
 	using Exp::Exp;
@@ -166,7 +166,7 @@ public:
 };
 
 template<typename F>
-std::ostream& operator<<( std::ostream& os, Tree<F> const& e ) {
+std::ostream& operator<<( std::ostream& os, Term<F> const& e ) {
 	auto const& fun = e.fun();
 	auto const& args = e.args();
 	if( args.empty() ) {

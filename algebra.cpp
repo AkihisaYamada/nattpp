@@ -35,7 +35,7 @@ static Opt<Poly::Sig> poly_fun( string const& str ) {
 	return {};
 }
 
-Tree<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
+Term<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 	string const& f,
 	Trs::Rank const& rank,
 	Smt::Solver& solver,
@@ -82,7 +82,7 @@ Tree<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 		if( !pfun ) {
 			throw Error{"#invalid",exp};
 		}
-		auto ret = Tree<Sum<Sig,Algebra::Arg>>(*pfun);
+		auto ret = Term<Sum<Sig,Algebra::Arg>>(*pfun);
 		for( int i = 0; i < rank.arity; i++ ) {
 			ret.args().push_back(_deriver_inner(f,rank,solver,sort,args[1],i));
 		}
@@ -102,7 +102,7 @@ Tree<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 		throw Error{"#no-matching-arity",f};
 	}
 	if( auto pfun = poly_fun(fun) ) {
-		auto ret = Tree<Sum<Sig,Algebra::Arg>>(*pfun);
+		auto ret = Term<Sum<Sig,Algebra::Arg>>(*pfun);
 		for( auto& arg : args ) {
 			ret.args().push_back(_deriver_inner(f,rank,solver,sort,arg,pos));
 		}
@@ -131,11 +131,11 @@ Tree<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 }
 
 Algebra::Deriver<string,Poly::Sig> Poly::Template::deriver( Trs::Sig const& sig, Smt::Solver& solver, Smt::BaseSort const& sort ) const {
-	Map<string,Tree<Sum<Sig,Algebra::Arg>>> map;
+	Map<string,Term<Sum<Sig,Algebra::Arg>>> map;
 	for( auto [f,rank] : sig ) {
 		map.insert(f,_deriver_inner(f,rank,solver,sort,*this,0));
 	}
-	return [map = move(map)]( string const& f )->Tree<Sum<Sig,Algebra::Arg>> {
+	return [map = move(map)]( string const& f )->Term<Sum<Sig,Algebra::Arg>> {
 		if( auto val = map.find(f) ) {
 			return *val;
 		}

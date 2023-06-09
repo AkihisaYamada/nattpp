@@ -1,4 +1,4 @@
-SRCS=exp.cpp trs.cpp srs.cpp proc.cpp smt.cpp algebra.cpp poly.cpp termination.cpp problem.cpp
+SRCS=exp.cpp trs.cpp srs.cpp proc.cpp smt.cpp algebra.cpp template.cpp poly.cpp termination.cpp problem.cpp
 MAIN_SRC=main.cpp
 TEST_SRC=test.cpp
 TGT=terma

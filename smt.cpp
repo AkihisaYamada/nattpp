@@ -463,6 +463,15 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 			eargs.push_back(i);
 			eargs.push_back(expand(args[1]));
 			eargs.push_back(expand(args[2]));
+		} else if( fun == EQ ) {
+			assert( args.size() == 2 );
+			return eq(expand(args[0]),expand(args[1]));
+		} else if( fun == GE ) {
+			assert( args.size() == 2 );
+			return ge(expand(args[0]),expand(args[1]));
+		} else if( fun == GT ) {
+			assert( args.size() == 2 );
+			return gt(expand(args[0]),expand(args[1]));
 		} else if( fun == ADD ) {
 			for( auto const& arg : args ) {
 				auto const& earg = expand(arg);

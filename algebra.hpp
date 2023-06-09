@@ -93,6 +93,8 @@ public:
 			};
 		}
 	};
+
+	static int test();
 };
 
 template<typename F>

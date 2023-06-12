@@ -27,7 +27,8 @@ public:
 			}
 			return (*this)(e.fun(),std::move(vargs));
 		}
-		using ATerm = Term<std::pair<F,T>>;
+		using ASig = std::pair<F,T>;
+		using ATerm = Term<ASig>;
 		/**
 		 * @brief Annotates a term with its evaluation
 		 */
@@ -36,11 +37,11 @@ public:
 			std::vector<T> vargs;
 			for( auto& arg : e.args() ) {
 				ATerm aarg = annotate(arg);
-				vargs.push_back(aarg.fun().first);
+				vargs.push_back(aarg.fun().second);
 				aargs.push_back(std::move(aarg));
 			}
 			T v = (*this)( e.fun(), std::move(vargs) );
-			return ATerm(std::in_place,{e.fun(),std::move(v)},std::move(aargs));
+			return ATerm(std::in_place,ASig(e.fun(),std::move(v)),std::move(aargs));
 		}
 	};
 
@@ -51,9 +52,10 @@ public:
 	/** @brief For Deriver: Placeholder for argument position. */
 	class Arg {
 		friend Algebra;
-		int pos;
+		int _pos;
 	public:
-		Arg( int pos ) : pos(pos) {}
+		Arg( int pos ) : _pos(pos) {}
+		int pos() const { return _pos; }
 	};
 	template<typename F, typename G>
 	class Deriver :
@@ -62,12 +64,12 @@ public:
 	private:
 		template<typename T>
 		static T _intp_inner( Intp<G,T> const& intp, Term<Sum<G,Arg>> const& e, std::vector<T> const& vs ) {
-		Sum<G,Arg> const& ifun = e.fun();
+			Sum<G,Arg> const& ifun = e.fun();
 			auto const& args = e.args();
 			if( auto i = ifun.template ref<1>() ) {// placeholder for applied variable arguments
 				assert( args.empty() );
-				assert( i->pos < vs.size() );
-				return vs[i->pos];
+				assert( i->_pos < vs.size() );
+				return vs[i->_pos];
 			}
 			if( auto fun = ifun.template ref<0>() ) {
 				std::vector<T> vargs;
@@ -118,6 +120,17 @@ struct Subst : Map<F,Term<F>>, Algebra::Intp<F,Term<F>> {
 		})
 	{}
 };
+
+template<typename F>
+std::ostream& operator<<( std::ostream& os, Sum<F,Algebra::Arg> const& df ) {
+	if( auto f = df.template ref<F>() ) {
+		return os << *f;
+	}
+	if( auto a = df.template ref<Algebra::Arg>() ) {
+		return os << "(:in " << a->pos() << ')';
+	}
+	assert(false);
+}
 
 template<typename F>
 std::ostream& operator<<( std::ostream& os, Subst<F> const& subst ) {

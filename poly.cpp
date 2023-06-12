@@ -1,5 +1,4 @@
 #include"poly.hpp"
-#include"template.hpp"
 
 using namespace std;
 
@@ -135,6 +134,10 @@ Algebra::Intp<Poly::Sig,Poly> Poly::algebra( Smt::Solver& solver, Smt::BaseSort 
 	};
 }
 
+template<typename T1, typename T2>
+ostream& operator<<( ostream& os, pair<T1,T2> const& pair ) {
+	return os << "〈" << pair.first << ", " << pair.second << "〉";
+}
 
 int Poly::test() {
 	cout << "=== Poly test ===" << endl;
@@ -142,7 +145,7 @@ int Poly::test() {
 	cout << subst.eval(Exp{"f","x"}) << endl;
 	Subst<string> subst2 = {{"x",Exp{"g","x"}}};
 	cout << subst2.eval(Exp{"f","x","x"}) << endl;
-	auto z3 = Smt::Z3(Smt::QF_LIA,cout);
+	auto z3 = Smt::Z3(Smt::QF_LIA);
 	auto c1 = z3.declare_const("c1",Smt::INT);
 	auto c2 = z3.declare_const("c2",Smt::INT);
 	auto wa = z3.declare_const("wa",Smt::INT);
@@ -180,7 +183,15 @@ int Poly::test() {
 	sig.insert("a",0);
 	auto der = Template::SUM.deriver(sig,z3,Smt::INT);
 	e = Exp{"f",Exp{"g","x"},"a"};
-	cout << "SUM⟦" << e << "⟧ = " << der.derive(Algebra::TERM<Sig>).eval(e) << endl;
-	cout << "Poly: " << der.derive(z3poly).eval(e) << endl;
+	for( auto p : sig ) {
+		cout << "der(" << p.first << ") = " << der(p.first) << endl;
+	}
+	auto der_term = der.derive(Algebra::TERM<Sig>);
+	cout << "der⟦" << "(g x)" << "⟧ = " << der_term.eval(Exp{"g","x"}) << endl;
+	cout << "der⟦a⟧ = " << der_term.eval("a") << endl;
+	cout << "der⟦" << e << "⟧ = " << der_term.eval(e) << endl;
+	auto der_intp = memoize(der.derive(z3poly),z3,Smt::INT);
+	cout << "Poly: " << der_intp.eval(e) << endl;
+	cout << "Annotate: " << der_intp.annotate(e) << endl;
 	return 0;
 }

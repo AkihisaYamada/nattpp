@@ -475,7 +475,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 		} else if( fun == ADD ) {
 			for( auto const& arg : args ) {
 				auto const& earg = expand(arg);
-				if( earg._term.fun() == Sig(0) ) {
+				if( earg._term.fun() != Sig(0) ) {
 					eargs.push_back(earg);
 				}
 			}

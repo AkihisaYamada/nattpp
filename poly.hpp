@@ -99,7 +99,6 @@ public:
 	}
 	Smt::PreExp ge( Poly const& p2 ) const;
 	static Smt::PreExp order( Poly const& p1, Poly const& p2, Smt::Solver& solver );
-	static Algebra::Intp<Sig,Poly> algebra( Smt::Solver& solver, Smt::BaseSort const& sort );
 	static Poly sum( std::vector<Poly> const& args ) {
 		Poly ret;
 		for( auto const& arg : args ) {
@@ -115,6 +114,22 @@ public:
 		return std::move(ret);
 	}
 	static int test();
+
+	template<typename F>
+	static Algebra::Intp<F,Poly> memoize( Algebra::Intp<F,Poly> && intp, Smt::Solver& solver, Smt::BaseSort const& sort ) {
+		return [intp=std::move(intp),&solver,sort]( F const& f, std::vector<Poly> && args ) {
+			return intp(f,std::move(args)).memoize(solver,sort);
+		};
+	}
+
+	template<typename F>
+	static Algebra::Intp<F,Poly> memoize( Algebra::Intp<F,Poly> const& intp, Smt::Solver& solver, Smt::BaseSort const& sort ) {
+		return [&intp,&solver,sort]( F const& f, std::vector<Poly> && args ) {
+			return intp(f,std::move(args)).memoize(solver,sort);
+		};
+	}
+
+	static Algebra::Intp<Sig,Poly> algebra( Smt::Solver& solver, Smt::BaseSort const& sort );
 
 	class Template : public Exp {
 	public:

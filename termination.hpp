@@ -5,6 +5,10 @@
 #include"trs.hpp"
 #include"poly.hpp"
 
+class TrsAnnotator {
+	
+};
+
 class TermOrder {
 public:
 	virtual Smt::PreExp operator()( Exp const& l, Exp const& r ) = 0;

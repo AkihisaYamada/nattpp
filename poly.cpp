@@ -93,8 +93,12 @@ Smt::PreExp Poly::order( Poly const& p1, Poly const& p2, Smt::Solver& solver ) {
 }
 
 Poly& Poly::memoize( Smt::Solver& solver, Smt::BaseSort const& sort ) {
-	if( auto val = _map.find({}) ) {
-		*val = solver.let(sort,*val);
+	for( auto& val : _map ) {
+		if( val.first.vars().empty() ) {
+			val.second = solver.let(sort,val.second);
+		} else {
+			val.second = solver.expand(val.second);
+		}
 	}
 	return *this;
 }

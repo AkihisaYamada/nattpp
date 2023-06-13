@@ -14,12 +14,13 @@ public:
 	static Add constexpr ADD = {};
 	class Mul {};
 	static Mul constexpr MUL = {};
+	struct Cond { Smt::PostExp exp; };
 	struct Var : std::string {
 		Range range;
 		Var( std::string_view const& str, Range range ) : std::string(str), range(range) {}
 	};
-	using Sig = Sum<Add,Mul,Smt::PreExp,Var>;
-	static Algebra::Intp<Sig,Smt::PreExp> const ALGEBRA;
+	using Sig = Sum<Add,Mul,Cond,Smt::PostExp,Var>;
+	static Algebra::Intp<Sig,Smt::PostExp> const ALGEBRA;
 	static Range range_mult( Range r1, Range r2 ) {
 		switch(r1) {
 		case NONE:
@@ -67,21 +68,21 @@ public:
 		friend Poly;
 	};
 private:
-	Map<Vars,Smt::PreExp> _map;
+	Map<Vars,Smt::PostExp> _map;
 public:
 	Poly() {}
-	template<typename T> requires std::is_constructible_v<Smt::PreExp,T>
+	template<typename T> requires std::is_constructible_v<Smt::PostExp,T>
 	Poly( T const& c ) : _map{{{},c}} {}
-	Poly( int i ) : _map{{{},Smt::PreExp(i)}} {}
-	Poly( Var const& v ) : _map{{v,Smt::PreExp(1)}} {}
-	Map<Vars,Smt::PreExp> const& map() const & {
+	Poly( int i ) : _map{{{},Smt::PostExp(i)}} {}
+	Poly( Var const& v ) : _map{{v,Smt::PostExp(1)}} {}
+	Map<Vars,Smt::PostExp> const& map() const & {
 		return _map;
 	}
-	Smt::PreExp operator[]( Vars const& vars ) const& {
+	Smt::PostExp operator[]( Vars const& vars ) const& {
 		if( auto const& c = _map.find(vars) ) {
 			return *c;
 		}
-		return Smt::PreExp(0);
+		return 0;
 	}
 	/**
 	 * @brief Turn coefficients into temporary variables
@@ -92,13 +93,14 @@ public:
 	Poly& memoize( Smt::Solver& solver, Smt::BaseSort const& sort );
 	Poly operator+( Poly const& p2 ) const &;
 	Poly& operator+=( Poly const& p2 ) &;
-	Poly monom_mult( Smt::PreExp const& c, Vars const& vs ) const;
+	Poly monom_mult( Smt::PostExp const& c, Vars const& vs ) const;
 	Poly operator*( Poly const& p2 ) const;
 	Poly operator*=( Poly const& p2 ) & {
 		return *this = *this * p2;
 	}
-	Smt::PreExp ge( Poly const& p2 ) const;
-	static Smt::PreExp order( Poly const& p1, Poly const& p2, Smt::Solver& solver );
+	Smt::PostExp ge( Poly const& p2 ) const;
+	static Poly ite( Smt::PostExp const& c, Poly const& p1, Poly const& p2 );
+	static Smt::PostExp order( Poly const& p1, Poly const& p2, Smt::Solver& solver );
 	static Poly sum( std::vector<Poly> const& args ) {
 		Poly ret;
 		for( auto const& arg : args ) {

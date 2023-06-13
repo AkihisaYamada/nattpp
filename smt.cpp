@@ -1,5 +1,6 @@
 #include<iostream>
 #include<cassert>
+#include"util.hpp"
 #include"smt.hpp"
 
 using namespace std;
@@ -16,7 +17,7 @@ Smt::BaseSort const Smt::BOOL = "Bool";
 Smt::BaseSort const Smt::INT = "Int";
 Smt::BaseSort const Smt::REAL = "Real";
 
-Smt::Sig const
+Smt::Fun const
 	Smt::AND = "and",
 	Smt::OR = "or",
 	Smt::NOT = "not",
@@ -45,7 +46,7 @@ ostream& operator<<( ostream& os, Smt::Sort const& e ) {
 	}
 	assert(false);
 }
-std::ostream& operator<<( std::ostream& os, Smt::Sig const& f ) {
+std::ostream& operator<<( std::ostream& os, Smt::Fun const& f ) {
 	if( auto str = f.ref<string>() ) {
 		return os << *str;
 	}
@@ -80,7 +81,7 @@ ostream& operator<<( ostream& os, Smt::PreExp const& e ) {
 	assert(false);
 }
 
-string to_string( Smt::Sig const& fun ) {
+string to_string( Smt::Fun const& fun ) {
 	if( auto i = fun.ref<int>() ) {
 		return to_string(*i);
 	}
@@ -91,7 +92,7 @@ string to_string( Smt::Sig const& fun ) {
 }
 Exp Smt::PostExp::exp() const {
 	return _term.map<string>(
-		[](Smt::Sig const& fun){
+		[](Smt::Fun const& fun){
 		return to_string(fun);
 	});
 }
@@ -108,7 +109,7 @@ Smt::PostExp Smt::PostExp::conj( Smt::PostExp const& y ) const {
 	if( y == FALSE ) {
 		return y;
 	}
-	return Term<Sig>(AND,*this,y);
+	return Term<Fun>(AND,*this,y);
 }
 
 Smt::PostExp& Smt::PostExp::conj_eq( Smt::PostExp const& arg ) & {
@@ -124,7 +125,7 @@ Smt::PostExp& Smt::PostExp::conj_eq( Smt::PostExp const& arg ) & {
 		args1.push_back(arg);
 		return *this;
 	}
-	_term = Term<Sig>(AND,_term,arg._term);
+	_term = Term<Fun>(AND,_term,arg._term);
 	return *this;
 }
 
@@ -141,7 +142,7 @@ Smt::PostExp Smt::PostExp::disj( Smt::PostExp const& y ) const {
 	if( y == FALSE ) {
 		return *this;
 	}
-	return Term<Sig>(OR,*this,y);
+	return Term<Fun>(OR,*this,y);
 }
 
 Smt::PostExp& Smt::PostExp::disj_eq( Smt::PostExp const& arg ) & {
@@ -157,7 +158,7 @@ Smt::PostExp& Smt::PostExp::disj_eq( Smt::PostExp const& arg ) & {
 		args1.push_back(arg);
 		return *this;
 	}
-	_term = Term<Sig>(OR,_term,arg._term);
+	_term = Term<Fun>(OR,_term,arg._term);
 	return *this;
 }
 
@@ -167,7 +168,7 @@ Smt::PostExp Smt::eq( PostExp const& x, PostExp const& y ) {
 			return xi == yi ? TRUE : FALSE;
 		}
 	}
-	return Term<Sig>(EQ,x,y);
+	return Term<Fun>(EQ,x,y);
 }
 
 Smt::PostExp Smt::ge( PostExp const& x, PostExp const& y ) {
@@ -176,7 +177,7 @@ Smt::PostExp Smt::ge( PostExp const& x, PostExp const& y ) {
 			return xi >= yi ? TRUE : FALSE;
 		}
 	}
-	return Term<Sig>(GE,x,y);
+	return Term<Fun>(GE,x,y);
 }
 
 Smt::PostExp Smt::gt( PostExp const& x, PostExp const& y ) {
@@ -185,7 +186,7 @@ Smt::PostExp Smt::gt( PostExp const& x, PostExp const& y ) {
 			return xi > yi ? TRUE : FALSE;
 		}
 	}
-	return Term<Sig>(GT,x,y);
+	return Term<Fun>(GT,x,y);
 }
 
 Smt::PostExp Smt::ite( PostExp const& i, PostExp const& t, PostExp const& e ) {
@@ -195,9 +196,58 @@ Smt::PostExp Smt::ite( PostExp const& i, PostExp const& t, PostExp const& e ) {
 	if( i == FALSE ) {
 		return e;
 	}
-	return Term<Sig>(ITE,i,t,e);
+	return Term<Fun>(ITE,i,t,e);
 }
 
+Opt<Smt::PostExp> Smt::PostExp::of( Exp const& exp ) {
+	auto& fun = exp.fun();
+	auto& args = exp.args();
+	if( fun == "+" ) {
+		PostExp ret = 0;
+		for( auto arg : args ) {
+			auto sarg = of(arg);
+			if( !sarg ) {
+				return {};
+			}
+			ret += *sarg;
+		}
+		return ret;
+	}
+	if( fun == "*" ) {
+		PostExp ret = 1;
+		for( auto arg : args ) {
+			auto sarg = of(arg);
+			if( !sarg ) {
+				return {};
+			}
+			ret *= *sarg;
+		}
+		return ret;
+	}
+	if( fun == "ite" ) {
+		if( args.size() == 3 )
+		if( auto i = of(args[0]) )
+		if( auto t = of(args[1]) )
+		if( auto e = of(args[2]) ) {
+			return ite(*i,*t,*e);
+		}
+		return {};
+	}
+	if( auto i = to_int(fun) ) {
+		return *i;
+	}
+	return {};
+};
+
+Opt<Smt::BaseSort> Smt::BaseSort::of( Exp const& exp ) {
+	if( exp == "int" ) {
+		return Smt::INT;
+	}
+	if( exp == "bool" ) {
+		return Smt::BOOL;
+	}
+	return {};
+}
 
 Algebra::Intp<string,Smt::PreExp> const Smt::ALGEBRA = []( string const& fun, vector<Smt::PreExp>&& args ){
 	return Smt::PreExp(fun,std::move(args));
@@ -253,7 +303,7 @@ Smt::Solver& Smt::Solver::result() & {
 
 Smt::PostExp Smt::Solver::declare_const( string const& name, BaseSort const& sort ) & {
 	_proc.to << "(declare-const " << name << ' ' << sort.name << ')' << endl;
-	return Term<Sig>(Sig(in_place_type<string>,name));
+	return Term<Fun>(Fun(in_place_type<string>,name));
 }
 
 Smt::PostExp Smt::Solver::define_fun(
@@ -267,7 +317,7 @@ Smt::PostExp Smt::Solver::define_fun(
 		_proc.to << '(' << var << ' ' << psort << ") ";
 	}
 	_proc.to << ") " << sort.name << ' ' << body << ')' << endl;
-	return Term<Sig>(Sig(in_place_type<string>,name));
+	return Term<Fun>(Fun(in_place_type<string>,name));
 }
 
 Smt::PostExp Smt::Reader::read_post_exp() {
@@ -279,11 +329,11 @@ Smt::PostExp Smt::Reader::read_post_exp() {
 		if( !fun ) {
 			throw Error({"#smt:read",*fun});
 		}
-		vector<Term<Sig>> args;
+		vector<Term<Fun>> args;
 		while( !closes() ) {
 			args.push_back(read_post_exp());
 		}
-		return Term<Sig>(in_place,std::move(*fun),std::move(args));
+		return Term<Fun>(in_place,std::move(*fun),std::move(args));
 	}
 	throw Error({"#smt:read"});
 }
@@ -334,7 +384,7 @@ Smt::PostExp Smt::PostExp::operator!() const {
 	if( fun == NOT ) {
 		return args[0];
 	}
-	return Term<Sig>(NOT,*this);
+	return Term<Fun>(NOT,*this);
 }
 Smt::PostExp Smt::PostExp::add( PostExp const& arg ) const {
 	if( auto num = this->num() ) {
@@ -349,7 +399,7 @@ Smt::PostExp Smt::PostExp::add( PostExp const& arg ) const {
 			return *this;
 		}
 	}
-	return Term<Sig>(ADD,*this,arg);
+	return Term<Fun>(ADD,*this,arg);
 }
 
 Smt::PostExp& Smt::PostExp::operator+=( PostExp const& arg ) & {
@@ -366,7 +416,7 @@ Smt::PostExp& Smt::PostExp::operator+=( PostExp const& arg ) & {
 			return *this;
 		}
 	}
-	return *this = Term<Sig>(ADD,*this,arg);
+	return *this = Term<Fun>(ADD,*this,arg);
 }
 
 Smt::PostExp Smt::PostExp::mul( PostExp const& arg ) const {
@@ -388,7 +438,7 @@ Smt::PostExp Smt::PostExp::mul( PostExp const& arg ) const {
 			return *this;
 		}
 	}
-	return Term<Sig>(MUL,*this,arg);
+	return Term<Fun>(MUL,*this,arg);
 }
 
 Smt::PostExp& Smt::PostExp::operator*=( PostExp const& arg ) & {
@@ -411,7 +461,7 @@ Smt::PostExp& Smt::PostExp::operator*=( PostExp const& arg ) & {
 			return *this;
 		}
 	}
-	return *this = Term<Sig>(MUL,*this,arg);
+	return *this = Term<Fun>(MUL,*this,arg);
 }
 Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 	if( auto post = p.post() ) {
@@ -419,7 +469,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 	}
 	if( auto app = p.app() ) {
 		auto const& [fun,args] = *app;
-		auto eargs = vector<Term<Sig>>();
+		auto eargs = vector<Term<Fun>>();
 		if( fun == AND ) {
 			for( auto const& arg : args ) {
 				auto const& earg = expand(arg);
@@ -476,7 +526,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 			for( auto const& arg : args ) {
 				auto const& earg = expand(arg);
 				auto& afun = earg._term.fun();
-				if( afun == Sig(0) ) {
+				if( afun == Fun(0) ) {
 					continue;
 				}
 				if( afun == ADD ) {
@@ -525,7 +575,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 				auto v = let(INT,earg1);//TODO
 				return ite( eargs2[0], v * eargs2[1], v * eargs2[2] );
 			}
-			return Term<Sig>(MUL,earg1,earg2);
+			return Term<Fun>(MUL,earg1,earg2);
 		} else if( fun == CAR ) {
 			assert( args.size() == 1 );
 			return car(expand(args[0]));
@@ -537,7 +587,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 				eargs.push_back(expand(arg));
 			}
 		}
-		return Term<Sig>(in_place,fun,std::move(eargs));
+		return Term<Fun>(in_place,fun,std::move(eargs));
 	}
 	if( auto tp = p.let() ) {
 		auto const& [val,sort,body] = *tp;

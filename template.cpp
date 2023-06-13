@@ -9,21 +9,6 @@ static void arity_check( bool test, Exp const& exp ) {
 	}
 }
 
-static Smt::BaseSort base_sort_of( Exp const& exp ) {
-	if( exp == "int" ) {
-		return Smt::INT;
-	}
-	if( exp == "bool" ) {
-		return Smt::BOOL;
-	}
-	throw Poly::Error("#unknown-sort",exp);
-}
-
-static Opt<int> safe_stoi( string const& str ) try {
-	return stoi(str);
-} catch( exception const& err ) {
-	return {};
-}
 
 static Opt<Poly::Sig> poly_fun( string const& str ) {
 	if( str == "+" ) {
@@ -50,10 +35,13 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 	if( fun == "var" ) {
 		auto it = args.begin();
 		arity_check( it != args.end(), exp );
-		Smt::BaseSort base = base_sort_of(*it);
+		auto base = Smt::BaseSort::of(*it);
+		if( !base ) {
+			throw Error("#unexpected",*it);
+		}
 		arity_check( it->args().empty(), *it );
 		it++;
-		auto const& ret = solver.declare_fresh(base);
+		auto const& ret = solver.declare_fresh(*base);
 		while( it != args.end() ) {
 			if( *it == ":constrain" ) {
 				it++;
@@ -100,6 +88,21 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 		}
 		throw Error{"#no-matching-arity",f};
 	}
+	if( fun == "ite" ) {
+		if( args.size() != 3 ) {
+			throw Error("#arity",exp);
+		}
+		auto i = _deriver_inner(f,rank,solver,args[0],pos);
+		if( auto ifun = i.fun().ref<Sig>() )
+		if( auto ie = ifun->ref<Smt::PostExp>() ) {
+			return Term<Sum<Sig,Algebra::Arg>>(
+				Cond{*ie},
+				_deriver_inner(f,rank,solver,args[1],pos),
+				_deriver_inner(f,rank,solver,args[2],pos)
+			);
+		}
+		throw Error{"#template-format",exp};
+	}
 	if( auto pfun = poly_fun(fun) ) {
 		auto ret = Term<Sum<Sig,Algebra::Arg>>(*pfun);
 		for( auto& arg : args ) {
@@ -107,24 +110,8 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 		}
 		return ret;
 	}
-	if( fun == "ite" ) {
-		if( args.size() != 3 ) {
-			throw Error{"#arity-mismatch",exp};
-		}
-		auto it = _deriver_inner(f,rank,solver,args[0],pos);
-		auto tt = _deriver_inner(f,rank,solver,args[1],pos);
-		auto et = _deriver_inner(f,rank,solver,args[2],pos);
-		try {
-			auto i = *it.fun().ref<Sig>()->ref<Smt::PreExp>();
-			auto t = *tt.fun().ref<Sig>()->ref<Smt::PreExp>();
-			auto e = *et.fun().ref<Sig>()->ref<Smt::PreExp>();
-			return Smt::ite(i,t,e);
-		} catch( exception e ) {
-			throw Error{"#template-format",exp};
-		}
-	}
-	if( auto i = safe_stoi(fun) ) {
-		return Smt::PreExp(*i);
+	if( auto i = to_int(fun) ) {
+		return Smt::PostExp(*i);
 	}
 	throw Error{"#template-format",exp};
 }

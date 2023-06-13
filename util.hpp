@@ -4,7 +4,14 @@
 #include<map>
 #include<set>
 #include<functional>
+#include<string>
+#include"opt.hpp"
 
+static Opt<int> to_int( std::string const& str ) try {
+	return std::stoi(str);
+} catch( std::exception const& err ) {
+	return {};
+}
 template<typename T>
 auto operator<=>( std::multiset<T> const& l, std::multiset<T> const& r ) {
 	return lexicographical_compare_three_way(l.begin(),l.end(),r.begin(),r.end());

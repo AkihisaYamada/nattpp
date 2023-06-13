@@ -129,15 +129,14 @@ public:
 		};
 	}
 
-	static Algebra::Intp<Sig,Poly> algebra( Smt::Solver& solver, Smt::BaseSort const& sort );
+	static Algebra::Intp<Sig,Poly> algebra( Smt::Solver& solver );
 
 	class Template : public Exp {
 	public:
 		Template( Exp const& exp ) : Exp(exp) {}
 		Algebra::Deriver<std::string,Sig> deriver(
 			Trs::Sig const& sig,
-			Smt::Solver& solver,
-			Smt::BaseSort const& sort
+			Smt::Solver& solver
 		) const;
 		static Template const SUM;
 		static Template const MONO_SUM;
@@ -146,7 +145,6 @@ public:
 			std::string const& f,
 			Trs::Rank const& rank,
 			Smt::Solver& solver,
-			Smt::BaseSort const& sort,
 			Exp const& exp,
 			int pos
 		);

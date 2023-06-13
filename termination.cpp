@@ -48,8 +48,8 @@ DerivedTermOrder::DerivedTermOrder(
 	Smt::Solver& solver,
 	Smt::BaseSort const& sort
 ) : solver(solver),
-	deriver(temp.deriver(sig,solver,sort)),
-	intp(deriver.derive(Poly::algebra(solver,sort))) {
+	deriver(temp.deriver(sig,solver)),
+	intp(Poly::memoize(deriver.derive(Poly::algebra(solver)),solver,sort)) {
 }
 
 DerivedRuleRemover::DerivedRuleRemover(

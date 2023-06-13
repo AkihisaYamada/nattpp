@@ -119,8 +119,8 @@ ostream& operator<<( ostream& os, Poly::Sig const& f ) {
 	assert(false);
 }
 
-Algebra::Intp<Poly::Sig,Poly> Poly::algebra( Smt::Solver& solver, Smt::BaseSort const& sort ) {
-	return [&solver,sort]( Poly::Sig const& f, std::vector<Poly> const& args )->Poly{
+Algebra::Intp<Poly::Sig,Poly> Poly::algebra( Smt::Solver& solver ) {
+	return [&solver]( Poly::Sig const& f, std::vector<Poly> const& args )->Poly{
 		if( f.ref<Add>() ) {
 			return sum(args);
 		}
@@ -172,7 +172,7 @@ int Poly::test() {
 	};
 	auto e = Exp{"f",Exp{"a","x"},Exp{"b","x"}};
 	cout << e << " = " << hsubst.derive(Algebra::TERM<Sig>).eval(e) << endl;
-	auto z3poly = Poly::algebra(z3,Smt::INT);
+	auto z3poly = Poly::algebra(z3);
 	cout << hsubst.derive(z3poly).eval(e) << endl;
 	Poly x = Poly::Var("x",Poly::POS);
 	Poly y = Poly::Var("y",Poly::NEG);
@@ -185,7 +185,8 @@ int Poly::test() {
 	sig.insert("f",2);
 	sig.insert("g",1);
 	sig.insert("a",0);
-	auto der = Template::SUM.deriver(sig,z3,Smt::INT);
+	auto der = Template::SUM.deriver(sig,z3);
+	auto der_intp = memoize(der.derive(z3poly),z3,Smt::INT);
 	e = Exp{"f",Exp{"g","x"},"a"};
 	for( auto p : sig ) {
 		cout << "der(" << p.first << ") = " << der(p.first) << endl;
@@ -194,7 +195,6 @@ int Poly::test() {
 	cout << "der⟦" << "(g x)" << "⟧ = " << der_term.eval(Exp{"g","x"}) << endl;
 	cout << "der⟦a⟧ = " << der_term.eval("a") << endl;
 	cout << "der⟦" << e << "⟧ = " << der_term.eval(e) << endl;
-	auto der_intp = memoize(der.derive(z3poly),z3,Smt::INT);
 	cout << "Poly: " << der_intp.eval(e) << endl;
 	cout << "Annotate: " << der_intp.annotate(e) << endl;
 	return 0;

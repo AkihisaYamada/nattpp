@@ -7,6 +7,8 @@
 #include<string>
 #include"opt.hpp"
 
+#define DEB(a) do { std::cerr << __FILE__ << ':' << __LINE__ << ' ' << a << endl; } while(0)
+
 static Opt<int> to_int( std::string const& str ) try {
 	return std::stoi(str);
 } catch( std::exception const& err ) {

@@ -24,10 +24,10 @@ public:
 	static Range range_mult( Range r1, Range r2 ) {
 		switch(r1) {
 		case NONE:
+			return r2;
 		case POS:
 			switch(r2) {
-			case NONE: return NONE;
-			case POS: return POS;
+			case NONE: case POS: return POS;
 			case NEG: return NEG;
 			default: return FULL;
 			}
@@ -154,6 +154,10 @@ public:
 };
 
 std::ostream& operator<<( std::ostream& os, Poly::Sig const& f );
+
+std::ostream& operator<<( std::ostream& os, Poly::Range const& r );
+
+std::ostream& operator<<( std::ostream& os, Poly::Var const& v );
 
 std::ostream& operator<<( std::ostream& os, Poly::Vars const& vs );
 

@@ -173,7 +173,7 @@ Smt::PostExp& Smt::PostExp::disj_eq( Smt::PostExp const& arg ) & {
 Smt::PostExp Smt::eq( PostExp const& x, PostExp const& y ) {
 	if( auto xi = x.is_int() ) {
 		if( auto yi = y.is_int() ) {
-			return xi == yi ? TRUE : FALSE;
+			return *xi == *yi ? TRUE : FALSE;
 		}
 	}
 	return Term<Fun>(EQ,x,y);
@@ -182,7 +182,7 @@ Smt::PostExp Smt::eq( PostExp const& x, PostExp const& y ) {
 Smt::PostExp Smt::ge( PostExp const& x, PostExp const& y ) {
 	if( auto xi = x.is_int() ) {
 		if( auto yi = y.is_int() ) {
-			return xi >= yi ? TRUE : FALSE;
+			return *xi >= *yi ? TRUE : FALSE;
 		}
 	}
 	return Term<Fun>(GE,x,y);
@@ -191,7 +191,7 @@ Smt::PostExp Smt::ge( PostExp const& x, PostExp const& y ) {
 Smt::PostExp Smt::gt( PostExp const& x, PostExp const& y ) {
 	if( auto xi = x.is_int() ) {
 		if( auto yi = y.is_int() ) {
-			return xi > yi ? TRUE : FALSE;
+			return *xi > *yi ? TRUE : FALSE;
 		}
 	}
 	return Term<Fun>(GT,x,y);
@@ -406,7 +406,7 @@ Smt::PostExp Smt::PostExp::add( PostExp const& arg ) const {
 			return *num + *num2;
 		}
 	} else if( auto num2 = arg.is_int() ) {
-		if( num2 == 0 ) {
+		if( *num2 == 0 ) {
 			return *this;
 		}
 	}
@@ -423,7 +423,7 @@ Smt::PostExp& Smt::PostExp::operator+=( PostExp const& arg ) & {
 			return *this;
 		}
 	} else if( auto num2 = arg.is_int() ) {
-		if( num2 == 0 ) {
+		if( *num2 == 0 ) {
 			return *this;
 		}
 	}
@@ -465,10 +465,10 @@ Smt::PostExp& Smt::PostExp::operator*=( PostExp const& arg ) & {
 			return *this;
 		}
 	} else if( auto num2 = arg.is_int() ) {
-		if( num2 == 0 ) {
+		if( *num2 == 0 ) {
 			return *this = arg;
 		}
-		if( num2 == 1 ) {
+		if( *num2 == 1 ) {
 			return *this;
 		}
 	}

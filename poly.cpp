@@ -2,12 +2,28 @@
 
 using namespace std;
 
-static ostream& put_monom( ostream& os, pair<Poly::Vars,Smt::PostExp> const& m ) {
-	os << m.second;
-	for( auto const& var : m.first.vars() ) {
-		os << " * " << var;
+ostream& operator<<( ostream& os, Poly::Range const& r ) {
+	switch( r ) {
+		case Poly::POS: return os << "[0~]";
+		case Poly::NEG: return os << "[~0]";
+		case Poly::FULL: return os << "[~]";
 	}
 	return os;
+}
+
+ostream& operator<<( ostream& os, Poly::Var const& v ) {
+	return os << (string)v << v.range;
+}
+
+ostream& operator<<( ostream& os, Poly::Vars const& vs ) {
+	for( auto const& var : vs.vars() ) {
+		os << (string)var << " ";
+	}
+	return os << vs.range();
+}
+
+static ostream& put_monom( ostream& os, pair<Poly::Vars,Smt::PostExp> const& m ) {
+	return os << m.second << " " << m.first;
 }
 
 ostream& operator<<( ostream& os, Poly const& p ) {
@@ -197,7 +213,7 @@ int Poly::test() {
 	auto c = z3.declare_const("c",Smt::INT);
 	auto d = z3.declare_const("d",Smt::INT);
 	Poly p = x * c + d, q = x * 5 + 3;
-	cout << "Poly: " << p << " <= " << q << endl;
+	cout << "Poly: " << p << " >= " << q << endl;
 	cout << "Smt: " << z3.expand(p.ge(q)) << endl;
 	Trs::Sig sig;
 	sig.insert("f",2);

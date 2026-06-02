@@ -34,7 +34,7 @@ public:
 		(std::is_constructible_v<Term,Args> && ...)
 	)
 	Term( S const& fun, Args const&... args ) :
-		_mem(App(fun,{args...})) {}
+		_mem(App(fun,{Term(args)...})) {}
 	/**
 	 * @brief accesses the function
 	 */
@@ -80,7 +80,12 @@ public:
 	}
 };
 
-using Exp = Term<std::string>;
+struct Exp : Term<std::string> {
+	using Term<std::string>::Term;
+	Exp( Term && other ) : Term<std::string>(std::move(other)) {}
+	Exp( Term const& other ) : Term<std::string>(other) {}
+	static int test();
+};
 
 struct Error : std::exception, Exp {
 	using Exp::Exp;

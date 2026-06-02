@@ -1,6 +1,5 @@
 #include<fstream>
 #include"problem.hpp"
-#include"srs.hpp"
 
 using namespace std;
 
@@ -17,7 +16,7 @@ static void _switch(
 	}
 }
 
-static bool _unknown_key( string_view const& key ) {
+static bool _unknown_key( string const& key ) {
 	throw Problem::Error{"#unknown-key",key};
 }
 static bool _process_number( string_view const& key, ::Reader& eis, int& num ) {
@@ -92,46 +91,17 @@ Problem::Problem( istream& is ) {
 			};
 			eis.close();
 		}
-	} else if( eis.reads_sym("SRS") ) {
-		format = SRS;
-		int num = 0;
-		while( auto key = eis.reads_key() ) {
-			_process_number(*key,eis,num) ||
-			_unknown_key(*key);
-		}
-		eis.close();// of format
-		systems = vector<Trs::Rules>( num == 0 ? 1 : num );
-		auto sis = Srs::Reader(eis,sig);
-		while( eis.opens() ) {
-			if( eis.reads_sym("rule") ) {
-				auto l = sis.read(), r = sis.read();
-				int index = 0;
-				while( auto key = eis.reads_key() ) {
-					_process_index(*this,*key,eis,index) ||
-					_unknown_key(*key);
-				}
-				systems[ index > 0 ? index-1 : 0 ].push_back({l,r});
-			} else {
-				throw Error{"#unexpected-command",eis.read_exp()};
-			}
-			eis.close();
-		}
+	} else {
+		throw Error("#unsupported-format",eis.read_exp());
 	}
 }
 
 bool Problem::test() {
 	{
-		auto ifs = fstream("test.ari");
+		auto ifs = ifstream("test.ari");
 		auto prob = Problem(ifs);
 		for( int i = 0; i < prob.systems.size(); i++ ) {
 			cout << "TRS " << i+1 << ":" << endl << prob.systems[i];
-		}
-	}
-	{
-		auto ifs = fstream("srs.ari");
-		auto prob = Problem(ifs);
-		for( int i = 0; i < prob.systems.size(); i++ ) {
-			cout << "SRS " << i+1 << ":" << endl << prob.systems[i];
 		}
 	}
 	return true;

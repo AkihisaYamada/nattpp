@@ -36,6 +36,14 @@ Smt::Fun const
 Smt::PostExp const Smt::TRUE = PostExp("true");
 Smt::PostExp const Smt::FALSE = PostExp("false");
 
+static Opt<int> num_of_string( string_view const& str ) {
+	int val = 0;
+	for( auto c : str ) {
+		if( c < '0' || '9' < c ) return {};
+		val = val * 10 + c - '0';
+	}
+	return {val};
+}
 ostream& operator<<( ostream& os, Smt::Sort const& e ) {
 	if( auto base = e.base() ) {
 		return os << *base;
@@ -163,8 +171,8 @@ Smt::PostExp& Smt::PostExp::disj_eq( Smt::PostExp const& arg ) & {
 }
 
 Smt::PostExp Smt::eq( PostExp const& x, PostExp const& y ) {
-	if( auto xi = x.num() ) {
-		if( auto yi = y.num() ) {
+	if( auto xi = x.is_int() ) {
+		if( auto yi = y.is_int() ) {
 			return xi == yi ? TRUE : FALSE;
 		}
 	}
@@ -172,8 +180,8 @@ Smt::PostExp Smt::eq( PostExp const& x, PostExp const& y ) {
 }
 
 Smt::PostExp Smt::ge( PostExp const& x, PostExp const& y ) {
-	if( auto xi = x.num() ) {
-		if( auto yi = y.num() ) {
+	if( auto xi = x.is_int() ) {
+		if( auto yi = y.is_int() ) {
 			return xi >= yi ? TRUE : FALSE;
 		}
 	}
@@ -181,8 +189,8 @@ Smt::PostExp Smt::ge( PostExp const& x, PostExp const& y ) {
 }
 
 Smt::PostExp Smt::gt( PostExp const& x, PostExp const& y ) {
-	if( auto xi = x.num() ) {
-		if( auto yi = y.num() ) {
+	if( auto xi = x.is_int() ) {
+		if( auto yi = y.is_int() ) {
 			return xi > yi ? TRUE : FALSE;
 		}
 	}
@@ -322,12 +330,15 @@ Smt::PostExp Smt::Solver::define_fun(
 
 Smt::PostExp Smt::Reader::read_post_exp() {
 	if( auto sym = reads_sym() ) {
+		if( auto num = num_of_string(*sym) ) {
+			return Smt::PostExp(*num);
+		}
 		return Smt::PostExp(*sym);
 	}
 	if( opens() ) {
 		auto fun = reads_sym();
 		if( !fun ) {
-			throw Error({"#smt:read",*fun});
+			throw Error("#smt:read",*fun);
 		}
 		vector<Term<Fun>> args;
 		while( !closes() ) {
@@ -335,7 +346,7 @@ Smt::PostExp Smt::Reader::read_post_exp() {
 		}
 		return Term<Fun>(in_place,std::move(*fun),std::move(args));
 	}
-	throw Error({"#smt:read"});
+	throw Error("#smt:read");
 }
 Smt::PostExp Smt::Solver::get_value( PostExp const& e ) & {
 	if( _status != SAT ) {
@@ -387,14 +398,14 @@ Smt::PostExp Smt::PostExp::operator!() const {
 	return Term<Fun>(NOT,*this);
 }
 Smt::PostExp Smt::PostExp::add( PostExp const& arg ) const {
-	if( auto num = this->num() ) {
+	if( auto num = this->is_int() ) {
 		if( *num == 0 ) {
 			return arg;
 		}
-		if( auto num2 = arg.num() ) {
+		if( auto num2 = arg.is_int() ) {
 			return *num + *num2;
 		}
-	} else if( auto num2 = arg.num() ) {
+	} else if( auto num2 = arg.is_int() ) {
 		if( num2 == 0 ) {
 			return *this;
 		}
@@ -403,15 +414,15 @@ Smt::PostExp Smt::PostExp::add( PostExp const& arg ) const {
 }
 
 Smt::PostExp& Smt::PostExp::operator+=( PostExp const& arg ) & {
-	if( auto num = this->num() ) {
+	if( auto num = this->is_int() ) {
 		if( *num == 0 ) {
 			return *this = arg;
 		}
-		if( auto num2 = arg.num() ) {
+		if( auto num2 = arg.is_int() ) {
 			*num += *num2;
 			return *this;
 		}
-	} else if( auto num2 = arg.num() ) {
+	} else if( auto num2 = arg.is_int() ) {
 		if( num2 == 0 ) {
 			return *this;
 		}
@@ -420,17 +431,17 @@ Smt::PostExp& Smt::PostExp::operator+=( PostExp const& arg ) & {
 }
 
 Smt::PostExp Smt::PostExp::mul( PostExp const& arg ) const {
-	if( auto num = this->num() ) {
+	if( auto num = this->is_int() ) {
 		if( *num == 0 ) {
 			return *this;
 		}
 		if ( *num == 1 ) {
 			return arg;
 		}
-		if( auto num2 = arg.num() ) {
+		if( auto num2 = arg.is_int() ) {
 			return *num * *num2;
 		}
-	} else if( auto num2 = arg.num() ) {
+	} else if( auto num2 = arg.is_int() ) {
 		if( *num2 == 0 ) {
 			return arg;
 		}
@@ -442,18 +453,18 @@ Smt::PostExp Smt::PostExp::mul( PostExp const& arg ) const {
 }
 
 Smt::PostExp& Smt::PostExp::operator*=( PostExp const& arg ) & {
-	if( auto num = this->num() ) {
+	if( auto num = this->is_int() ) {
 		if( *num == 0 ) {
 			return *this;
 		}
 		if ( *num == 1 ) {
 			return *this = arg;
 		}
-		if( auto num2 = arg.num() ) {
+		if( auto num2 = arg.is_int() ) {
 			*num *= *num2;
 			return *this;
 		}
-	} else if( auto num2 = arg.num() ) {
+	} else if( auto num2 = arg.is_int() ) {
 		if( num2 == 0 ) {
 			return *this = arg;
 		}
@@ -641,9 +652,13 @@ int Smt::test() try {
 	auto x = z3.declare_const("x","Int");
 	auto y = z3.define_fun("y",{},Smt::INT,5);
 	z3.ass( Smt::gt( x, y + 4 ) );
-	cout << z3.check_sat().result().is_sat() << endl;
+	bool sat = z3.check_sat().result().is_sat();
+	assert(sat);
 	auto xv = z3.get_value(x);
 	cout << x << " := " << xv << endl;
+	auto yv = z3.get_value(y);
+	cout << y << " := " << yv << endl;
+	assert( xv.as_int() > yv.as_int() + 4);
 
 	cout << z3.expand( FALSE && []{ return PostExp("BUG"); } ) << endl;
 
@@ -658,8 +673,8 @@ int Smt::test() try {
 	z3.ass(
 		Let(INT, x + y) ^ []( PostExp const& x5 ){ return Smt::ge(x5 + x5, 20); }
 	);
-
-	cout << z3.check_sat().result().is_sat() << endl;
+	sat = z3.check_sat().result().is_sat();
+	assert(sat);
 
 	auto car_xy = car((x,PostExp("y")));
 	cout << car_xy << endl;
@@ -672,6 +687,7 @@ int Smt::test() try {
 	auto xy = PreExp(x) * ite(y,0,1);
 	cout << xy << "  -->  " << z3.expand(xy) << endl;
 
+	cout << "--- Smt::test done ---" << endl;
 	return 0;
 } catch( ::Error const& e ) {
 	cerr << e << endl;

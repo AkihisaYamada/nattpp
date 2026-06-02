@@ -68,9 +68,14 @@ public:
 		bool operator!=( PostExp const& other ) const {
 			return _term != other._term;
 		}
-		Opt<int const&> num() const & { return _term.fun().ref<int>(); }
+		Opt<int const&> is_int() const & { return _term.fun().ref<int>(); }
+		int as_int() const& {
+			auto opt = is_int();
+			assert(opt);
+			return *opt;
+		}
 private:
-		Opt<int&> num() & { return _term.fun().ref<int>(); }
+		Opt<int&> is_int() & { return _term.fun().ref<int>(); }
 public:
 		PostExp conj( PostExp const& y ) const;
 		PostExp& conj_eq( PostExp const& y ) &;

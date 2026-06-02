@@ -3,8 +3,7 @@
 
 using namespace std;
 
-static void skip_comment_line( istream& is ) {
-	is.get();
+static void skip_line( istream& is ) {
 	for(;;) {
 		switch( is.get() ) {
 		case '\n': case '\r': case EOF:
@@ -14,47 +13,65 @@ static void skip_comment_line( istream& is ) {
 		}
 	}
 }
-static string read_sym_rest( istream& is ) {
-	string str = string(1,is.get());
+static string read_sym_rest( istream& is, int c ) {
+	string str = string(1,c);
 	for(;;) {
-		switch( is.peek() ) {
-		case ' ': case '\t': case '\n': case '\r': case ';':
-		case '(': case ')': case EOF:
+		switch( c = is.peek() ) {
+		case ' ': case '\t': case '\n': case '\r':
+			is.ignore();
+			return str;
+		case ';': case '(': case ')': case EOF:
 			return str;
 		default:
-			str.push_back(is.get());
+			str.push_back(c);
+			is.ignore();
 			continue;
 		}
 	}
 }
+static int read_num_rest( istream& is, int val ) {
+	for(;;) {
+		switch( int c = is.peek() ) {
+		case ' ': case '\t': case '\n': case '\r':
+			is.ignore();
+			return val;
+		case ';': case '(': case ')': case EOF:
+			return val;
+		default:
+			if( c < '0' || '9' < c ) throw Error("malformed number");
+			val = 10 * val + c - '0';
+			continue;
+		}
+	}
+}
+
 void Reader::_fetch() {
 	if( _fetched.ref<None>() ) {
 		for(;;) {
-			switch( _is.peek() ) {
+			switch( int c = _is.get() ) {
 			case ' ': case '\t': case '\n': case '\r':// skip white spaces
-				_is.get();
 				continue;
 			case ';':// skip comment line
-				skip_comment_line(_is);
+				skip_line(_is);
 				continue;
 			case '(':
-				_is.get();
 				_fetched = LPar();
 				return;
 			case ')':
-				_is.get();
 				_fetched = RPar();
 				return;
-			case '"': case '\'':
-				return;
+			case '"':
+				throw Error("unsupported symbol (\")");
+			case '\'':
+				throw Error("unsupported symbol (')");
 			case ':':
-				_fetched = Key(read_sym_rest(_is));
+				_fetched = Key(read_sym_rest(_is,c));
 				return;
 			case EOF:
 				_fetched = None();
 				return;
 			default:
-				_fetched = Sym(read_sym_rest(_is));
+				_fetched = Sym(read_sym_rest(_is,c));
 				return;
 			}
 		}
@@ -81,3 +98,9 @@ Opt<Exp> Reader::reads_exp() {
 	return {};
 }
 
+int Exp::test() {
+	cout << Exp("foo") << endl;
+	cout << Exp("foo","bar") << endl;
+	cout << Exp("foo",Exp("bar","buz")) << endl;
+	return 0;
+}

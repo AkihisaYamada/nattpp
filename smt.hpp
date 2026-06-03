@@ -68,11 +68,19 @@ public:
 		bool operator!=( PostExp const& other ) const {
 			return _term != other._term;
 		}
+		Opt<int> is_int() && { return _term.fun().ref<int>(); }
 		Opt<int const&> is_int() const & { return _term.fun().ref<int>(); }
 		int as_int() const& {
 			auto opt = is_int();
 			assert(opt);
 			return *opt;
+		}
+		Opt<bool> is_bool() const & {
+			if( auto str = _term.fun().ref<std::string>() ) {
+				if( *str == "true" ) return {true};
+				if( *str == "false" ) return {false};
+			}
+			return {};
 		}
 private:
 		Opt<int&> is_int() & { return _term.fun().ref<int>(); }
@@ -272,6 +280,9 @@ public:
 		Solver& pop() &;
 		Solver& check_sat() &;
 		Solver& result() &;
+		bool is_unknown() const {
+			return _status == UNKNOWN;
+		}
 		bool is_sat() const {
 			return _status == SAT;
 		}

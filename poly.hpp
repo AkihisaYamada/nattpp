@@ -91,6 +91,8 @@ public:
 	 * @return Poly& 
 	 */
 	Poly& memoize( Smt::Solver& solver, Smt::BaseSort const& sort );
+	/** evaluate SMT coefficients */
+	Poly eval_coeffs( Smt::Solver& solver ) const;
 	Poly operator+( Poly const& p2 ) const &;
 	Poly& operator+=( Poly const& p2 ) &;
 	Poly monom_mult( Smt::PostExp const& c, Vars const& vs ) const;
@@ -151,6 +153,13 @@ public:
 			int pos
 		);
 	};
+
+	static std::ostream& explain(
+		std::ostream& os,
+		Smt::Solver& solver,
+		Algebra::Deriver<std::string,Poly::Sig> const& deriver,
+		Trs::Sig const& sig
+	);
 };
 
 std::ostream& operator<<( std::ostream& os, Poly::Sig const& f );
@@ -162,6 +171,5 @@ std::ostream& operator<<( std::ostream& os, Poly::Var const& v );
 std::ostream& operator<<( std::ostream& os, Poly::Vars const& vs );
 
 std::ostream& operator<<( std::ostream& os, Poly const& p );
-
 
 #endif

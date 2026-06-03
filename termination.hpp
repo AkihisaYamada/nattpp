@@ -34,6 +34,7 @@ private:
 };
 
 class DerivedTermOrder : public TermOrder {
+	Trs::Sig const& sig;
 	Algebra::Deriver<std::string,Poly::Sig> deriver;
 	Algebra::Intp<std::string,Poly> intp;
 	Smt::Solver& solver;
@@ -42,6 +43,9 @@ public:
 	DerivedTermOrder( Trs::Sig const& sig, Poly::Template const& temp, Smt::Solver& solver,Smt::BaseSort const& sort );
 	Smt::PreExp operator()( Exp const& l, Exp const& r ) override {
 		return Poly::order(intp.eval(l),intp.eval(r),solver);
+	}
+	std::ostream& explain( std::ostream& os ) {
+		return Poly::explain(os,solver,deriver,sig);
 	}
 };
 

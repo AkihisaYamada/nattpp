@@ -121,14 +121,21 @@ Smt::PostExp Poly::order( Poly const& p1, Poly const& p2, Smt::Solver& solver ) 
 }
 
 Poly& Poly::memoize( Smt::Solver& solver, Smt::BaseSort const& sort ) {
-	for( auto& val : _map ) {
-		if( val.first.vars().empty() ) {
-			val.second = solver.let(sort,val.second);
+	for( auto& [vars,coeff] : _map ) {
+		if( vars.vars().empty() ) {
+			coeff = solver.let(sort,coeff);
 		} else {
-			val.second = solver.expand(val.second);
+			coeff = solver.expand(coeff);
 		}
 	}
 	return *this;
+}
+Poly Poly::eval_coeffs( Smt::Solver& solver ) const {
+	Poly ret;
+	for( auto& [vars,coeff] : _map ) {
+		ret._map.insert(vars,solver.get_value(coeff));
+	}
+	return ret;
 }
 
 ostream& operator<<( ostream& os, Poly::Sig const& f ) {
@@ -142,7 +149,7 @@ ostream& operator<<( ostream& os, Poly::Sig const& f ) {
 		return os << *var;
 	}
 	if( auto cond = f.ref<Poly::Cond>() ) {
-		return os << cond->exp;
+		return os << "(ite " << cond->exp << " ?)";
 	}
 	if( auto e = f.ref<Smt::PostExp>() ) {
 		return os << *e;
@@ -177,6 +184,84 @@ ostream& operator<<( ostream& os, pair<T1,T2> const& pair ) {
 	return os << "〈" << pair.first << ", " << pair.second << "〉";
 }
 
+static Algebra::Template<Poly::Sig> eval_coeff(
+	Smt::Solver& solver,
+	Algebra::Template<Poly::Sig> const& org
+) {
+	auto const& sym = org.fun();
+	auto args = vector<Algebra::Template<Poly::Sig>>();
+	for( auto const& a : org.args() ) {
+		args.push_back(eval_coeff(solver,a));
+	}
+	if( auto const& f = sym.ref<Poly::Sig>() ) {
+		auto rargs = vector<Algebra::Template<Poly::Sig>>();
+		if( auto smt = f->ref<Smt::PostExp>() ) {
+			assert( args.size() == 0 );
+			return solver.get_value(*smt);
+		}
+		if( f->ref<Poly::Add>() ) {
+			Smt::PostExp smtsum = 0;
+			for( auto const& v : args ) {
+				if( auto g = v.fun().ref<Poly::Sig>() ) {
+					if( auto smt = g->ref<Smt::PostExp>() ) {
+						smtsum += *smt;
+						continue;
+					}
+					if( g->ref<Poly::Add>() ) {// merge arguments
+						std::move(v.args().begin(), v.args().end(), std::back_inserter(rargs));
+						continue;
+					}
+				}
+				rargs.push_back(v);
+			}
+			if( rargs.empty() ) return smtsum;
+			if( smtsum != 0 ) {
+				rargs.push_back(smtsum);
+			}
+			if( rargs.size() == 1 ) return rargs[0];
+			return Algebra::Template<Poly::Sig>::app(Poly::ADD,std::move(rargs));
+		}
+		if( f->ref<Poly::Mul>() ) {
+			Smt::PostExp smtprod = 1;
+			for( auto const& v : args ) {
+				if( auto g = v.fun().ref<Poly::Sig>() )
+				if( auto smt = g->ref<Smt::PostExp>() ) {
+					smtprod *= *smt;
+					continue;
+				}
+				rargs.push_back(v);
+			}
+			if( rargs.empty() || smtprod == 0 ) return smtprod;
+			if( smtprod != 1 ) {
+				rargs.push_back(smtprod);
+			}
+			if( rargs.size() == 1 ) return rargs[0];
+			return Algebra::Template<Poly::Sig>::app(Poly::MUL,std::move(rargs));
+		}
+		if( auto const& cond = f->ref<Poly::Cond>() ) {
+			assert( args.size() == 2 );
+			auto condval = solver.get_value(cond->exp);
+			if( auto b = condval.is_bool() ) {
+				return args[ *b ? 0 : 1 ];
+			}
+			return Algebra::Template<Poly::Sig>::app(Poly::Cond(condval),std::move(args));
+		}
+	}
+	return Algebra::Template<Poly::Sig>::app(sym,std::move(args));
+}
+std::ostream& Poly::explain(
+	std::ostream& os,
+	Smt::Solver& solver,
+	Algebra::Deriver<std::string,Poly::Sig> const& deriver,
+	Trs::Sig const& sig
+) {
+	for( auto [f,arity] : sig ) {
+		os << "[" << f << "] := " << eval_coeff(solver,deriver(f)) << endl;
+	}
+	return os;
+}
+
+
 int Poly::test() {
 	cout << "=== Poly test ===" << endl;
 	Subst<string> subst = {{"x",Exp{"g","y"}}};
@@ -205,7 +290,7 @@ int Poly::test() {
 		return Term<Sum<Sig,Algebra::Arg>>(Poly::Var(f,POS));
 	};
 	auto e = Exp{"f",Exp{"a","x"},Exp{"b","x"}};
-	cout << e << " = " << hsubst.derive(Algebra::TERM<Sig>).eval(e) << endl;
+	cout << "⟦" << e << "⟧ = " << hsubst.derive(Algebra::TERM<Sig>).eval(e) << endl;
 	auto z3poly = Poly::algebra(z3);
 	cout << hsubst.derive(z3poly).eval(e) << endl;
 	Poly x = Poly::Var("x",Poly::POS);

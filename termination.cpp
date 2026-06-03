@@ -1,4 +1,6 @@
-#include"termination.hpp"
+#include "termination.hpp"
+#include "poly.hpp"
+
 using namespace std;
 
 RuleRemover::RuleRemover(
@@ -20,6 +22,9 @@ RuleRemover::RuleRemover(
 std::vector<size_t> RuleRemover::remove() {
 	Smt::PostExp conj = Smt::TRUE;
 	Smt::PostExp disj = Smt::FALSE;
+	if( solver.is_sat() || solver.is_unsat() ) {
+		solver.pop();
+	}
 	solver.push();
 	for( size_t i : used ) {
 		conj.conj_eq(ords[i].first);
@@ -39,7 +44,6 @@ std::vector<size_t> RuleRemover::remove() {
 			}
 		}
 	}
-	solver.pop();
 	return ret;
 }
 DerivedTermOrder::DerivedTermOrder(
@@ -47,7 +51,8 @@ DerivedTermOrder::DerivedTermOrder(
 	Poly::Template const& temp,
 	Smt::Solver& solver,
 	Smt::BaseSort const& sort
-) : solver(solver),
+) : sig(sig),
+	solver(solver),
 	deriver(temp.deriver(sig,solver)),
 	intp(Poly::memoize(deriver.derive(Poly::algebra(solver)),solver,sort)) {
 }

@@ -57,6 +57,10 @@ public:
 		Arg( int pos ) : _pos(pos) {}
 		int pos() const { return _pos; }
 	};
+	/** @brief For Deriver: Expression with argument placeholders */
+	template<typename G>
+	using Template = Term<Sum<G,Arg>>;
+
 	template<typename F, typename G>
 	class Deriver :
 		public std::function<Term<Sum<G,Arg>>(F const&)>
@@ -127,7 +131,7 @@ std::ostream& operator<<( std::ostream& os, Sum<F,Algebra::Arg> const& df ) {
 		return os << *f;
 	}
 	if( auto a = df.template ref<Algebra::Arg>() ) {
-		return os << "(:in " << a->pos() << ')';
+		return os << "(:arg " << a->pos() << ')';
 	}
 	assert(false);
 }

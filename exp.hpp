@@ -28,6 +28,10 @@ public:
 	template<typename S> requires std::is_constructible_v<F,S>
 	Term( std::in_place_t const&, S const& fun, std::vector<Term>&& args ) :
 		_mem(App(fun,std::move(args))) {}
+	template<typename S> requires std::is_constructible_v<F,S>
+	static Term app( S const& fun, std::vector<Term>&& args ) {
+		return Term(std::in_place,fun,std::move(args));
+	}
 	/** @brief Application */
 	template<typename S, typename... Args> requires (
 		std::is_constructible_v<F,S> &&

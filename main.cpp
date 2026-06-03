@@ -7,7 +7,7 @@
 using namespace std;
 
 
-int main( int argc, char** argv ) {
+int main( int argc, char* argv[] ) {
 	try {
 		istream* pis;
 		bool exit_on_error = false;
@@ -25,7 +25,7 @@ int main( int argc, char** argv ) {
 		for( size_t i = 0; i < p.systems[0].size(); i++ ) {
 			used.insert(i);
 		}
-		auto z3 = Smt::Z3(Smt::QF_NIA,cout);
+		auto z3 = Smt::Z3(Smt::QF_NIA);
 		auto proc = DerivedRuleRemover(p.sig,p.systems[0],used,Poly::Template::SUM,z3,Smt::INT);
 		for(;;) {
 			auto const& rem = proc.remove();
@@ -38,6 +38,7 @@ int main( int argc, char** argv ) {
 				cout << ' ' << i;
 			}
 			cout << endl;
+			proc.explain(cout);
 			if( used.empty() ) {
 				cout << "Terminating." << endl;
 				exit(0);

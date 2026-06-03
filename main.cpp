@@ -34,7 +34,7 @@ int main( int argc, char* argv[] ) {
 				used.insert(i);
 			}
 		}
-		auto solver = Smt::Z3(Smt::QF_NIA);
+		auto solver = Smt::Z3(Smt::QF_NIA,{cerr});
 		auto proc = DerivedRuleRemover(p.sig,p.systems[0],used,Poly::Template::SUM,solver,Smt::INT);
 		for(;;) {
 			auto const& rem = proc.remove();

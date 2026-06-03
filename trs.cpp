@@ -10,13 +10,6 @@ ostream& operator<<( ostream& os, Trs::Rule const& rule ) {
 	return os << ')';
 }
 
-ostream& operator<<( ostream& os, Trs::Rules const& system ) {
-	for( auto const& rule : system ) {
-		os << '\t' << rule << endl;
-	}
-	return os;
-}
-
 Opt<Trs::Exp> Trs::Reader::reads() {
 	if( auto sym = _reader.reads_sym() ) {
 		if( auto info = _sig.find(*sym) ) {

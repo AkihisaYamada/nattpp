@@ -82,6 +82,7 @@ public:
 			}
 			return {};
 		}
+		Opt<std::tuple<PostExp,PostExp,PostExp>> is_ite() const &;
 private:
 		Opt<int&> is_int() & { return _term.fun().ref<int>(); }
 public:
@@ -90,9 +91,7 @@ public:
 		PostExp disj( PostExp const& y ) const;
 		PostExp& disj_eq( PostExp const& y ) &;
 		PostExp operator!() const;
-		PostExp add( PostExp const& y ) const;
 		PostExp& operator+=( PostExp const& y ) &;
-		PostExp mul( PostExp const& y ) const;
 		PostExp& operator*=( PostExp const& y ) &;
 		PostExp cons( PostExp const& y ) const {
 			return Term<Fun>(CONS,*this,y);
@@ -308,11 +307,11 @@ inline Smt::PostExp operator&&( Smt::PostExp const& x, Smt::PostExp const& y ) {
 inline Smt::PostExp operator||( Smt::PostExp const& x, Smt::PostExp const& y ) {
 	return x.disj(y);
 }
-inline Smt::PostExp operator+( Smt::PostExp const& x, Smt::PostExp const& y ) {
-	return x.add(y);
+inline Smt::PostExp operator+( Smt::PostExp x, Smt::PostExp const& y ) {
+	return x += y;
 }
-inline Smt::PostExp operator*( Smt::PostExp const& x, Smt::PostExp const& y ) {
-	return x.mul(y);
+inline Smt::PostExp operator*( Smt::PostExp x, Smt::PostExp const& y ) {
+	return x *= y;
 }
 inline Smt::PostExp operator,( Smt::PostExp const& x, Smt::PostExp const& y ) {
 	return x.cons(y);

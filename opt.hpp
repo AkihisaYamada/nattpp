@@ -126,6 +126,13 @@ public:
 		assert(*this);
 		return _ptr;
 	}
+	bool operator&&( std::function<bool(T const&)> f ) const& {
+		return *this && f(*_ptr);
+	}
+	template<typename U>
+	bool contains( U const& other ) const {
+		return *this && **this == other;
+	}
 };
 
 #endif

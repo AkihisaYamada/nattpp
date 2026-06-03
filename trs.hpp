@@ -20,11 +20,31 @@ public:
 		int weight;
 		Rule( Exp const& l, Exp const& r, int weight ) : std::pair<Exp,Exp>(l,r), weight(weight) {}
 	};
-	struct Rules : std::vector<Rule> { using std::vector<Rule>::vector; };
+	struct Rules;
 };
 
 std::ostream& operator<<( std::ostream& os, Trs::Rule const& rule );
-std::ostream& operator<<( std::ostream& os, Trs::Rules const& sys );
+
+struct Trs::Rules : std::vector<Rule> {
+	using std::vector<Rule>::vector;
+	std::ostream& pretty( std::ostream& os, int index, std::string const& prefix = "" ) const {
+		for( auto const& rule : *this ) {
+			os << '\t' << index << ": " << rule << std::endl;
+			index++;
+		}
+		return os;
+	}
+	std::ostream& pretty( std::ostream& os, std::string const& prefix = "" ) const {
+		for( auto const& rule : *this ) {
+			os << prefix << rule << std::endl;
+		}
+		return os;
+	}
+};
+
+inline std::ostream& operator<<( std::ostream& os, Trs::Rules const& sys ) {
+	return sys.pretty(os);
+}
 
 struct Trs::Rank {
 	unsigned char arity;

@@ -198,6 +198,12 @@ Smt::PostExp Smt::ite( PostExp const& i, PostExp const& t, PostExp const& e ) {
 	}
 	return Term<Fun>(ITE,i,t,e);
 }
+Opt<std::tuple<Smt::PostExp,Smt::PostExp,Smt::PostExp>> Smt::PostExp::is_ite() const & {
+	if( _term.fun() == ITE && this->_term.args().size() == 3 ) {
+		return {{this->_term.args()[0],this->_term.args()[1],this->_term.args()[2]}};
+	}
+	return {};
+}
 
 Opt<Smt::PostExp> Smt::PostExp::of( Exp const& exp ) {
 	auto& fun = exp.fun();
@@ -389,22 +395,6 @@ Smt::PostExp Smt::PostExp::operator!() const {
 	}
 	return Term<Fun>(NOT,*this);
 }
-Smt::PostExp Smt::PostExp::add( PostExp const& arg ) const {
-	if( auto num = this->is_int() ) {
-		if( *num == 0 ) {
-			return arg;
-		}
-		if( auto num2 = arg.is_int() ) {
-			return *num + *num2;
-		}
-	} else if( auto num2 = arg.is_int() ) {
-		if( *num2 == 0 ) {
-			return *this;
-		}
-	}
-	return Term<Fun>(ADD,*this,arg);
-}
-
 Smt::PostExp& Smt::PostExp::operator+=( PostExp const& arg ) & {
 	if( auto num = this->is_int() ) {
 		if( *num == 0 ) {
@@ -421,29 +411,6 @@ Smt::PostExp& Smt::PostExp::operator+=( PostExp const& arg ) & {
 	}
 	return *this = Term<Fun>(ADD,*this,arg);
 }
-
-Smt::PostExp Smt::PostExp::mul( PostExp const& arg ) const {
-	if( auto num = this->is_int() ) {
-		if( *num == 0 ) {
-			return *this;
-		}
-		if ( *num == 1 ) {
-			return arg;
-		}
-		if( auto num2 = arg.is_int() ) {
-			return *num * *num2;
-		}
-	} else if( auto num2 = arg.is_int() ) {
-		if( *num2 == 0 ) {
-			return arg;
-		}
-		if( *num2 == 1 ) {
-			return *this;
-		}
-	}
-	return Term<Fun>(MUL,*this,arg);
-}
-
 Smt::PostExp& Smt::PostExp::operator*=( PostExp const& arg ) & {
 	if( auto num = this->is_int() ) {
 		if( *num == 0 ) {
@@ -458,7 +425,7 @@ Smt::PostExp& Smt::PostExp::operator*=( PostExp const& arg ) & {
 		}
 	} else if( auto num2 = arg.is_int() ) {
 		if( *num2 == 0 ) {
-			return *this = arg;
+			return *this = 0;
 		}
 		if( *num2 == 1 ) {
 			return *this;
@@ -466,6 +433,7 @@ Smt::PostExp& Smt::PostExp::operator*=( PostExp const& arg ) & {
 	}
 	return *this = Term<Fun>(MUL,*this,arg);
 }
+
 Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 	if( auto post = p.post() ) {
 		return *post;
@@ -607,16 +575,15 @@ Smt::PostExp Smt::Solver::let( Sort const& sort, PostExp const& val ) & {
 		return val;
 	}
 	auto const& vargs = val._term.args();
-/*		if( vfun == "*" ) {
-			return val;
-		}
-		if( vfun == "ite" ) {
-			auto i = let(BOOL,vargs[0]);
-			auto t = let(sort,vargs[1]);
-			auto e = let(sort,vargs[2]);
-			return Smt::ite(i,t,e);
-		}
-*/
+	if( vfun.ref<string>().contains("*") ) {
+		return val;
+	}
+	if( vfun.ref<string>().contains("ite") ) {
+		auto i = let(BOOL,vargs[0]);
+		auto t = let(sort,vargs[1]);
+		auto e = let(sort,vargs[2]);
+		return Smt::ite(i,t,e);
+	}
 	if( auto const& base = sort.base() ) {
 		if( !vargs.empty() ) {
 			auto var = _make_fresh();

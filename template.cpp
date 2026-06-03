@@ -94,7 +94,7 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 		}
 		auto i = _deriver_inner(f,rank,solver,args[0],pos);
 		if( auto ifun = i.fun().ref<Sig>() )
-		if( auto ie = ifun->ref<Smt::PostExp>() ) {
+		if( auto ie = ifun->ref<Smt::PreExp>() ) {
 			return Term<Sum<Sig,Algebra::Arg>>(
 				Cond{*ie},
 				_deriver_inner(f,rank,solver,args[1],pos),

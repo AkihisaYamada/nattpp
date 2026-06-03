@@ -5,14 +5,14 @@
 
 using namespace std;
 
-Smt::Logic const Smt::QF_LIA = "QF_LIA";
-Smt::Logic const Smt::QF_LRA = "QF_LRA";
-Smt::Logic const Smt::LIA = "LIA";
-Smt::Logic const Smt::LRA = "LRA";
-Smt::Logic const Smt::QF_NIA = "QF_NIA";
-Smt::Logic const Smt::QF_NRA = "QF_NRA";
-Smt::Logic const Smt::NIA = "NIA";
-Smt::Logic const Smt::NRA = "NRA";
+Smt::Logic const Smt::QF_LIA = {"QF_LIA",true};
+Smt::Logic const Smt::QF_LRA = {"QF_LRA",true};
+Smt::Logic const Smt::LIA = {"LIA",true};
+Smt::Logic const Smt::LRA = {"LRA",true};
+Smt::Logic const Smt::QF_NIA = {"QF_NIA",false};
+Smt::Logic const Smt::QF_NRA = {"QF_NRA",false};
+Smt::Logic const Smt::NIA = {"NIA",false};
+Smt::Logic const Smt::NRA = {"NRA",false};
 Smt::BaseSort const Smt::BOOL = "Bool";
 Smt::BaseSort const Smt::INT = "Int";
 Smt::BaseSort const Smt::REAL = "Real";
@@ -259,7 +259,9 @@ Algebra::Intp<string,Smt::PreExp> const Smt::ALGEBRA = []( string const& fun, ve
 	return Smt::PreExp(fun,std::move(args));
 };
 
-Smt::Solver::Solver( Proc& proc, Logic const& logic ) : _status(UNKNOWN), _proc(proc), _reader(proc.from), _var_count(0) {
+Smt::Solver::Solver( Proc& proc, Logic const& logic ) :
+	_status(UNKNOWN), _proc(proc), _reader(proc.from), _var_count(0), logic(logic)
+{
 	_proc.to << "(set-logic " << logic.str << ')' << endl;
 }
 
@@ -535,16 +537,18 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 				}
 			}
 			auto const& eargs1 = earg1._term.args();
-			if( efun1 == ITE ) {
-				assert( eargs1.size() == 3 );
-				auto v = let(INT,earg2);//TODO
-				return ite( eargs1[0], eargs1[1] * v, eargs1[2] * v );
-			}
-			auto const& eargs2 = earg2._term.args();
-			if( efun2 == ITE ) {
-				assert( eargs2.size() == 3 );
-				auto v = let(INT,earg1);//TODO
-				return ite( eargs2[0], v * eargs2[1], v * eargs2[2] );
+			if( logic.linear ) {
+				if( efun1 == ITE ) {
+					assert( eargs1.size() == 3 );
+					auto v = let(INT,earg2);//TODO
+					return ite( eargs1[0], eargs1[1] * v, eargs1[2] * v );
+				}
+				auto const& eargs2 = earg2._term.args();
+				if( efun2 == ITE ) {
+					assert( eargs2.size() == 3 );
+					auto v = let(INT,earg1);//TODO
+					return ite( eargs2[0], v * eargs2[1], v * eargs2[2] );
+				}
 			}
 			return Term<Fun>(MUL,earg1,earg2);
 		} else if( fun == CAR ) {

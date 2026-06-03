@@ -12,8 +12,9 @@ public:
 	};
 	class Logic {
 		friend Smt;
-		Logic( char const* str ) : str(str) {}
+		Logic( char const* str, bool linear ) : str(str), linear(linear) {}
 	public:
+		bool const linear;
 		char const* const str;
 	};
 	static Logic const QF_LIA, QF_LRA, LIA, LRA, QF_NIA, QF_NRA, NIA, NRA;
@@ -241,6 +242,7 @@ public:
 		Solver& operator=( Solver const& other ) = delete;
 		std::string _make_fresh() &;
 	public:
+		const Logic logic;
 		PostExp declare_const( std::string const& name, BaseSort const& sort ) &;
 		PostExp declare_fresh( BaseSort const& sort ) {
 			std::string ret = _make_fresh();

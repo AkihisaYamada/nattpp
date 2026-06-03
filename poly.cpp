@@ -184,7 +184,7 @@ ostream& operator<<( ostream& os, pair<T1,T2> const& pair ) {
 	return os << "〈" << pair.first << ", " << pair.second << "〉";
 }
 
-static Algebra::Template<Poly::Sig> eval_coeff(
+Algebra::Template<Poly::Sig> Poly::eval_coeff(
 	Smt::Solver& solver,
 	Algebra::Template<Poly::Sig> const& org
 ) {
@@ -249,18 +249,6 @@ static Algebra::Template<Poly::Sig> eval_coeff(
 	}
 	return Algebra::Template<Poly::Sig>::app(sym,std::move(args));
 }
-std::ostream& Poly::explain(
-	std::ostream& os,
-	Smt::Solver& solver,
-	Algebra::Deriver<std::string,Poly::Sig> const& deriver,
-	Trs::Sig const& sig
-) {
-	for( auto [f,arity] : sig ) {
-		os << "[" << f << "] := " << eval_coeff(solver,deriver(f)) << endl;
-	}
-	return os;
-}
-
 
 int Poly::test() {
 	cout << "=== Poly test ===" << endl;

@@ -16,50 +16,24 @@ static void _switch(
 	}
 }
 
-static bool _unknown_key( string const& key ) {
-	throw Problem::Error{"#unknown-key",key};
-}
-static bool _process_number( string_view const& key, ::Reader& eis, int& num ) {
-	if( key != ":number" ) {
-		return false;
-	}
-	auto const& s = eis.read_sym();
-	if( num != 0 ) {
-		throw Problem::Error{"#duplicate-attr",":number",to_string(num),s};
-	}
-	num = stoi(s);
-	if( num <= 0 || 10 < num ) {
-		throw Problem::Error{"#out-of-range",":number",to_string(num)};
-	}
-	return true;
-}
-static bool _process_index( Problem& x, string_view const& key, ::Reader& eis, int& index ) {
-	if( key != ":index" ) {
-		return false;
-	}
-	if( index != 0 ) {
-		throw Problem::Error{"#duplicate-index"};
-	}
-	index = eis.read_int();
-	if( index < 1 || x.systems.size() < index ) {
-		throw Problem::Error{"#index-out-of-range",to_string(index)};
-	}
-	return true;
-}
-
 Problem::Problem( istream& is ) {
 	auto eis = Reader(is);
 	eis.open();
 	eis.read_sym("format");
 	if( eis.reads_sym("TRS") ) {
 		format = TRS;
-		int num = 0;
+		Opt<int> number;
 		while( auto key = eis.reads_key() ) {
-			_process_number(*key,eis,num) ||
-			_unknown_key(*key);
+			if( *key == ":number" ) {
+				unsigned int n = eis.read_nat();
+				if( n > 9 ) throw Error("#too-big-number",to_string(n));
+				number = {n};
+			} else {
+				throw Error("#unknown-key",*key);
+			}
 		}
 		eis.close();// of format
-		systems = vector<Trs::Rules>( num == 0 ? 1 : num );
+		systems = vector<Trs::Rules>( number ? *number : 1 );
 		auto tis = Trs::Reader(eis,sig);
 		while( eis.opens() ) {
 			if( eis.reads_sym("fun") ) {
@@ -80,12 +54,24 @@ Problem::Problem( istream& is ) {
 				}
 			} else if( eis.reads_sym("rule") ) {
 				auto l = tis.read(), r = tis.read();
-				int index = 0;
+				Opt<int> weight;
+				Opt<int> index;
 				while( auto key = eis.reads_key() ) {
-					_process_index(*this,*key,eis,index) ||
-					_unknown_key(*key);
+					if( *key == ":weight" ) {
+						if( weight ) throw Error{"#duplicate-weight"};
+						int i = eis.read_int();
+						weight = {i};
+					} else if( *key == ":index" ) {
+						if( index ) throw Error{"#duplicate-index"};
+						int i = eis.read_int();
+						if( i < 1 || systems.size() < i )
+							throw Error{"#index-out-of-range",to_string(i)};
+						index = {i};
+					} else {
+						throw Error{"#unknown-key",*key};
+					}
 				}
-				systems[ index > 0 ? index-1 : 0 ].push_back({l,r});
+				systems[ index ? *index-1 : 0 ].emplace_back( l, r, weight ? *weight : 1 );
 			} else {
 				throw Error{"#unknown-command",eis.read_exp()};
 			};

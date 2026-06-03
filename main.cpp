@@ -18,15 +18,24 @@ int main( int argc, char* argv[] ) {
 			exit_on_error = true;
 		}
 		auto p = Problem(*pis);
-		for( int i = 0; i < p.systems.size(); i++ ) {
-			cout << "TRS " << i+1 << ":" << endl << p.systems[i];
+		int i = 0;
+		for( auto const& sys : p.systems ) {
+			i++;
+			cout << "TRS " << i << ":" << endl;
+			int j = 0;
+			for( auto const& rule : sys ) {
+				j++;
+				cout << '\t' << j << ": " << rule << endl;
+			}
 		}
 		set<size_t> used;
 		for( size_t i = 0; i < p.systems[0].size(); i++ ) {
-			used.insert(i);
+			if( p.systems[0][i].weight != 0 ) {
+				used.insert(i);
+			}
 		}
-		auto z3 = Smt::Z3(Smt::QF_NIA);
-		auto proc = DerivedRuleRemover(p.sig,p.systems[0],used,Poly::Template::SUM,z3,Smt::INT);
+		auto solver = Smt::Z3(Smt::QF_NIA);
+		auto proc = DerivedRuleRemover(p.sig,p.systems[0],used,Poly::Template::SUM,solver,Smt::INT);
 		for(;;) {
 			auto const& rem = proc.remove();
 			if( rem.empty() ) {
@@ -35,10 +44,12 @@ int main( int argc, char* argv[] ) {
 			}
 			cout << "Removing";
 			for( size_t i : rem ) {
-				cout << ' ' << i;
+				cout << ' ' << i+1;
 			}
 			cout << endl;
-			proc.explain(cout);
+			for( auto [f,arity] : p.sig ) {
+				cout << "[" << f << "] := " << Poly::eval_coeff(solver,proc.deriver(f)) << endl;
+			}
 			if( used.empty() ) {
 				cout << "Terminating." << endl;
 				exit(0);

@@ -16,7 +16,10 @@ public:
 	class Rank;
 	typedef Map<std::string,Rank> Sig;
 	class Reader;
-	struct Rule : std::pair<Exp,Exp> { using std::pair<Exp,Exp>::pair; };
+	struct Rule : std::pair<Exp,Exp> {
+		int weight;
+		Rule( Exp const& l, Exp const& r, int weight ) : std::pair<Exp,Exp>(l,r), weight(weight) {}
+	};
 	struct Rules : std::vector<Rule> { using std::vector<Rule>::vector; };
 };
 
@@ -33,7 +36,7 @@ class Trs::Reader {
 	/**
 	 * @brief Do not construct with rvalue Sig
 	 */
-	Reader(std::istream&,Sig&&) = delete;
+	Reader(::Reader&,Sig&&) = delete;
 public:
 	struct Error : ::Error {
 		using ::Error::Error;

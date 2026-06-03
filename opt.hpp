@@ -2,6 +2,8 @@
 #define _OPT_HPP
 
 #include<optional>
+#include<functional>
+#include<cassert>
 
 /**
  * @brief A wrapper for std::optional.
@@ -26,20 +28,64 @@ public:
 	operator bool() const {
 		return (bool)_opt;
 	}
+	Opt& operator=( Opt && other ) {
+		_opt = std::move(other._opt);
+		return *this;
+	}
+	Opt& operator=( Opt const& other ) {
+		_opt = other._opt;
+		return *this;
+	}
 	T const& operator*() const & {
+		assert(_opt);
 		return *_opt;
 	}
 	T& operator*() & {
+		assert(_opt);
 		return *_opt;
 	}
 	T operator*() && {
+		assert(_opt);
 		return *std::move(_opt);
 	}
+	/** @brief Returns a copy of the value or given default. */
+	T value_or( T&& def ) {
+		if(_opt) return *_opt;
+		return def;
+	}
+	/** @brief Refers to the value or the default. */
+	T const& value_or( T const& def ) const & {
+		if(_opt) return *_opt;
+		return def;
+	}
 	T const* operator->() const & {
+		assert(_opt);
 		return _opt.operator->();
 	}
 	T* operator->() & {
+		assert(_opt);
 		return _opt.operator->();
+	}
+	T ref( T const& other ) const& {
+		if(_opt) return *_opt;
+		return other;
+	}
+	bool operator&&( std::function<bool(T const&)> f ) const& {
+		return *this && f(*_opt);
+	}
+	template<typename U>
+	bool contains( U const& other ) const {
+		return *this && **this == other;
+	}
+	template<typename U>
+	operator Opt<U>() && = delete;
+	template<typename U> requires std::is_convertible_v<T,U>
+	operator Opt<U const&>() const& {
+		return Opt<U const&>( _opt ? &*_opt : nullptr );
+	}
+	template<typename U> requires std::is_convertible_v<T,U>
+	operator Opt<U&>() & {
+		return Opt<U&>( _opt ? &*_opt : nullptr );
 	}
 	template<class... Args>
 	T& emplace( Args&&... args ) & {
@@ -72,8 +118,14 @@ public:
 	Opt( T& l ) : _ptr(&l) {}
 	operator Opt<T const&>() { return _ptr; }
 	operator bool() const { return _ptr; }
-	T& operator*() const { return *_ptr; }
-	T* operator->() const { return _ptr; }
+	T& operator*() const {
+		assert(*this);
+		return *_ptr;
+	}
+	T* operator->() const {
+		assert(*this);
+		return _ptr;
+	}
 };
 
 #endif

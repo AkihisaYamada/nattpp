@@ -51,8 +51,7 @@ DerivedTermOrder::DerivedTermOrder(
 	Poly::Template const& temp,
 	Smt::Solver& solver,
 	Smt::BaseSort const& sort
-) : sig(sig),
-	solver(solver),
+) : solver(solver),
 	deriver(temp.deriver(sig,solver)),
 	intp(Poly::memoize(deriver.derive(Poly::algebra(solver)),solver,sort)) {
 }

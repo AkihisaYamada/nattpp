@@ -172,6 +172,12 @@ public:
 			throw Error{"#missing-symbol",str};
 		}
 	}
+	Opt<unsigned int> reads_nat();
+	unsigned int read_nat() {
+		auto opt = reads_nat();
+		if( !opt ) throw Error("#missing-number");
+		return *opt;
+	}
 	int read_int() {
 		return std::stoi(read_sym());
 	}

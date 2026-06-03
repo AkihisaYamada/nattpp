@@ -87,13 +87,15 @@ public:
 	public:
 		using std::function<Term<Sum<G,Arg>>(F const&)>::function;
 		template<typename T>
-		Intp<F,T> derive( Intp<G,T> && intp ) & {
-			return [intp=std::move(intp),*this]( F const& f, std::vector<T>&& args ){
+		Intp<F,T> derive( auto ) && = delete;
+		template<typename T>
+		Intp<F,T> derive( Intp<G,T> && intp ) const & {
+			return [intp=std::move(intp),this]( F const& f, std::vector<T>&& args ){
 				return _intp_inner(intp,(*this)(f),std::move(args));
 			};
 		}
 		template<typename T>
-		Intp<F,T> derive( Intp<G,T> const& intp ) & {
+		Intp<F,T> derive( Intp<G,T> const& intp ) const & {
 			return [&]( F const& f, std::vector<T>&& args ){
 				return _intp_inner(intp,(*this)(f),std::move(args));
 			};

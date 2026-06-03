@@ -154,11 +154,9 @@ public:
 		);
 	};
 
-	static std::ostream& explain(
-		std::ostream& os,
+	static Algebra::Template<Sig> eval_coeff(
 		Smt::Solver& solver,
-		Algebra::Deriver<std::string,Poly::Sig> const& deriver,
-		Trs::Sig const& sig
+		Algebra::Template<Sig> const& org
 	);
 };
 

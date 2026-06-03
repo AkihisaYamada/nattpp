@@ -29,21 +29,21 @@ static string read_sym_rest( istream& is, int c ) {
 		}
 	}
 }
-static int read_num_rest( istream& is, int val ) {
-	for(;;) {
-		switch( int c = is.peek() ) {
-		case ' ': case '\t': case '\n': case '\r':
-			is.ignore();
-			return val;
-		case ';': case '(': case ')': case EOF:
-			return val;
-		default:
-			if( c < '0' || '9' < c ) throw Error("malformed number");
+
+Opt<unsigned int> Reader::reads_nat() {
+	_fetch();
+	if( auto sym = _fetched.ref<Sym>() ) {
+		unsigned int val = 0;
+		for( auto c : sym->str ) {
+			if( c < '0' || '9' < c ) return {};
 			val = 10 * val + c - '0';
-			continue;
 		}
+		_fetched = None();
+		return {val};
 	}
+	return {};
 }
+
 
 void Reader::_fetch() {
 	if( _fetched.ref<None>() ) {

@@ -3,7 +3,11 @@
 using namespace std;
 
 ostream& operator<<( ostream& os, Trs::Rule const& rule ) {
-	return os << rule.first << " -> " << rule.second;
+	os << "(rule " << rule.first << ' ' << rule.second;
+	if( rule.weight != 1 ) {
+		os << " :weight " << (int)rule.weight;
+	}
+	return os << ')';
 }
 
 ostream& operator<<( ostream& os, Trs::Rules const& system ) {

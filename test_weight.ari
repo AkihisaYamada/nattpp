@@ -1,8 +1,8 @@
 (format TRS)
-(fun + :arity 2)
-(fun s :arity 1)
-(fun 0 :arity 0)
+(fun + 2)
+(fun s 1)
+(fun 0 0)
 
-(rule (+   x	0  ) x)
+(rule (+ x 0) x)
 (rule (+ x (s y)) (s (+ x y)) :weight 1)
 (rule (+ x y) (+ y x) :weight 0)

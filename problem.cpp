@@ -44,10 +44,16 @@ Problem::Problem( istream& is ) {
 						if( arity != 255 ) {
 							throw Error{"#duplicate-arity",fun};
 						}
-						arity = eis.read_int();
+						arity = eis.read_nat();
 					} else {
 						throw Error{"#unknown-key",*key};
 					}
+				}
+				if( auto num = eis.reads_nat() ) {
+					if( arity != 255 ) {
+						throw Error("#duplicate-arity",fun,to_string(*num));
+					}
+					arity = *num;
 				}
 				if( auto prev = sig.insert(fun,Trs::Rank{arity}) ) {
 					throw Error{"#duplicate-fun",fun,to_string(prev->arity),to_string(arity)};

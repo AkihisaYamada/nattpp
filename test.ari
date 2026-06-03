@@ -1,7 +1,18 @@
-(format TRS)
-(fun + :arity 2)
-(fun s :arity 1)
-(fun 0 :arity 0)
+; An easy test
+;
+; Spaces and comments (like this;
 
-(rule (+ x 0) x)
-(rule (+ x (s y)) (s (+ x y)))
+;) are for testing the parser.
+
+(format TRS)
+(fun +; "(fun " declaration is followed by the arity: 
+2)
+(fun s 1)
+(fun 0 0)
+
+(rule	(+ x 0; this term is x + 0
+		) x; meaning x + 0 → x
+)
+
+(rule (+ x (s y))
+      (s (+ x y)))

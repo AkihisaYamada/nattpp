@@ -116,8 +116,9 @@ class Reader {
 		if( auto sym = _fetched.ref<Sym>() ) return sym->str;
 		return "#none";
 	}
-	Error _err( std::string const& msg ) const& {
-		return Error(msg,":line",std::to_string(_line),":column",std::to_string(_column),":encount",_string_fetched());
+	template<typename... Args>
+	Error _err( Args const&... msg... ) const& {
+		return Error(msg...,":line",std::to_string(_line),":column",std::to_string(_column),":encount",_string_fetched());
 	}
 public:
 	Reader( std::istream& is ) : _is(is), _fetched(None()) {}
@@ -184,6 +185,12 @@ public:
 			return val;
 		}
 		return {};
+	}
+	Opt<unsigned int> reads_nat( unsigned int max ) {
+		if( auto n = reads_nat() ) {
+			if( *n <= max ) return n;
+			throw _err("#out-of-bound");
+		}
 	}
 	void read_sym( char const* str ) {
 		if( !reads_sym(str) ) {

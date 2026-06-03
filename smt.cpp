@@ -36,14 +36,6 @@ Smt::Fun const
 Smt::PostExp const Smt::TRUE = PostExp("true");
 Smt::PostExp const Smt::FALSE = PostExp("false");
 
-static Opt<int> num_of_string( string_view const& str ) {
-	int val = 0;
-	for( auto c : str ) {
-		if( c < '0' || '9' < c ) return {};
-		val = val * 10 + c - '0';
-	}
-	return {val};
-}
 ostream& operator<<( ostream& os, Smt::Sort const& e ) {
 	if( auto base = e.base() ) {
 		return os << *base;
@@ -330,7 +322,7 @@ Smt::PostExp Smt::Solver::define_fun(
 
 Smt::PostExp Smt::Reader::read_post_exp() {
 	if( auto sym = reads_sym() ) {
-		if( auto num = num_of_string(*sym) ) {
+		if( auto num = nat_of(*sym) ) {
 			return Smt::PostExp(*num);
 		}
 		return Smt::PostExp(*sym);

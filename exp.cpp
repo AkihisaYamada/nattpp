@@ -3,11 +3,20 @@
 
 using namespace std;
 
+Opt<unsigned int> nat_of( string_view const& str ) {
+	unsigned int val = 0;
+	for( auto c : str ) {
+		if( c < '0' || '9' < c ) return {};
+		val = val * 10 + c - '0';
+	}
+	return {val};
+}
+
 static void skip_line( istream& is ) {
 	for(;;) {
-		switch( is.get() ) {
+		switch( auto c = is.get() ) {
 		case '\n': case '\r': case EOF:
-			break;
+			return;
 		default:
 			continue;
 		}
@@ -30,29 +39,22 @@ static string read_sym_rest( istream& is, int c ) {
 	}
 }
 
-Opt<unsigned int> Reader::reads_nat() {
-	_fetch();
-	if( auto sym = _fetched.ref<Sym>() ) {
-		unsigned int val = 0;
-		for( auto c : sym->str ) {
-			if( c < '0' || '9' < c ) return {};
-			val = 10 * val + c - '0';
-		}
-		_fetched = None();
-		return {val};
-	}
-	return {};
-}
-
-
 void Reader::_fetch() {
 	if( _fetched.ref<None>() ) {
 		for(;;) {
-			switch( int c = _is.get() ) {
-			case ' ': case '\t': case '\n': case '\r':// skip white spaces
+			int c = _is.get();
+			_fetched_column++;
+			switch( c ) {
+			case '\n': case '\r':// skip white spaces
+				_line++;
+				_fetched_column = 0;
+				continue;
+			case ' ': case '\t':
 				continue;
 			case ';':// skip comment line
 				skip_line(_is);
+				_line++;
+				_fetched_column = 0;
 				continue;
 			case '(':
 				_fetched = LPar();
@@ -61,9 +63,9 @@ void Reader::_fetch() {
 				_fetched = RPar();
 				return;
 			case '"':
-				throw Error("unsupported symbol (\")");
+				throw _err("unsupported symbol (\")");
 			case '\'':
-				throw Error("unsupported symbol (')");
+				throw _err("unsupported symbol (')");
 			case ':':
 				_fetched = Key(read_sym_rest(_is,c));
 				return;

@@ -12,6 +12,8 @@
 #include"ref.hpp"
 #include"sum.hpp"
 
+Opt<unsigned int> nat_of( std::string_view const& str );
+
 template<typename F>
 class Term {
 	typedef F Fun;
@@ -104,6 +106,19 @@ class Reader {
 	struct Sym { std::string str; };
 	Sum<None,LPar,RPar,Key,Sym> _fetched;
 	void _fetch();
+	unsigned int _line = 1;
+	unsigned int _column = 1;
+	unsigned int _fetched_column = 1;
+	std::string _string_fetched() const& {
+		if( _fetched.ref<LPar>() ) return "#lparen";
+		if( _fetched.ref<RPar>() ) return "#rparen";
+		if( auto key = _fetched.ref<Key>() ) return key->str;
+		if( auto sym = _fetched.ref<Sym>() ) return sym->str;
+		return "#none";
+	}
+	Error _err( std::string const& msg ) const& {
+		return Error(msg,":line",std::to_string(_line),":column",std::to_string(_column),":encount",_string_fetched());
+	}
 public:
 	Reader( std::istream& is ) : _is(is), _fetched(None()) {}
 	bool opens() {
@@ -115,9 +130,7 @@ public:
 		return false;
 	}
 	void open() {
-		if( !opens() ) {
-			throw Error("#missing-left-paren");
-		}
+		if( !opens() ) throw _err("#missing-left-paren");
 	}
 	bool closes() {
 		_fetch();
@@ -128,9 +141,7 @@ public:
 		return false;
 	}
 	void close() {
-		if( !closes() ) {
-			throw Error("#missing-right-paren");
-		}
+		if( !closes() ) throw _err("#missing-right-paren");
 	}
 	Opt<std::string> reads_key() {
 		_fetch();
@@ -152,9 +163,7 @@ public:
 	}
 	std::string read_sym() {
 		auto sym = reads_sym();
-		if( !sym ) {
-			throw Error("#missing-symbol");
-		}
+		if( !sym ) throw _err("#missing-symbol");
 		return *sym;
 	}
 	bool reads_sym( char const* str ) {
@@ -167,15 +176,23 @@ public:
 		}
 		return false;
 	}
+	Opt<unsigned int> reads_nat() {
+		_fetch();
+		if( auto sym = _fetched.ref<Sym>() )
+		if( auto val = nat_of(sym->str) ) {
+			_fetched = None();
+			return val;
+		}
+		return {};
+	}
 	void read_sym( char const* str ) {
 		if( !reads_sym(str) ) {
 			throw Error{"#missing-symbol",str};
 		}
 	}
-	Opt<unsigned int> reads_nat();
 	unsigned int read_nat() {
 		auto opt = reads_nat();
-		if( !opt ) throw Error("#missing-number");
+		if( !opt ) throw _err("#missing-number");
 		return *opt;
 	}
 	int read_int() {
@@ -184,9 +201,7 @@ public:
 	Opt<Exp> reads_exp();
 	Exp read_exp() {
 		auto exp = reads_exp();
-		if( !exp ) {
-			throw Error("#missing-expression");
-		}
+		if( !exp ) throw _err("#missing-expression");
 		return *exp;
 	}
 };

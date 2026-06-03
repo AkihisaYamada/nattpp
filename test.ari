@@ -1,0 +1,7 @@
+(format TRS)
+(fun + :arity 2)
+(fun s :arity 1)
+(fun 0 :arity 0)
+
+(rule (+ x 0) x)
+(rule (+ x (s y)) (s (+ x y)))

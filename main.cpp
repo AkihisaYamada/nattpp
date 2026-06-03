@@ -22,11 +22,7 @@ int main( int argc, char* argv[] ) {
 		for( auto const& sys : p.systems ) {
 			i++;
 			cout << "TRS " << i << ":" << endl;
-			int j = 0;
-			for( auto const& rule : sys ) {
-				j++;
-				cout << '\t' << j << ": " << rule << endl;
-			}
+			sys.pretty(cout,1,"  ");
 		}
 		set<size_t> used;
 		for( size_t i = 0; i < p.systems[0].size(); i++ ) {
@@ -34,7 +30,7 @@ int main( int argc, char* argv[] ) {
 				used.insert(i);
 			}
 		}
-		auto solver = Smt::Z3(Smt::QF_NIA,{cerr});
+		auto solver = Smt::Z3(Smt::QF_NIA,{});
 		auto proc = DerivedRuleRemover(p.sig,p.systems[0],used,Poly::Template::SUM,solver,Smt::INT);
 		for(;;) {
 			auto const& rem = proc.remove();

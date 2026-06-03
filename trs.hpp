@@ -29,7 +29,7 @@ struct Trs::Rules : std::vector<Rule> {
 	using std::vector<Rule>::vector;
 	std::ostream& pretty( std::ostream& os, int index, std::string const& prefix = "" ) const {
 		for( auto const& rule : *this ) {
-			os << '\t' << index << ": " << rule << std::endl;
+			os << prefix << index << ": " << rule << std::endl;
 			index++;
 		}
 		return os;

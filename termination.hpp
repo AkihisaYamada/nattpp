@@ -33,15 +33,25 @@ private:
 	RuleRemover( RuleRemover const& ) = delete;
 };
 
+template<typename A>
 class DerivedTermOrder : public TermOrder {
 	Smt::Solver& solver;
 	DerivedTermOrder( DerivedTermOrder const& ) = delete;
 public:
-	Algebra::Intp<std::string,Poly> const intp;
-	Algebra::Deriver<std::string,Poly::Sig> const deriver;
-	DerivedTermOrder( Trs::Sig const& sig, Poly::Template const& temp, Smt::Solver& solver,Smt::BaseSort const& sort );
+	Algebra::Intp<std::string,A> const intp;
+	Algebra::Deriver<std::string, typename A::Sig> const deriver;
+	DerivedTermOrder(
+		Trs::Sig const& sig,
+		A::Template const& temp,
+		Smt::Solver& solver,
+		Smt::BaseSort const& sort
+	) : solver(solver),
+		deriver(temp.deriver(sig,solver)),
+		intp(A::expand(deriver.derive(A::algebra(solver)),solver,sort)) {
+	}
+;
 	Smt::PreExp operator()( Exp const& l, Exp const& r ) override {
-		return Poly::order(intp.eval(l),intp.eval(r),solver);
+		return A::order(intp.eval(l),intp.eval(r),solver);
 	}
 };
 
@@ -66,9 +76,19 @@ public:
 	}
 };
 
-class DerivedRuleRemover : public DerivedTermOrder, public RuleRemover {
+template<typename A>
+class DerivedRuleRemover : public DerivedTermOrder<A>, public RuleRemover {
 public:
-	DerivedRuleRemover( Trs::Sig const& sig, Trs::Rules& rules, std::set<size_t>& used, Poly::Template const& temp, Smt::Solver& solver, Smt::BaseSort const& sort );
+	DerivedRuleRemover(
+		Trs::Sig const& sig,
+		Trs::Rules& rules,
+		std::set<size_t>& used,
+		Poly::Template const& temp,
+		Smt::Solver& solver,
+		Smt::BaseSort const& sort
+	) : DerivedTermOrder<A>(sig,temp,solver,sort),
+		RuleRemover(*this,rules,used,solver) {
+	}
 };
 
 class DpProc {

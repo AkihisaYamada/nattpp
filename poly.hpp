@@ -90,7 +90,7 @@ public:
 	 * @param solver 
 	 * @return Poly& 
 	 */
-	Poly& memoize( Smt::Solver& solver, Smt::BaseSort const& sort );
+	Poly& expand( Smt::Solver& solver, Smt::BaseSort const& sort );
 	/** evaluate SMT coefficients */
 	Poly eval_coeffs( Smt::Solver& solver ) const;
 	Poly operator+( Poly const& p2 ) const &;
@@ -120,16 +120,16 @@ public:
 	static int test();
 
 	template<typename F>
-	static Algebra::Intp<F,Poly> memoize( Algebra::Intp<F,Poly> && intp, Smt::Solver& solver, Smt::BaseSort const& sort ) {
+	static Algebra::Intp<F,Poly> expand( Algebra::Intp<F,Poly> && intp, Smt::Solver& solver, Smt::BaseSort const& sort ) {
 		return [intp=std::move(intp),&solver,sort]( F const& f, std::vector<Poly> && args ) {
-			return intp(f,std::move(args)).memoize(solver,sort);
+			return intp(f,std::move(args)).expand(solver,sort);
 		};
 	}
 
 	template<typename F>
-	static Algebra::Intp<F,Poly> memoize( Algebra::Intp<F,Poly> const& intp, Smt::Solver& solver, Smt::BaseSort const& sort ) {
+	static Algebra::Intp<F,Poly> expand( Algebra::Intp<F,Poly> const& intp, Smt::Solver& solver, Smt::BaseSort const& sort ) {
 		return [&intp,&solver,sort]( F const& f, std::vector<Poly> && args ) {
-			return intp(f,std::move(args)).memoize(solver,sort);
+			return intp(f,std::move(args)).expand(solver,sort);
 		};
 	}
 

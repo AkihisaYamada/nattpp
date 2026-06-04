@@ -128,9 +128,9 @@ Smt::PreExp Poly::order( Poly const& p1, Poly const& p2, Smt::Solver& solver ) {
 	return ( val && Smt::ge(c1,c2), val && Smt::gt(c1,c2) );
 }
 
-Poly& Poly::memoize( Smt::Solver& solver, Smt::BaseSort const& sort ) {
+Poly& Poly::expand( Smt::Solver& solver, Smt::BaseSort const& sort ) {
 	for( auto& [vars,coeff] : _map ) {
-		if( vars.vars().empty() ) {
+		if( !solver.logic.linear || vars.vars().empty() ) {
 			coeff = solver.let(sort,coeff);
 		} else {
 			coeff = solver.expand(coeff);
@@ -311,7 +311,7 @@ int Poly::test() {
 	sig.insert("g",1);
 	sig.insert("a",0);
 	auto der = Template::SUM.deriver(sig,z3);
-	auto der_intp = memoize(der.derive(z3poly),z3,Smt::INT);
+	auto der_intp = expand(der.derive(z3poly),z3,Smt::INT);
 	e = Exp{"f",Exp{"g","x"},"a"};
 	for( auto p : sig ) {
 		cout << "der(" << p.first << ") = " << der(p.first) << endl;

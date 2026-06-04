@@ -30,7 +30,7 @@ Proc::_Maker::_Maker( string const& cmd, vector<string> const& args ) {
 	close(from_pipe[1]);
 	to = to_pipe[1];
 	from = from_pipe[0];
-	cerr << "Proc: " << cmd << "; pid=" << pid << endl;
+//	cerr << "Proc: " << cmd << "; pid=" << pid << endl;
 }
 
 Proc::Proc( _Maker const& maker, Opt<ostream&> tee ) :

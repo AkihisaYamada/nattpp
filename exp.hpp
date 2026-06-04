@@ -194,11 +194,16 @@ public:
 	}
 	void read_sym( char const* str ) {
 		if( !reads_sym(str) ) {
-			throw Error{"#missing-symbol",str};
+			throw _err("#missing-symbol",str);
 		}
 	}
 	unsigned int read_nat() {
 		auto opt = reads_nat();
+		if( !opt ) throw _err("#missing-number");
+		return *opt;
+	}
+	unsigned int read_nat( unsigned int max ) {
+		auto opt = reads_nat(max);
 		if( !opt ) throw _err("#missing-number");
 		return *opt;
 	}

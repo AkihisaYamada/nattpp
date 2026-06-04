@@ -133,7 +133,7 @@ std::ostream& operator<<( std::ostream& os, Sum<F,Algebra::Arg> const& df ) {
 		return os << *f;
 	}
 	if( auto a = df.template ref<Algebra::Arg>() ) {
-		return os << "(:arg " << a->pos() << ')';
+		return os << "(arg " << a->pos() << ')';
 	}
 	assert(false);
 }

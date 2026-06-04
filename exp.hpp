@@ -14,6 +14,9 @@
 
 Opt<unsigned int> nat_of( std::string_view const& str );
 
+struct Pos : std::vector<unsigned char> {
+};
+
 template<typename F>
 class Term {
 	typedef F Fun;
@@ -73,6 +76,7 @@ public:
 		}
 		return ret;
 	}
+	Term const& at( Pos const& pos ) const&;
 	Term& operator=( Term && other ) & {
 		_mem = std::move(other._mem);
 		return *this;
@@ -97,6 +101,16 @@ struct Error : std::exception, Exp {
 	using Exp::Exp;
 };
 
+template<typename F>
+Term<F> const& Term<F>::at( Pos const& pos ) const& {
+	Term const* ptr = this;
+	for( unsigned char i : pos ) {
+		if( ptr->args().size() <= i ) throw Error("#bad-term-position");
+		ptr = &ptr->args()[i];
+	}
+	return *ptr;
+}
+
 class Reader {
 	std::istream& _is;
 	class LPar {};
@@ -119,7 +133,7 @@ class Reader {
 public:
 	Reader( std::istream& is ) : _is(is), _fetched(None()) {}
 	template<typename... Args>
-	Error error( Args const&... msg... ) const& {
+	Error error( Args const&... msg ) const& {
 		return Error(msg...,":line",std::to_string(_line),":column",std::to_string(_column),":encount",_string_fetched());
 	}
 	bool opens() {

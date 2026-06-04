@@ -13,7 +13,10 @@ public:
 		friend class Srs;
 		using ::Exp::Exp;// constructors are private
 	};
-	class Rank;
+	struct Rank {
+		unsigned char arity;
+		bool defined;
+	};
 	typedef Map<std::string,Rank> Sig;
 	class Reader;
 	struct Rule : std::pair<Exp,Exp> {
@@ -35,10 +38,6 @@ inline std::ostream& operator<<( std::ostream& os, Trs::Rules const& rules ) {
 	}
 	return os;
 }
-
-struct Trs::Rank {
-	unsigned char arity;
-};
 
 class Trs::Reader {
 	Sig const& _sig;

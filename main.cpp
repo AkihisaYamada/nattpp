@@ -11,16 +11,23 @@ int main( int argc, char* argv[] ) {
 	try {
 		istream* pis = nullptr;
 		ostream* ptee = nullptr;
+		ostream* pprf = nullptr;
 		bool exit_on_error = false;
 		for( int i = 1; i < argc; i++ ) {
 			if( argv[i][0] == '-' ) {
 				string_view arg = argv[i];
 				if( arg == "-tee" ) {
-					if( ptee != nullptr ) throw Error("#duplicate-tee");
+					if( ptee != nullptr ) throw Error("#duplicate-option","-tee");
 					i++;
-					if( i == argc ) throw Error("#missing-tee-file");
+					if( i == argc ) throw Error("#missing-arg","-tee");
 					ptee = new ofstream(argv[i]);
 					continue;
+				}
+				if( arg == "-proof" ) {
+					if( pprf != nullptr ) throw Error("#duplicate-option","-proof");
+					i++;
+					if( i == argc ) throw Error("#missing-arg","-proof");
+					pprf = new ofstream(argv[i]);
 				}
 				throw Error("#unknown-option",argv[i]);
 			} else {
@@ -32,7 +39,7 @@ int main( int argc, char* argv[] ) {
 		}
 		if( pis == nullptr ) pis = &cin;
 		auto p = Problem(*pis);
-		p.print( cout << "(input", "  " ) << ')' << endl;
+		cout << p << endl;
 		set<size_t> used;
 		for( size_t i = 0; i < p.systems[0].size(); i++ ) {
 			if( p.systems[0][i].weight != 0 ) {
@@ -41,8 +48,9 @@ int main( int argc, char* argv[] ) {
 		}
 		auto solver = Smt::Z3(Smt::QF_NIA, ptee ? Opt<ostream&>{*ptee} : Opt<ostream&>{} );
 		vector<unique_ptr<TermOrder>> orders;
-		auto ord = DerivedTermOrder<Poly>(p.sig,Poly::Template::SUM,solver,Smt::INT);
-		orders.emplace_back(make_unique<DerivedTermOrder<Poly>>(p.sig,Poly::Template::SUM,solver,Smt::INT));
+		orders.emplace_back(
+			make_unique<DerivedTermOrder<Poly>>(p.sig,Poly::Template::MONO_SUM,solver,Smt::INT)
+		);
 		vector<RuleRemover> rule_removers;
 		for( auto& order : orders ) {
 			rule_removers.emplace_back(*order,p.systems[0],used,solver);

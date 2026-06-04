@@ -54,7 +54,7 @@ Problem::Problem( istream& is ) {
 					}
 					arity = *num;
 				}
-				if( auto prev = sig.insert(fun,Trs::Rank{arity}) ) {
+				if( auto prev = sig.insert(fun,Trs::Rank{arity,false}) ) {
 					throw Error{"#duplicate-fun",fun,to_string(prev->arity),to_string(arity)};
 				}
 			} else if( eis.reads_sym("rule") ) {
@@ -74,25 +74,36 @@ Problem::Problem( istream& is ) {
 						throw Error{"#unknown-key",*key};
 					}
 				}
+				if( auto rank = sig.find(l.fun()) ) {
+					rank->defined = true;
+				}
 				systems[ index ? *index-1 : 0 ].emplace_back( l, r, weight ? *weight : 1 );
 			} else {
 				throw Error{"#unknown-command",eis.read_exp()};
 			};
 			eis.close();
 		}
+		mode = SN;
 	} else {
 		throw Error("#unsupported-format",eis.read_exp());
 	}
 }
 
-ostream& Problem::print( ostream& os, string const& prefix ) const {
+ostream& Problem::print( ostream& os ) const {
 	int ruleno = 0;
+	os << "(problem";
+	switch( mode ) {
+		case SN: os << " termination"; break;
+		case DP: os << " DP-termination"; break;
+		default: assert(false);
+	}
+	os << flush;
 	if( systems.empty() ) return os;
 	for( auto const& rule : systems[0] ) {
 		ruleno++;
-		os << '\n' << prefix << "(rule-no " << ruleno << ' ';
+		os << "\n  (rule ";
 		rule.print_contents(os);
-		os << ')' << flush;
+		os << " :number " << ruleno << ')' << flush;
 	}
 	int sysno = 1;
 	while( sysno < systems.size() ) {
@@ -100,12 +111,12 @@ ostream& Problem::print( ostream& os, string const& prefix ) const {
 		sysno++;
 		for( auto const& rule : rules ) {
 			ruleno++;
-			os << '\n' << prefix << "(rule-no " << ruleno << ' ';
+			os << "\n  (rule ";
 			rule.print_contents(os);
-			os << " :index " << sysno << ')' << flush;
+			os << " :number" << ruleno << " :index " << sysno << ')' << flush;
 		}
 	}
-	return os;
+	return os << ')';
 }
 
 bool Problem::test() {

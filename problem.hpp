@@ -14,11 +14,15 @@ public:
 	} format;
 	Trs::Sig sig;
 	std::vector<Trs::Rules> systems;
+	enum {
+		SN,// termination
+		DP,// DP problem
+	} mode;
 private:
 	Problem() = delete;
 public:
 	Problem( std::istream& is );
-	std::ostream& print( std::ostream& os, std::string const& prefix = "" ) const;
+	std::ostream& print( std::ostream& os ) const;
 	static bool test();
 };
 

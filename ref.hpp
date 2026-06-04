@@ -55,7 +55,7 @@ public:
 	 * @return a non-null pointer to the constructed object
 	 */
 	template<typename... Ts>
-	static Ref make(Ts... args) {
+	static Ref make(Ts const&... args) {
 		return Ref(std::make_shared<T>(args...));
 	}
 	template<typename S, bool n1, bool n2>
@@ -107,7 +107,7 @@ public:
 		return *this;
 	}
 	template<typename... Ts>
-	explicit Mem(Ts... args) : _ptr(std::make_shared<T>(std::forward<Ts>(args)...)) {}
+	explicit Mem(Ts const&... args) : _ptr(std::make_shared<T>(args...)) {}
 	/**
 	 * @brief Optional non-null object can be seen as a nullable object
 	 */

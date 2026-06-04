@@ -106,9 +106,4 @@ public:
 private:
 };
 
-class DpProc {
-
-};
-
-
 #endif

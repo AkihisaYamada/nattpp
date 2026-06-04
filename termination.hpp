@@ -9,28 +9,22 @@ class TrsAnnotator {
 	
 };
 
-class TermOrder {
-public:
+struct TermOrder {
 	virtual Smt::PreExp operator()( Exp const& l, Exp const& r ) = 0;
+	virtual std::ostream& print_name( std::ostream& os ) = 0;
+	virtual std::ostream& print( std::ostream& os, Trs::Sig const& sig ) = 0;
 };
 
-class RuleRemover {
-protected:
-	TermOrder& order;
-	Trs::Rules& rules;
-	std::set<size_t>& used;
-	std::vector<std::pair<Smt::PostExp,Smt::PostExp>> ords;
-	Smt::Solver& solver;
-	RuleRemover(
-		TermOrder& order,
-		Trs::Rules& rules,
-		std::set<size_t>& used,
-		Smt::Solver& solver
-	);
-public:
-	std::vector<size_t> remove();
-private:
-	RuleRemover( RuleRemover const& ) = delete;
+struct TrivOrder : TermOrder {
+	Smt::PreExp operator()( Exp const& l, Exp const& r ) override {
+		return (Smt::TRUE,Smt::FALSE);
+	};
+	std::ostream& print_name( std::ostream& os ) override {
+		return os << "trivial-order";
+	};
+	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
+		return os;
+	}
 };
 
 template<typename A>
@@ -49,9 +43,18 @@ public:
 		deriver(temp.deriver(sig,solver)),
 		intp(A::expand(deriver.derive(A::algebra(solver)),solver,sort)) {
 	}
-;
 	Smt::PreExp operator()( Exp const& l, Exp const& r ) override {
 		return A::order(intp.eval(l),intp.eval(r),solver);
+	}
+	std::ostream& print_name( std::ostream& os ) override {
+		return os << "derived-order";
+	};
+	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
+		os << '(';
+		for( auto [f,arity] : sig ) {
+			os << "\n    (" << f << ' ' << A::instantiate(solver,deriver(f)) << ')';
+		}
+		return os << ')';
 	}
 };
 
@@ -76,19 +79,31 @@ public:
 	}
 };
 
-template<typename A>
-class DerivedRuleRemover : public DerivedTermOrder<A>, public RuleRemover {
+class RuleRemover : public TermOrder {
+protected:
+	TermOrder& order;
+	Trs::Rules& rules;
+	std::set<size_t>& used;
+	std::vector<std::pair<Smt::PostExp,Smt::PostExp>> ords;
+	Smt::Solver& solver;
 public:
-	DerivedRuleRemover(
-		Trs::Sig const& sig,
+	RuleRemover(
+		TermOrder& order,
 		Trs::Rules& rules,
 		std::set<size_t>& used,
-		Poly::Template const& temp,
-		Smt::Solver& solver,
-		Smt::BaseSort const& sort
-	) : DerivedTermOrder<A>(sig,temp,solver,sort),
-		RuleRemover(*this,rules,used,solver) {
+		Smt::Solver& solver
+	);
+	std::vector<size_t> remove();
+	Smt::PreExp operator()( Exp const& l, Exp const& r ) override {
+		return order(l,r);
 	}
+	std::ostream& print_name( std::ostream& os ) override {
+		return order.print_name(os);
+	}
+	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
+		return order.print(os,sig);
+	}
+private:
 };
 
 class DpProc {

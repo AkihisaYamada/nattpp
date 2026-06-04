@@ -194,14 +194,14 @@ ostream& operator<<( ostream& os, pair<T1,T2> const& pair ) {
 	return os << "〈" << pair.first << ", " << pair.second << "〉";
 }
 
-Algebra::Template<Poly::Sig> Poly::eval_coeff(
+Algebra::Template<Poly::Sig> Poly::instantiate(
 	Smt::Solver& solver,
 	Algebra::Template<Poly::Sig> const& org
 ) {
 	auto const& sym = org.fun();
 	auto args = vector<Algebra::Template<Poly::Sig>>();
 	for( auto const& a : org.args() ) {
-		args.push_back(eval_coeff(solver,a));
+		args.push_back(instantiate(solver,a));
 	}
 	if( auto const& f = sym.ref<Poly::Sig>() ) {
 		auto rargs = vector<Algebra::Template<Poly::Sig>>();

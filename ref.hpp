@@ -55,7 +55,7 @@ public:
 	 * @return a non-null pointer to the constructed object
 	 */
 	template<typename... Ts>
-	static Ref make(Ts... args...) {
+	static Ref make(Ts... args) {
 		return Ref(std::make_shared<T>(args...));
 	}
 	template<typename S, bool n1, bool n2>

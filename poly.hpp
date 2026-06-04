@@ -154,7 +154,7 @@ public:
 		);
 	};
 
-	static Algebra::Template<Sig> eval_coeff(
+	static Algebra::Template<Sig> instantiate(
 		Smt::Solver& solver,
 		Algebra::Template<Sig> const& org
 	);

@@ -50,7 +50,7 @@ int main( int argc, char* argv[] ) {
 		auto solver = Smt::Z3(Smt::QF_NIA, ptee ? Opt<ostream&>{*ptee} : Opt<ostream&>{} );
 		vector<RuleRemover> rule_removers;
 		rule_removers.emplace_back(
-			DerivedTermOrder<Poly>(p.sig,Poly::Template::MONO_SUM,solver,Smt::INT),
+			make_unique<DerivedTermOrder<Poly>>(p.sig,Poly::Template::MONO_SUM,solver,Smt::INT),
 			p.systems[0],actives,solver
 		);
 		auto rule_remove = [&](){

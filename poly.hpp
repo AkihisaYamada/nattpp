@@ -153,7 +153,7 @@ public:
 			int pos
 		);
 	};
-
+	/** instantiate coefficients via get-value */
 	static Algebra::Template<Sig> instantiate(
 		Smt::Solver& solver,
 		Algebra::Template<Sig> const& org

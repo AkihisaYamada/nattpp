@@ -82,23 +82,18 @@ public:
 
 class RuleRemover : public TermOrder {
 	std::unique_ptr<TermOrder> _ptr;
-	void _init();
 protected:
 	Trs::Rules& rules;
 	std::set<size_t>& used;
 	std::vector<std::pair<Smt::PostExp,Smt::PostExp>> ords;
 	Smt::Solver& solver;
 public:
-	template<typename O>// requires std::is_base_of_v<TermOrder,O>
 	RuleRemover(
-		O&& order,
+		std::unique_ptr<TermOrder>&& ptr,
 		Trs::Rules& rules,
 		std::set<size_t>& used,
 		Smt::Solver& solver
-	) : _ptr(std::make_unique<O>(std::move(order))), rules(rules), used(used), ords(rules.size()), solver(solver)
-	{
-		_init();
-	}
+	);
 	std::vector<size_t> remove();
 	Smt::PreExp operator()( Exp const& l, Exp const& r ) override {
 		return (*_ptr)(l,r);

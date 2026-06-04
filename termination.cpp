@@ -3,7 +3,12 @@
 
 using namespace std;
 
-void RuleRemover::_init() {
+RuleRemover::RuleRemover(
+	std::unique_ptr<TermOrder>&& ptr,
+	Trs::Rules& rules,
+	std::set<size_t>& used,
+	Smt::Solver& solver
+) : _ptr(std::move(ptr)), rules(rules), used(used), ords(rules.size()), solver(solver) {
 	for( size_t i : used ) {
 		auto const& ord = solver.expand(
 			Smt::Let(

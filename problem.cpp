@@ -63,8 +63,8 @@ Problem::Problem( istream& is ) {
 				Opt<int> weight;
 				Opt<int> index;
 				while( auto key = eis.reads_key() ) {
-					if( *key == ":weight" ) {
-						if( weight ) throw Error{"#duplicate-weight"};
+					if( *key == ":cost" ) {
+						if( weight ) throw Error{"#duplicate-cost"};
 						int i = eis.read_int();
 						weight = {i};
 					} else if( *key == ":index" ) {

@@ -36,7 +36,7 @@ int main( int argc, char* argv[] ) {
 		for( auto const& sys : p.systems ) {
 			i++;
 			cout << "TRS " << i << ":" << endl;
-			sys.pretty(cout,1,"  ");
+			sys.print(cout,1,"  ");
 		}
 		set<size_t> used;
 		for( size_t i = 0; i < p.systems[0].size(); i++ ) {

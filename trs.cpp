@@ -2,12 +2,18 @@
 
 using namespace std;
 
-ostream& operator<<( ostream& os, Trs::Rule const& rule ) {
-	os << "(rule " << rule.first << ' ' << rule.second;
+static ostream& _print_rule_inner( ostream& os, Trs::Rule const& rule ) {
+	os << rule.first << ' ' << rule.second;
 	if( rule.weight != 1 ) {
-		os << " :weight " << (int)rule.weight;
+		os << " :cost " << rule.weight;
 	}
 	return os << ')';
+}
+ostream& Trs::Rule::print( ostream& os ) const {
+	return _print_rule_inner( os << "(rule ", *this );
+}
+ostream& Trs::Rule::print( ostream& os, int index ) const {
+	return _print_rule_inner( os << "(rule-no " << index << ' ', *this );
 }
 
 Opt<Trs::Exp> Trs::Reader::reads() {

@@ -3,6 +3,7 @@
 #include<fcntl.h>
 #include"problem.hpp"
 #include"termination.hpp"
+#include"dp.hpp"
 
 using namespace std;
 
@@ -40,21 +41,18 @@ int main( int argc, char* argv[] ) {
 		if( pis == nullptr ) pis = &cin;
 		auto p = Problem(*pis);
 		cout << p << endl;
-		set<size_t> used;
+		set<size_t> actives;
 		for( size_t i = 0; i < p.systems[0].size(); i++ ) {
 			if( p.systems[0][i].weight != 0 ) {
-				used.insert(i);
+				actives.insert(i);
 			}
 		}
 		auto solver = Smt::Z3(Smt::QF_NIA, ptee ? Opt<ostream&>{*ptee} : Opt<ostream&>{} );
-		vector<unique_ptr<TermOrder>> orders;
-		orders.emplace_back(
-			make_unique<DerivedTermOrder<Poly>>(p.sig,Poly::Template::MONO_SUM,solver,Smt::INT)
-		);
 		vector<RuleRemover> rule_removers;
-		for( auto& order : orders ) {
-			rule_removers.emplace_back(*order,p.systems[0],used,solver);
-		}
+		rule_removers.emplace_back(
+			DerivedTermOrder<Poly>(p.sig,Poly::Template::MONO_SUM,solver,Smt::INT),
+			p.systems[0],actives,solver
+		);
 		auto rule_remove = [&](){
 			for( auto& proc : rule_removers ) {
 				proc.print_name(cerr << "; trying ") << "... " << endl;
@@ -72,11 +70,16 @@ int main( int argc, char* argv[] ) {
 			return false;
 		};
 		while( rule_remove() ) {
-			if( used.empty() ) {
+			if( actives.empty() ) {
 				cout << "terminating" << endl;
 				exit(0);
 			}
 		}
+		Dp::Rules drules;
+		for( auto i : actives ) {
+			drules.emplace_back(p.systems[0][i],p.sig);
+		}
+		cout << drules << endl;
 		cout << "failed" << endl;
 		exit(-1);
 	} catch( Trs::Reader::Error const& e ) {

@@ -17,7 +17,7 @@ public:
 		unsigned char arity;
 		bool defined;
 	};
-	typedef Map<std::string,Rank> Sig;
+	using Sig = Map<std::string,Rank>;
 	class Reader;
 	struct Rule : std::pair<Exp,Exp> {
 		int weight;

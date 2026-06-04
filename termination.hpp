@@ -32,6 +32,7 @@ class DerivedTermOrder : public TermOrder {
 	Smt::Solver& solver;
 	DerivedTermOrder( DerivedTermOrder const& ) = delete;
 public:
+	DerivedTermOrder( DerivedTermOrder && ) = default;
 	Algebra::Intp<std::string,A> const intp;
 	Algebra::Deriver<std::string, typename A::Sig> const deriver;
 	DerivedTermOrder(
@@ -80,30 +81,34 @@ public:
 };
 
 class RuleRemover : public TermOrder {
+	std::unique_ptr<TermOrder> _ptr;
+	void _init();
 protected:
-	TermOrder& order;
 	Trs::Rules& rules;
 	std::set<size_t>& used;
 	std::vector<std::pair<Smt::PostExp,Smt::PostExp>> ords;
 	Smt::Solver& solver;
 public:
+	template<typename O>// requires std::is_base_of_v<TermOrder,O>
 	RuleRemover(
-		TermOrder& order,
+		O&& order,
 		Trs::Rules& rules,
 		std::set<size_t>& used,
 		Smt::Solver& solver
-	);
+	) : _ptr(std::make_unique<O>(std::move(order))), rules(rules), used(used), ords(rules.size()), solver(solver)
+	{
+		_init();
+	}
 	std::vector<size_t> remove();
 	Smt::PreExp operator()( Exp const& l, Exp const& r ) override {
-		return order(l,r);
+		return (*_ptr)(l,r);
 	}
 	std::ostream& print_name( std::ostream& os ) override {
-		return order.print_name(os);
+		return _ptr->print_name(os);
 	}
 	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
-		return order.print(os,sig);
+		return _ptr->print(os,sig);
 	}
-private:
 };
 
 #endif

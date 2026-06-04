@@ -14,8 +14,9 @@
 
 Opt<unsigned int> nat_of( std::string_view const& str );
 
-struct Pos : std::vector<unsigned char> {
-};
+using Pos = std::vector<unsigned char>;
+
+std::ostream& operator<<( std::ostream& os, Pos const& pos );
 
 template<typename F>
 class Term {
@@ -246,5 +247,15 @@ std::ostream& operator<<( std::ostream& os, Term<F> const& e ) {
 	return os << ')';
 }
 
+template<typename It, typename F>
+std::ostream& print_list( std::ostream& os, It it, It const& end, F const& f ) {
+	if( it == end ) return os;
+	for(;;){
+		os << f(*it);
+		it++;
+		if( it == end ) return os;
+		os << ' ';
+	}
+}
 
 #endif

@@ -3,9 +3,20 @@
 
 #include"problem.hpp"
 
-struct DepMap : std::vector<std::set<Pos>> {
+class Dp {
+	Dp() = delete;
+public:
+	struct Rule : Trs::Rule {
+		std::set<Pos> deps;
+		Rule( Trs::Rule const& rule, Trs::Sig const& sig );
+	};
+	struct Rules : std::vector<Rule> {
+		using std::vector<Rule>::vector;
+	};
 };
 
-DepMap dep_map( Trs::Sig const& sig, Trs::Rules const& trs );
+std::ostream& operator<<( std::ostream& os, Dp::Rule const& rule );
+
+std::ostream& operator<<( std::ostream& os, Dp::Rules const& rules );
 
 #endif

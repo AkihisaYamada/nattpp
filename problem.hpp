@@ -18,6 +18,12 @@ private:
 	Problem() = delete;
 public:
 	Problem( std::istream& is );
+	std::ostream& print( std::ostream& os, std::string const& prefix = "" ) const;
 	static bool test();
 };
+
+inline std::ostream& operator<<( std::ostream& os, Problem const& prob ) {
+	return prob.print(os);
+}
+
 #endif

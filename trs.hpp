@@ -19,34 +19,21 @@ public:
 	struct Rule : std::pair<Exp,Exp> {
 		int weight;
 		Rule( Exp const& l, Exp const& r, int weight ) : std::pair<Exp,Exp>(l,r), weight(weight) {}
-		std::ostream& print( std::ostream& os ) const;
-		std::ostream& print( std::ostream& os, int index ) const;
+		std::ostream& print_contents( std::ostream& os ) const;
 	};
-	struct Rules;
-};
-
-struct Trs::Rules : std::vector<Rule> {
-	using std::vector<Rule>::vector;
-	std::ostream& print( std::ostream& os, int index, std::string const& prefix = "" ) const {
-		for( auto const& rule : *this ) {
-			rule.print( os << prefix, index ) << std::endl;
-			index++;
-		}
-		return os;
-	}
-	std::ostream& print( std::ostream& os, std::string const& prefix = "" ) const {
-		for( auto const& rule : *this ) {
-			rule.print( os << prefix ) << std::endl;
-		}
-		return os;
-	}
+	struct Rules : std::vector<Rule> {
+		using std::vector<Rule>::vector;
+	};
 };
 
 inline std::ostream& operator<<( std::ostream& os, Trs::Rule const& rule ) {
-	return rule.print(os);
+	return rule.print_contents( os << "(rule " ) << ')';
 }
-inline std::ostream& operator<<( std::ostream& os, Trs::Rules const& sys ) {
-	return sys.print(os);
+inline std::ostream& operator<<( std::ostream& os, Trs::Rules const& rules ) {
+	for( auto const& rule : rules ) {
+		os << rule << std::endl;
+	}
+	return os;
 }
 
 struct Trs::Rank {

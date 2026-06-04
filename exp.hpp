@@ -116,12 +116,12 @@ class Reader {
 		if( auto sym = _fetched.ref<Sym>() ) return sym->str;
 		return "#none";
 	}
-	template<typename... Args>
-	Error _err( Args const&... msg... ) const& {
-		return Error(msg...,":line",std::to_string(_line),":column",std::to_string(_column),":encount",_string_fetched());
-	}
 public:
 	Reader( std::istream& is ) : _is(is), _fetched(None()) {}
+	template<typename... Args>
+	Error error( Args const&... msg... ) const& {
+		return Error(msg...,":line",std::to_string(_line),":column",std::to_string(_column),":encount",_string_fetched());
+	}
 	bool opens() {
 		_fetch();
 		if( _fetched.ref<LPar>() ) {
@@ -131,7 +131,7 @@ public:
 		return false;
 	}
 	void open() {
-		if( !opens() ) throw _err("#missing-left-paren");
+		if( !opens() ) throw error("#missing-left-paren");
 	}
 	bool closes() {
 		_fetch();
@@ -142,7 +142,7 @@ public:
 		return false;
 	}
 	void close() {
-		if( !closes() ) throw _err("#missing-right-paren");
+		if( !closes() ) throw error("#missing-right-paren");
 	}
 	Opt<std::string> reads_key() {
 		_fetch();
@@ -164,7 +164,7 @@ public:
 	}
 	std::string read_sym() {
 		auto sym = reads_sym();
-		if( !sym ) throw _err("#missing-symbol");
+		if( !sym ) throw error("#missing-symbol");
 		return *sym;
 	}
 	bool reads_sym( char const* str ) {
@@ -188,23 +188,23 @@ public:
 	}
 	Opt<unsigned int> reads_nat( std::function<bool(unsigned int)> const& test ) {
 		if( auto n = reads_nat() ) {
-			if( !test(*n) ) throw _err("#invalid-value",std::to_string(*n));
+			if( !test(*n) ) throw error("#invalid-value",std::to_string(*n));
 			return n;
 		}
 	}
 	void read_sym( char const* str ) {
 		if( !reads_sym(str) ) {
-			throw _err("#missing-symbol",str);
+			throw error("#missing-symbol",str);
 		}
 	}
 	unsigned int read_nat() {
 		auto opt = reads_nat();
-		if( !opt ) throw _err("#missing-number");
+		if( !opt ) throw error("#missing-number");
 		return *opt;
 	}
 	unsigned int read_nat( std::function<bool(unsigned int)> const& test ) {
 		auto ret = read_nat();
-		if( !test(ret) ) throw _err("#invalid-value",std::to_string(ret));
+		if( !test(ret) ) throw error("#invalid-value",std::to_string(ret));
 		return ret;
 	}
 	int read_int() {
@@ -213,7 +213,7 @@ public:
 	Opt<Exp> reads_exp();
 	Exp read_exp() {
 		auto exp = reads_exp();
-		if( !exp ) throw _err("#missing-expression");
+		if( !exp ) throw error("#missing-expression");
 		return *exp;
 	}
 };

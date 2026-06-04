@@ -32,12 +32,7 @@ int main( int argc, char* argv[] ) {
 		}
 		if( pis == nullptr ) pis = &cin;
 		auto p = Problem(*pis);
-		int i = 0;
-		for( auto const& sys : p.systems ) {
-			i++;
-			cout << "TRS " << i << ":" << endl;
-			sys.print(cout,1,"  ");
-		}
+		p.print( cout << "(input", "  " ) << ')' << endl;
 		set<size_t> used;
 		for( size_t i = 0; i < p.systems[0].size(); i++ ) {
 			if( p.systems[0][i].weight != 0 ) {
@@ -49,7 +44,7 @@ int main( int argc, char* argv[] ) {
 		for(;;) {
 			auto const& rem = proc.remove();
 			if( rem.empty() ) {
-				cout << "Failed." << endl;
+				cout << "failed" << endl;
 				exit(0);
 			}
 			cout << "(remove-rule";
@@ -62,7 +57,7 @@ int main( int argc, char* argv[] ) {
 			}
 			cout << "))" << endl;
 			if( used.empty() ) {
-				cout << "Terminating." << endl;
+				cout << "terminating" << endl;
 				exit(0);
 			}
 		}

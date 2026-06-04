@@ -63,9 +63,9 @@ void Reader::_fetch() {
 				_fetched = RPar();
 				return;
 			case '"':
-				throw _err("unsupported symbol (\")");
+				throw error("unsupported symbol (\")");
 			case '\'':
-				throw _err("unsupported symbol (')");
+				throw error("unsupported symbol (')");
 			case ':':
 				_fetched = Key(read_sym_rest(_is,c));
 				return;

@@ -25,9 +25,8 @@ Problem::Problem( istream& is ) {
 		Opt<int> number;
 		while( auto key = eis.reads_key() ) {
 			if( *key == ":number" ) {
-				unsigned int n = eis.read_nat();
-				if( n > 9 ) throw Error("#too-big-number",to_string(n));
-				number = {n};
+				if( number ) throw eis.error("#duplicate-number");
+				number = {eis.read_nat([](auto n){ return n < 10; })};
 			} else {
 				throw Error("#unknown-key",*key);
 			}
@@ -69,7 +68,7 @@ Problem::Problem( istream& is ) {
 						weight = {i};
 					} else if( *key == ":index" ) {
 						if( index ) throw Error{"#duplicate-index"};
-						int i = eis.read_nat([&](auto n){ return n < systems.size(); });
+						int i = eis.read_nat([&](auto n){ return 0 < n && n <= systems.size(); });
 						index = {i};
 					} else {
 						throw Error{"#unknown-key",*key};
@@ -86,9 +85,32 @@ Problem::Problem( istream& is ) {
 	}
 }
 
+ostream& Problem::print( ostream& os, string const& prefix ) const {
+	int ruleno = 0;
+	if( systems.empty() ) return os;
+	for( auto const& rule : systems[0] ) {
+		ruleno++;
+		os << '\n' << prefix << "(rule-no " << ruleno << ' ';
+		rule.print_contents(os);
+		os << ')' << flush;
+	}
+	int sysno = 1;
+	while( sysno < systems.size() ) {
+		auto const& rules = systems[sysno];
+		sysno++;
+		for( auto const& rule : rules ) {
+			ruleno++;
+			os << '\n' << prefix << "(rule-no " << ruleno << ' ';
+			rule.print_contents(os);
+			os << " :index " << sysno << ')' << flush;
+		}
+	}
+	return os;
+}
+
 bool Problem::test() {
 	{
-		auto ifs = ifstream("test.ari");
+		auto ifs = ifstream("samples/add.ari");
 		auto prob = Problem(ifs);
 		for( int i = 0; i < prob.systems.size(); i++ ) {
 			cout << "TRS " << i+1 << ":" << endl << prob.systems[i];

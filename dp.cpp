@@ -5,7 +5,6 @@
 using namespace std;
 
 static void take_deps( Trs::Sig const& sig, Exp const& r, set<Pos>& deps, Pos& pos ) {
-DEB(pos);
 	if( auto rank = sig.find(r.fun()) )
 	if( rank->defined ) {
 		deps.insert(pos);

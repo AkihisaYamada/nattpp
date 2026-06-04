@@ -4,7 +4,7 @@
 using namespace std;
 
 ostream& operator<<( ostream& os, Pos const& pos ) {
-	return print_list( os << '(', pos.begin(), pos.end(), []( auto c )->unsigned int { return c; } ) << ')';
+	return print_list( os << '(', pos.begin(), pos.end(), []( auto c ){ return (unsigned int)c+1; } ) << ')';
 }
 
 Opt<unsigned int> nat_of( string_view const& str ) {

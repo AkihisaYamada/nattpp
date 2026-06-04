@@ -24,7 +24,7 @@ ${TGT}: ${OBJS} ${MAIN}
 	${CPP} $^ -o $@
 
 run: ${TGT}
-	./${TGT} test.ari
+	./${TGT} samples/add.ari
 
 debug: ${DEBUG_OBJS} ${DEBUG_MAIN}
 	${DEBUG_CPP} $^ -o $@

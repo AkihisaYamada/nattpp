@@ -186,10 +186,10 @@ public:
 		}
 		return {};
 	}
-	Opt<unsigned int> reads_nat( unsigned int max ) {
+	Opt<unsigned int> reads_nat( std::function<bool(unsigned int)> const& test ) {
 		if( auto n = reads_nat() ) {
-			if( *n <= max ) return n;
-			throw _err("#out-of-bound");
+			if( !test(*n) ) throw _err("#invalid-value",std::to_string(*n));
+			return n;
 		}
 	}
 	void read_sym( char const* str ) {
@@ -202,10 +202,10 @@ public:
 		if( !opt ) throw _err("#missing-number");
 		return *opt;
 	}
-	unsigned int read_nat( unsigned int max ) {
-		auto opt = reads_nat(max);
-		if( !opt ) throw _err("#missing-number");
-		return *opt;
+	unsigned int read_nat( std::function<bool(unsigned int)> const& test ) {
+		auto ret = read_nat();
+		if( !test(ret) ) throw _err("#invalid-value",std::to_string(ret));
+		return ret;
 	}
 	int read_int() {
 		return std::stoi(read_sym());

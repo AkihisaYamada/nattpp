@@ -69,9 +69,7 @@ Problem::Problem( istream& is ) {
 						weight = {i};
 					} else if( *key == ":index" ) {
 						if( index ) throw Error{"#duplicate-index"};
-						int i = eis.read_int();
-						if( i < 1 || systems.size() < i )
-							throw Error{"#index-out-of-range",to_string(i)};
+						int i = eis.read_nat([&](auto n){ return n < systems.size(); });
 						index = {i};
 					} else {
 						throw Error{"#unknown-key",*key};

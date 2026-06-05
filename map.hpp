@@ -9,7 +9,7 @@ class Map : std::map<K,T,std::less<>> {
 	typedef std::map<K,T,std::less<>> M;
 public:
 	using M::value_type, M::iterator, M::const_iterator;
-	using M::map, M::begin, M::end, M::size;
+	using M::map, M::begin, M::end, M::size, M::empty, M::erase;
 	/**
 	 * @brief emplaces a key-value pair.
 	 * @return a reference to existing value if the key already exists

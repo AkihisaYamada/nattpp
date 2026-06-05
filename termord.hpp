@@ -1,13 +1,8 @@
-#ifndef TERMINATION_HPP_
-#define TERMINATION_HPP_
+#ifndef TERMORD_HPP_
+#define TERMORD_HPP_
 
 #include<list>
-#include"trs.hpp"
-#include"poly.hpp"
-
-class TrsAnnotator {
-	
-};
+#include"smt.hpp"
 
 struct TermOrder {
 	virtual Smt::PreExp operator()( Exp const& l, Exp const& r ) = 0;
@@ -80,21 +75,10 @@ public:
 	}
 };
 
-class RuleRemover : public TermOrder {
+class TermOrderHolder : public TermOrder {
 	std::unique_ptr<TermOrder> _ptr;
-protected:
-	Trs::Rules& rules;
-	std::set<size_t>& used;
-	std::vector<std::pair<Smt::PostExp,Smt::PostExp>> ords;
-	Smt::Solver& solver;
 public:
-	RuleRemover(
-		std::unique_ptr<TermOrder>&& ptr,
-		Trs::Rules& rules,
-		std::set<size_t>& used,
-		Smt::Solver& solver
-	);
-	std::vector<size_t> remove();
+	TermOrderHolder( std::unique_ptr<TermOrder>&& ptr ) : _ptr(std::move(ptr)) {}
 	Smt::PreExp operator()( Exp const& l, Exp const& r ) override {
 		return (*_ptr)(l,r);
 	}
@@ -104,6 +88,33 @@ public:
 	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
 		return _ptr->print(os,sig);
 	}
+};
+
+class TrsOrder : public TermOrderHolder {
+	Map<size_t,std::pair<Smt::PostExp,Smt::PostExp>> _ords;
+protected:
+	Trs::Rules& rules;
+	Smt::Solver& solver;
+public:
+	TrsOrder(
+		std::unique_ptr<TermOrder>&& ptr,
+		Trs::Rules& rules,
+		Smt::Solver& solver
+	) : TermOrderHolder(std::move(ptr)), rules(rules), solver(solver) {
+		for( auto const& [i,rule] : rules ) {
+			auto const& ord = solver.expand(
+				Smt::Let( (Smt::BOOL,Smt::BOOL), (*this)(rule.first,rule.second)) ^
+				[]( Smt::PreExp const& val ){ return val; }
+			);
+			_ords.insert(i,std::pair(Smt::car(ord),Smt::cdr(ord)));
+		}
+	}
+	std::pair<Smt::PostExp,Smt::PostExp> order_rule( size_t i ) const& {
+		auto o = _ords.find(i);
+		assert(o);
+		return *o;
+	}
+	std::vector<size_t> order_some() &;
 };
 
 #endif

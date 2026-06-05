@@ -34,6 +34,7 @@ Problem::Problem( istream& is ) {
 		eis.close();// of format
 		systems = vector<Trs::Rules>( number ? *number : 1 );
 		auto tis = Trs::Reader(eis,sig);
+		size_t rule_no = 0;
 		while( eis.opens() ) {
 			if( eis.reads_sym("fun") ) {
 				string fun = eis.read_sym();
@@ -77,7 +78,8 @@ Problem::Problem( istream& is ) {
 				if( auto rank = sig.find(l.fun()) ) {
 					rank->defined = true;
 				}
-				systems[ index ? *index-1 : 0 ].emplace_back( l, r, weight ? *weight : 1 );
+				rule_no++;
+				systems[ index ? *index-1 : 0 ].insert( rule_no, Trs::Rule(l, r, weight ? *weight : 1) );
 			} else {
 				throw Error{"#unknown-command",eis.read_exp()};
 			};
@@ -90,7 +92,6 @@ Problem::Problem( istream& is ) {
 }
 
 ostream& Problem::print( ostream& os ) const {
-	int ruleno = 0;
 	os << "(problem";
 	switch( mode ) {
 		case SN: os << " termination"; break;
@@ -99,21 +100,19 @@ ostream& Problem::print( ostream& os ) const {
 	}
 	os << flush;
 	if( systems.empty() ) return os;
-	for( auto const& rule : systems[0] ) {
-		ruleno++;
+	for( auto const& [n,rule] : systems[0] ) {
 		os << "\n  (rule ";
 		rule.print_contents(os);
-		os << " :number " << ruleno << ')' << flush;
+		os << " :number " << n << ')' << flush;
 	}
 	int sysno = 1;
 	while( sysno < systems.size() ) {
 		auto const& rules = systems[sysno];
 		sysno++;
-		for( auto const& rule : rules ) {
-			ruleno++;
+		for( auto const& [n,rule] : rules ) {
 			os << "\n  (rule ";
 			rule.print_contents(os);
-			os << " :number" << ruleno << " :index " << sysno << ')' << flush;
+			os << " :number" << n << " :index " << sysno << ')' << flush;
 		}
 	}
 	return os << ')';

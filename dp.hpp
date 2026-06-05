@@ -10,9 +10,7 @@ public:
 		std::set<Pos> deps;
 		Rule( Trs::Rule const& rule, Trs::Sig const& sig );
 	};
-	struct Rules : std::vector<Rule> {
-		using std::vector<Rule>::vector;
-	};
+	struct Rules : Map<size_t,Rule> {};
 };
 
 std::ostream& operator<<( std::ostream& os, Dp::Rule const& rule );

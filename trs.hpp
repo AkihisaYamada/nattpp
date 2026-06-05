@@ -24,8 +24,7 @@ public:
 		Rule( Exp const& l, Exp const& r, int weight ) : std::pair<Exp,Exp>(l,r), weight(weight) {}
 		std::ostream& print_contents( std::ostream& os ) const;
 	};
-	struct Rules : std::vector<Rule> {
-		using std::vector<Rule>::vector;
+	struct Rules : Map<size_t,Rule> {
 	};
 };
 
@@ -33,7 +32,7 @@ inline std::ostream& operator<<( std::ostream& os, Trs::Rule const& rule ) {
 	return rule.print_contents( os << "(rule " ) << ')';
 }
 inline std::ostream& operator<<( std::ostream& os, Trs::Rules const& rules ) {
-	for( auto const& rule : rules ) {
+	for( auto const& [n,rule] : rules ) {
 		os << rule << std::endl;
 	}
 	return os;

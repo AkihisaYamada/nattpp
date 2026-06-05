@@ -29,8 +29,8 @@ ostream& operator<<( ostream& os, Dp::Rule const& rule ) {
 
 ostream& operator<<( ostream& os, Dp::Rules const& rules ) {
 	os << "(dp";
-	for( auto const& rule : rules ) {
-		os << "\n  " << rule << flush;
+	for( auto const& [i,rule] : rules ) {
+		os << "\n  " << rule << " :number " << i << flush;
 	}
 	return os << ')';
 }

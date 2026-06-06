@@ -4,13 +4,14 @@
 #include<list>
 #include"smt.hpp"
 
-struct TermOrder {
-	virtual Smt::PreExp operator()( Exp const& l, Exp const& r ) = 0;
+struct Printable {
 	virtual std::ostream& print_name( std::ostream& os ) = 0;
 	virtual std::ostream& print( std::ostream& os, Trs::Sig const& sig ) = 0;
 };
-
-struct TrivOrder : TermOrder {
+struct TermOrderInterface : Printable {
+	virtual Smt::PreExp operator()( Exp const& l, Exp const& r ) = 0;
+};
+struct TrivOrder : TermOrderInterface {
 	Smt::PreExp operator()( Exp const& l, Exp const& r ) override {
 		return (Smt::TRUE,Smt::FALSE);
 	};
@@ -22,8 +23,58 @@ struct TrivOrder : TermOrder {
 	}
 };
 
+class TermOrder : public TermOrderInterface {
+	std::unique_ptr<TermOrderInterface> _ptr;
+public:
+	template<typename T> requires std::is_base_of_v<TermOrderInterface,T>
+	TermOrder( T&& orig ) : _ptr(std::make_unique<T>(std::move(orig))) {}
+	Smt::PreExp operator()( Exp const& l, Exp const& r ) override {
+		return (*_ptr)(l,r);
+	}
+	std::ostream& print_name( std::ostream& os ) override {
+		return _ptr->print_name(os);
+	}
+	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
+		return _ptr->print(os,sig);
+	}
+};
+
+struct TrsOrderInterface : Printable {
+protected:
+	virtual Trs::Rules const& rules() = 0;
+	virtual Smt::Solver& solver() = 0;
+public:
+	virtual std::pair<Smt::PostExp,Smt::PostExp> order_rule( size_t i ) const& = 0;
+	std::vector<size_t> order_some() &;
+	friend class TrsOrder;
+};
+
+struct TrsOrder : TrsOrderInterface {
+private:
+	std::unique_ptr<TrsOrderInterface> _ptr;
+protected:
+	Trs::Rules const& rules() override { return _ptr->rules(); };
+	Smt::Solver& solver() override {return _ptr->solver(); };
+public:
+	template<typename T> requires std::is_base_of_v<TrsOrderInterface,T>
+	TrsOrder( T&& orig ) : _ptr(std::make_unique<T>(std::move(orig))) {}
+	std::pair<Smt::PostExp,Smt::PostExp> order_rule( size_t i ) const& {
+		return _ptr->order_rule(i);
+	}
+	std::ostream& print_name( std::ostream& os ) override {
+		return _ptr->print_name(os);
+	}
+	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
+		return _ptr->print(os,sig);
+	}
+};
+
+struct TrsPosOrderInterface : TrsOrderInterface {
+	virtual std::pair<Smt::PostExp,Smt::PostExp> order_rule( size_t i, Pos const& l, Pos const& r ) const& = 0;
+};
+
 template<typename A>
-class DerivedTermOrder : public TermOrder {
+class DerivedTermOrder : public TermOrderInterface {
 	Smt::Solver& solver;
 	DerivedTermOrder( DerivedTermOrder const& ) = delete;
 public:
@@ -54,14 +105,14 @@ public:
 	}
 };
 
-class PathOrder : public TermOrder {
+class PathOrder : public TermOrderInterface {
 	struct SigInfo {
 		Smt::PostExp prec;
 	};
 	Map<std::string,SigInfo> _map;
 public:
-	TermOrder& weight;
-	PathOrder( Trs::Sig const& sig, TermOrder& weight, Smt::Solver& solver ) : weight(weight) {
+	TermOrderInterface& weight;
+	PathOrder( Trs::Sig const& sig, TermOrderInterface& weight, Smt::Solver& solver ) : weight(weight) {
 		for( auto it1 = sig.begin(); it1 != sig.end(); ) {
 			auto const& [fun1,rank1] = *it1;
 			for( auto it2 = sig.begin(); it2 != it1; it2++ ) {
@@ -75,35 +126,23 @@ public:
 	}
 };
 
-class TermOrderHolder : public TermOrder {
-	std::unique_ptr<TermOrder> _ptr;
-public:
-	TermOrderHolder( std::unique_ptr<TermOrder>&& ptr ) : _ptr(std::move(ptr)) {}
-	Smt::PreExp operator()( Exp const& l, Exp const& r ) override {
-		return (*_ptr)(l,r);
-	}
-	std::ostream& print_name( std::ostream& os ) override {
-		return _ptr->print_name(os);
-	}
-	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
-		return _ptr->print(os,sig);
-	}
-};
-
-class TrsOrder : public TermOrderHolder {
+struct TrsOrderOfTermOrder : TrsOrderInterface {
 	Map<size_t,std::pair<Smt::PostExp,Smt::PostExp>> _ords;
+	Trs::Rules& _rules;
+	Smt::Solver& _solver;
+	TermOrder _term_order;
 protected:
-	Trs::Rules& rules;
-	Smt::Solver& solver;
+	Trs::Rules const& rules() { return _rules; };
+	Smt::Solver& solver() { return _solver; };
 public:
-	TrsOrder(
-		std::unique_ptr<TermOrder>&& ptr,
+	TrsOrderOfTermOrder(
+		TermOrder&& org,
 		Trs::Rules& rules,
 		Smt::Solver& solver
-	) : TermOrderHolder(std::move(ptr)), rules(rules), solver(solver) {
+	) : _term_order(std::move(org)), _rules(rules), _solver(solver) {
 		for( auto const& [i,rule] : rules ) {
 			auto const& ord = solver.expand(
-				Smt::Let( (Smt::BOOL,Smt::BOOL), (*this)(rule.first,rule.second)) ^
+				Smt::Let( (Smt::BOOL,Smt::BOOL), _term_order(rule.first,rule.second)) ^
 				[]( Smt::PreExp const& val ){ return val; }
 			);
 			_ords.insert(i,std::pair(Smt::car(ord),Smt::cdr(ord)));
@@ -114,7 +153,12 @@ public:
 		assert(o);
 		return *o;
 	}
-	std::vector<size_t> order_some() &;
+	std::ostream& print_name( std::ostream& os ) override {
+		return _term_order.print_name(os);
+	}
+	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
+		return _term_order.print(os,sig);
+	}
 };
 
 #endif

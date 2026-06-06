@@ -8,7 +8,7 @@ class Trs {
 	/** @brief No object in this class */
 	Trs() = delete;
 public:
-	class Exp : public ::Exp {
+	class Term : public ::Exp {
 		friend Trs;
 		friend class Srs;
 		using ::Exp::Exp;// constructors are private
@@ -19,9 +19,9 @@ public:
 	};
 	using Sig = Map<std::string,Rank>;
 	class Reader;
-	struct Rule : std::pair<Exp,Exp> {
+	struct Rule : std::pair<Term,Term> {
 		int weight;
-		Rule( Exp const& l, Exp const& r, int weight ) : std::pair<Exp,Exp>(l,r), weight(weight) {}
+		Rule( Term const& l, Term const& r, int weight ) : std::pair<Term,Term>(l,r), weight(weight) {}
 		std::ostream& print_contents( std::ostream& os ) const;
 	};
 	struct Rules : Map<size_t,Rule> {
@@ -50,8 +50,8 @@ public:
 		using ::Error::Error;
 	};
 	Reader( ::Reader& reader, Sig const& sig ) : _reader(reader), _sig(sig) {}
-	Opt<Exp> reads();
-	Exp read() {
+	Opt<Term> reads();
+	Term read() {
 		auto t = reads();
 		if( !t ) {
 			throw Error("#missing-term");

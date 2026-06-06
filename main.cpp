@@ -44,10 +44,11 @@ int main( int argc, char* argv[] ) {
 		cout << p << endl;
 		auto solver = Smt::Z3(Smt::QF_NIA, ptee ? Opt<ostream&>{*ptee} : Opt<ostream&>{} );
 		vector<TrsOrder> rule_removers;
-		rule_removers.emplace_back(
-			make_unique<DerivedTermOrder<Poly>>(p.sig,Poly::Template::MONO_SUM,solver,Smt::INT),
-			p.systems[0],
-			solver
+		rule_removers.push_back(
+			TrsOrderOfTermOrder(DerivedTermOrder<Poly>(p.sig,Poly::Template::MONO_SUM,solver,Smt::INT),
+				p.systems[0],
+				solver
+			)
 		);
 		auto rule_remove = [&](){
 			for( auto& proc : rule_removers ) {

@@ -10,13 +10,13 @@ ostream& Trs::Rule::print_contents( ostream& os ) const {
 	return os;
 }
 
-Opt<Trs::Exp> Trs::Reader::reads() {
+Opt<Trs::Term> Trs::Reader::reads() {
 	if( auto sym = _reader.reads_sym() ) {
 		if( auto info = _sig.find(*sym) ) {
 			if( info->arity != 0 ) {
 				throw Error{"#unapplied-fun",std::move(*sym)};
 			}
-			return Exp{*sym};
+			return Term{*sym};
 		}
 		return *sym;
 	}
@@ -33,7 +33,7 @@ Opt<Trs::Exp> Trs::Reader::reads() {
 		if( arity == 0 ) {
 			throw Error{"#applied-const",*fun};
 		}
-		Exp ret = *fun;
+		Term ret = *fun;
 		for( unsigned char n = 0; n < arity; n++ ) {
 			auto const& arg = reads();
 			if( !arg ) {

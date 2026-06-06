@@ -78,6 +78,7 @@ int main( int argc, char* argv[] ) {
 			drules.insert(i,Dp::Rule(rule,p.sig));
 		}
 		cout << drules << endl;
+		vector<TrsPosOrder> dep_removers;
 		cout << "failed" << endl;
 		exit(-1);
 	} catch( Trs::Reader::Error const& e ) {

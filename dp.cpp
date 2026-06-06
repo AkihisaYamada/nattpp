@@ -6,26 +6,26 @@ using namespace std;
 
 static void collect_dps(
 	Trs::Sig const& sig, size_t org, Trs::Term const& l, Trs::Term const& r,
-	Map<size_t,Dp>& dps, Pos& rpos, size_t& dp_ind
+	Map<size_t,Dp>& dps, Pos& rpos, size_t depth, size_t& dp_ind
 ) {
 	if( auto rank = sig.find(r.fun()) )
 	if( rank->defined ) {
 		dps.insert(dp_ind,Dp{l,r,org,rpos});
 		dp_ind++;
 	}
-	auto& i = rpos.emplace_back(0);
+	rpos.emplace_back(0);
 	for( auto const& a : r.args() ) {
-		collect_dps(sig,org,l,a,dps,rpos,dp_ind);
-		i++;
+		collect_dps(sig,org,l,a,dps,rpos,depth+1,dp_ind);
+		rpos[depth]++;
 	}
 	rpos.pop_back();
 }
-Map<size_t,Dp> make_dps( Trs::Sig const& sig, Trs::Rules const& rules ) {
-	Map<size_t,Dp> ret;
+Dps make_dps( Trs::Sig const& sig, Trs::Rules const& rules ) {
+	Dps ret;
 	Pos pos;
 	size_t dp_ind = 0;
 	for( auto [org,rule] : rules ) {
-		collect_dps(sig,org,rule.first,rule.second,ret,pos,dp_ind);
+		collect_dps(sig,org,rule.first,rule.second,ret,pos,0,dp_ind);
 	}
 	return std::move(ret);
 }
@@ -34,8 +34,8 @@ ostream& operator<<( ostream& os, Dp const& dp ) {
 	return os << "(dp " << dp.first << ' ' << dp.second << " :origin " << dp.org << " :r-pos " << dp.rpos << ')';
 }
 
-ostream& operator<<( ostream& os, Map<size_t,Dp> const& rules ) {
-	os << "(dp";
+ostream& operator<<( ostream& os, Dps const& rules ) {
+	os << "(make-dps";
 	for( auto const& [i,rule] : rules ) {
 		os << "\n  " << rule << " :number " << i << flush;
 	}

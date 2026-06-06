@@ -4,7 +4,6 @@ using namespace std;
 
 
 std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules ) {
-	Smt::PostExp conj = Smt::TRUE;
 	Smt::PostExp disj = Smt::FALSE;
 	vector<pair<size_t,Smt::PostExp>> gts;
 	auto& solver = order.solver();
@@ -14,11 +13,10 @@ std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules ) 
 	solver.push();
 	for( auto [i,rule] : rules ) {
 		auto const& [ge,gt] = order.order_rule(i);
-		conj.conj_eq(ge);
+		solver.ass(ge);
 		disj.disj_eq(gt);
 		gts.emplace_back(i,gt);
 	}
-	solver.ass(conj);
 	solver.ass(disj);
 	solver.check_sat();
 	std::vector<size_t> ret;

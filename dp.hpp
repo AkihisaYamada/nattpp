@@ -10,10 +10,12 @@ struct Dp {
 	Pos rpos;
 };
 
-Map<size_t,Dp> make_dps( Trs::Sig const& sig, Trs::Rules const& rules );
+using Dps = Map<size_t,Dp>;
+
+Dps make_dps( Trs::Sig const& sig, Trs::Rules const& rules );
 
 std::ostream& operator<<( std::ostream& os, Dp const& dp );
 
-std::ostream& operator<<( std::ostream& os, Map<size_t,Dp> const& dps );
+std::ostream& operator<<( std::ostream& os, Dps const& dps );
 
 #endif

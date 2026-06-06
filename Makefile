@@ -4,7 +4,7 @@ TEST_SRC=test.cpp
 TGT=natt++
 
 CPP=g++ -O3 -std=c++20 -Wfatal-errors
-DEBUG_CPP=g++ -O0 -ggdb3 -std=c++20 -Wfatal-errors
+DEBUG_CPP=g++ -O0 -ggdb3 -std=c++20 -Wfatal-errors -fsanitize=address
 
 DEPEND=_depend
 BUILD=_build

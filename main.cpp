@@ -42,18 +42,18 @@ int main( int argc, char* argv[] ) {
 		if( pis == nullptr ) pis = &cin;
 		auto p = Problem(*pis);
 		cout << p << endl;
-		auto solver = Smt::Z3(Smt::QF_NIA, ptee ? Opt<ostream&>{*ptee} : Opt<ostream&>{} );
-		vector<TrsOrder> rule_removers;
+		auto otee = ptee ? Opt<ostream&>{*ptee} : Opt<ostream&>{};
+		vector<unique_ptr<TrsOrder>> rule_removers;
 		rule_removers.push_back(
-			TrsOrderOfTermOrder(DerivedTermOrder<Poly>(p.sig,Poly::Template::MONO_SUM,solver,Smt::INT),
-				p.systems[0],
-				solver
+			make_unique<DerivedTrsOrder<Poly>>(
+				p.sig, p.systems[0], Poly::Template::MONO_SUM,
+				Smt::Z3(Smt::QF_NIA,otee), Smt::INT
 			)
 		);
 		auto rule_remove = [&](){
 			for( auto& proc : rule_removers ) {
-				proc.print_name(cerr << "; trying ") << "... " << endl;
-				auto const& rem = proc.order_some();
+				proc->print_name(cerr << "; trying ") << "... " << endl;
+				auto const& rem = order_some_rule(*proc,p.systems[0]);
 				if( rem.empty() ) {
 					continue;
 				}
@@ -62,7 +62,7 @@ int main( int argc, char* argv[] ) {
 					cout << ' ' << i;
 					p.systems[0].erase(i);
 				}
-				proc.print( cout << "\n  :order ", p.sig ) << ")" << endl;
+				proc->print( cout << "\n  :order ", p.sig ) << ")" << endl;
 				return true;
 			}
 			return false;
@@ -75,7 +75,10 @@ int main( int argc, char* argv[] ) {
 		}
 		Map<size_t,Dp> dps = make_dps(p.sig,p.systems[0]);
 		cout << dps << endl;
-		vector<TrsPosOrder> dep_removers;
+		vector<unique_ptr<TrsPosOrder>> dp_removers;
+		dp_removers.push_back(
+			make_unique<DerivedTrsPosOrder<Poly>>(p.sig, p.systems[0], Poly::Template::SUM, Smt::Z3(Smt::QF_NIA,otee), Smt::INT )
+		);
 		cout << "failed" << endl;
 		exit(-1);
 	} catch( Trs::Reader::Error const& e ) {

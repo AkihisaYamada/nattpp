@@ -259,35 +259,35 @@ Algebra::Intp<string,Smt::PreExp> const Smt::ALGEBRA = []( string const& fun, ve
 	return Smt::PreExp(fun,std::move(args));
 };
 
-Smt::Solver::Solver( Proc& proc, Logic const& logic ) :
-	_status(UNKNOWN), _proc(proc), _reader(proc.from), _var_count(0), logic(logic)
+Smt::Solver::Solver( unique_ptr<Proc>&& proc, Logic const& logic ) :
+	_status(UNKNOWN), _proc(std::move(proc)), _reader(_proc->from), _var_count(0), logic(logic)
 {
-	_proc.to << "(set-logic " << logic.str << ')' << endl;
+	_proc->to << "(set-logic " << logic.str << ')' << endl;
 }
 
 Smt::Solver& Smt::Solver::ass( PostExp const& e ) & {
 	if( _status != UNSAT ) {
-		_proc.to << "(assert " << e << ')' << endl;
+		_proc->to << "(assert " << e << ')' << endl;
 		_status = UNKNOWN;
 	}
 	return *this;
 }
 
 Smt::Solver& Smt::Solver::push() & {
-	_proc.to << "(push)" << endl;
+	_proc->to << "(push)" << endl;
 	_status = UNKNOWN;
 	return *this;
 }
 
 Smt::Solver& Smt::Solver::pop() & {
-	_proc.to << "(pop)" << endl;
+	_proc->to << "(pop)" << endl;
 	_status = UNKNOWN;
 	return *this;
 }
 
 Smt::Solver& Smt::Solver::check_sat() & {
 	if( _status == UNKNOWN ) {
-		_proc.to << "(check-sat)" << endl;
+		_proc->to << "(check-sat)" << endl;
 		_status = SOLVING;
 	}
 	return *this;
@@ -310,7 +310,7 @@ Smt::Solver& Smt::Solver::result() & {
 }
 
 Smt::PostExp Smt::Solver::declare_const( string const& name, BaseSort const& sort ) & {
-	_proc.to << "(declare-const " << name << ' ' << sort.name << ')' << endl;
+	_proc->to << "(declare-const " << name << ' ' << sort.name << ')' << endl;
 	return Term<Fun>(Fun(in_place_type<string>,name));
 }
 
@@ -320,11 +320,11 @@ Smt::PostExp Smt::Solver::define_fun(
 	BaseSort const& sort,
 	PostExp const& body
 ) & {
-	_proc.to << "(define-fun " << name << " (";
+	_proc->to << "(define-fun " << name << " (";
 	for( auto [var,psort] : params ) {
-		_proc.to << '(' << var << ' ' << psort << ") ";
+		_proc->to << '(' << var << ' ' << psort << ") ";
 	}
-	_proc.to << ") " << sort.name << ' ' << body << ')' << endl;
+	_proc->to << ") " << sort.name << ' ' << body << ')' << endl;
 	return Term<Fun>(Fun(in_place_type<string>,name));
 }
 
@@ -352,7 +352,7 @@ Smt::PostExp Smt::Solver::get_value( PostExp const& e ) & {
 	if( _status != SAT ) {
 		throw Error("#smt:get_value");
 	}
-	_proc.to << "(get-value (" << e << "))" << endl;
+	_proc->to << "(get-value (" << e << "))" << endl;
 	_reader.open();
 	_reader.open();
 	auto re = _reader.read_post_exp();

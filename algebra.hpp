@@ -32,7 +32,7 @@ public:
 		/**
 		 * @brief Annotates a term with its evaluation
 		 */
-		ATerm annotate( Term<F> const& e ) {
+		ATerm annotate( Term<F> const& e ) const& {
 			std::vector<ATerm> aargs;
 			std::vector<T> vargs;
 			for( auto& arg : e.args() ) {

@@ -121,14 +121,14 @@ static Smt::PostExp order_sub( Poly const& p1, Poly const& p2 ) {
 Smt::PreExp Poly::ge( Poly const& p2 ) const {
 	return order_sub(*this,p2) && Smt::ge((*this)[{}],p2[{}]);
 }
-Smt::PreExp Poly::order( Poly const& p1, Poly const& p2, Smt::Solver& solver ) {
+pair<Smt::PostExp,Smt::PostExp> Poly::compare( Poly const& p1, Poly const& p2, Smt::Solver& solver ) {
 	auto const& val = solver.let(Smt::BOOL,order_sub(p1,p2));
-	auto const& c1 = p1[{}];
-	auto const& c2 = p2[{}];
-	return ( val && Smt::ge(c1,c2), val && Smt::gt(c1,c2) );
+	auto const& c1 = solver.expand(p1[{}]);
+	auto const& c2 = solver.expand(p2[{}]);
+	return { val && Smt::ge(c1,c2), val && Smt::gt(c1,c2) };
 }
 
-Poly& Poly::expand( Smt::Solver& solver, Smt::BaseSort const& sort ) {
+Poly& Poly::expand( Smt::Solver& solver, Smt::Sort const& sort ) {
 	for( auto& [vars,coeff] : _map ) {
 		if( !solver.logic.linear || vars.vars().empty() ) {
 			coeff = solver.let(sort,coeff);

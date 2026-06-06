@@ -234,14 +234,16 @@ public:
 	class Solver {
 		friend Smt;
 		enum { UNKNOWN, SOLVING, SAT, UNSAT } _status;
-		Proc& _proc;
+		std::unique_ptr<Proc> _proc;
 		Reader _reader;
 		size_t _var_count;
-		Solver( Proc& proc, Logic const& logic );
+		Solver( std::unique_ptr<Proc>&& proc, Logic const& logic );
 		Solver( Solver const& other ) = delete;
 		Solver& operator=( Solver const& other ) = delete;
 		std::string _make_fresh() &;
 	public:
+		Solver( Solver&& other ) = default;
+		Solver& operator=( Solver&& other ) = default;
 		const Logic logic;
 		PostExp declare_const( std::string const& name, BaseSort const& sort ) &;
 		PostExp declare_fresh( BaseSort const& sort ) {
@@ -292,9 +294,10 @@ public:
 		}
 		PostExp get_value( PostExp const& e ) &;
 	};
-	class Z3 : private Proc, public Solver {
+	class Z3 : public Solver {
 	public:
-		Z3( Logic const& logic, Opt<std::ostream&> tee = {} ) : Proc("z3",{"z3","-smt2","-in"},tee), Solver((Proc&)*this,logic) {}
+		Z3( Logic const& logic, Opt<std::ostream&> tee = {} ) :
+			Solver( std::make_unique<Proc>("z3",std::vector<std::string>{"z3","-smt2","-in"},tee), logic ) {}
 	};
 	static int test();
 };

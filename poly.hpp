@@ -90,7 +90,7 @@ public:
 	 * @param solver 
 	 * @return Poly& 
 	 */
-	Poly& expand( Smt::Solver& solver, Smt::BaseSort const& sort );
+	Poly& expand( Smt::Solver& solver, Smt::Sort const& sort );
 	/** evaluate SMT coefficients */
 	Poly eval_coeffs( Smt::Solver& solver ) const;
 	Poly operator+( Poly const& p2 ) const &;
@@ -102,7 +102,7 @@ public:
 	}
 	Smt::PreExp ge( Poly const& p2 ) const;
 	static Poly ite( Smt::PreExp const& c, Poly const& p1, Poly const& p2 );
-	static Smt::PreExp order( Poly const& p1, Poly const& p2, Smt::Solver& solver );
+	static std::pair<Smt::PostExp,Smt::PostExp> compare( Poly const& p1, Poly const& p2, Smt::Solver& solver );
 	static Poly sum( std::vector<Poly> const& args ) {
 		Poly ret;
 		for( auto const& arg : args ) {
@@ -120,14 +120,14 @@ public:
 	static int test();
 
 	template<typename F>
-	static Algebra::Intp<F,Poly> expand( Algebra::Intp<F,Poly> && intp, Smt::Solver& solver, Smt::BaseSort const& sort ) {
+	static Algebra::Intp<F,Poly> expand( Algebra::Intp<F,Poly> && intp, Smt::Solver& solver, Smt::Sort const& sort ) {
 		return [intp=std::move(intp),&solver,sort]( F const& f, std::vector<Poly> && args ) {
 			return intp(f,std::move(args)).expand(solver,sort);
 		};
 	}
 
 	template<typename F>
-	static Algebra::Intp<F,Poly> expand( Algebra::Intp<F,Poly> const& intp, Smt::Solver& solver, Smt::BaseSort const& sort ) {
+	static Algebra::Intp<F,Poly> expand( Algebra::Intp<F,Poly> const& intp, Smt::Solver& solver, Smt::Sort const& sort ) {
 		return [&intp,&solver,sort]( F const& f, std::vector<Poly> && args ) {
 			return intp(f,std::move(args)).expand(solver,sort);
 		};

@@ -78,8 +78,8 @@ Problem::Problem( istream& is ) {
 				if( auto rank = sig.find(l.fun()) ) {
 					rank->defined = true;
 				}
-				rule_no++;
 				systems[ index ? *index-1 : 0 ].insert( rule_no, Trs::Rule(l, r, weight ? *weight : 1) );
+				rule_no++;
 			} else {
 				throw Error{"#unknown-command",eis.read_exp()};
 			};

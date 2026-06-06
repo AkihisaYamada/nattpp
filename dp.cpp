@@ -4,30 +4,37 @@
 
 using namespace std;
 
-static void take_deps( Trs::Sig const& sig, Exp const& r, set<Pos>& deps, Pos& pos ) {
+static void collect_dps(
+	Trs::Sig const& sig, size_t org, Trs::Term const& l, Trs::Term const& r,
+	Map<size_t,Dp>& dps, Pos& rpos, size_t& dp_ind
+) {
 	if( auto rank = sig.find(r.fun()) )
 	if( rank->defined ) {
-		deps.insert(pos);
+		dps.insert(dp_ind,Dp{l,r,org,rpos});
+		dp_ind++;
 	}
-	auto& i = pos.emplace_back(0);
+	auto& i = rpos.emplace_back(0);
 	for( auto const& a : r.args() ) {
-		take_deps(sig,a,deps,pos);
+		collect_dps(sig,org,l,a,dps,rpos,dp_ind);
 		i++;
 	}
-	pos.pop_back();
+	rpos.pop_back();
 }
-Dp::Rule::Rule( Trs::Rule const& rule, Trs::Sig const& sig ) : Trs::Rule(rule) {
+Map<size_t,Dp> make_dps( Trs::Sig const& sig, Trs::Rules const& rules ) {
+	Map<size_t,Dp> ret;
 	Pos pos;
-	take_deps(sig,rule.second,deps,pos);
+	size_t dp_ind = 0;
+	for( auto [org,rule] : rules ) {
+		collect_dps(sig,org,rule.first,rule.second,ret,pos,dp_ind);
+	}
+	return std::move(ret);
 }
 
-ostream& operator<<( ostream& os, Dp::Rule const& rule ) {
-	rule.print_contents( os << "(rule " ) << " :depends (";
-	print_list(os,rule.deps.begin(),rule.deps.end(),[]( Pos const& pos ){ return pos; });
-	return os << "))";
+ostream& operator<<( ostream& os, Dp const& dp ) {
+	return os << "(dp " << dp.first << ' ' << dp.second << " :origin " << dp.org << " :r-pos " << dp.rpos << ')';
 }
 
-ostream& operator<<( ostream& os, Dp::Rules const& rules ) {
+ostream& operator<<( ostream& os, Map<size_t,Dp> const& rules ) {
 	os << "(dp";
 	for( auto const& [i,rule] : rules ) {
 		os << "\n  " << rule << " :number " << i << flush;

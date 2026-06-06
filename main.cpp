@@ -73,11 +73,8 @@ int main( int argc, char* argv[] ) {
 				exit(0);
 			}
 		}
-		Dp::Rules drules;
-		for( auto [i,rule] : p.systems[0] ) {
-			drules.insert(i,Dp::Rule(rule,p.sig));
-		}
-		cout << drules << endl;
+		Map<size_t,Dp> dps = make_dps(p.sig,p.systems[0]);
+		cout << dps << endl;
 		vector<TrsPosOrder> dep_removers;
 		cout << "failed" << endl;
 		exit(-1);

@@ -3,18 +3,17 @@
 
 #include"problem.hpp"
 
-class Dp {
-	Dp() = delete;
-public:
-	struct Rule : Trs::Rule {
-		std::set<Pos> deps;
-		Rule( Trs::Rule const& rule, Trs::Sig const& sig );
-	};
-	struct Rules : Map<size_t,Rule> {};
+struct Dp {
+	Trs::Term first;
+	Trs::Term second;
+	size_t org;
+	Pos rpos;
 };
 
-std::ostream& operator<<( std::ostream& os, Dp::Rule const& rule );
+Map<size_t,Dp> make_dps( Trs::Sig const& sig, Trs::Rules const& rules );
 
-std::ostream& operator<<( std::ostream& os, Dp::Rules const& rules );
+std::ostream& operator<<( std::ostream& os, Dp const& dp );
+
+std::ostream& operator<<( std::ostream& os, Map<size_t,Dp> const& dps );
 
 #endif

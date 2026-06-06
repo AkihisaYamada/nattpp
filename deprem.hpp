@@ -5,10 +5,10 @@
 #include "dp.hpp"
 
 class DepRemover {
-	TermOrder _term_order;
-	Dp::Rules& _rules;
+	TrsPosOrder _term_order;
+	Map<size_t,Dp>& _rules;
 public:
-	DepRemover( TermOrder&& org, Dp::Rules& rules ) :
+	DepRemover( TrsPosOrder&& org, Map<size_t,Dp>& rules ) :
 		_term_order(std::move(org)), _rules(rules)
 	{
 		

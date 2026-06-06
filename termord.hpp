@@ -23,7 +23,8 @@ struct TrivOrder : TermOrderInterface {
 	}
 };
 
-class TermOrder : public TermOrderInterface {
+struct TermOrder : TermOrderInterface {
+private:
 	std::unique_ptr<TermOrderInterface> _ptr;
 public:
 	template<typename T> requires std::is_base_of_v<TermOrderInterface,T>
@@ -40,10 +41,8 @@ public:
 };
 
 struct TrsOrderInterface : Printable {
-protected:
 	virtual Trs::Rules const& rules() = 0;
 	virtual Smt::Solver& solver() = 0;
-public:
 	virtual std::pair<Smt::PostExp,Smt::PostExp> order_rule( size_t i ) const& = 0;
 	std::vector<size_t> order_some() &;
 	friend class TrsOrder;
@@ -52,10 +51,9 @@ public:
 struct TrsOrder : TrsOrderInterface {
 private:
 	std::unique_ptr<TrsOrderInterface> _ptr;
-protected:
+public:
 	Trs::Rules const& rules() override { return _ptr->rules(); };
 	Smt::Solver& solver() override {return _ptr->solver(); };
-public:
 	template<typename T> requires std::is_base_of_v<TrsOrderInterface,T>
 	TrsOrder( T&& orig ) : _ptr(std::make_unique<T>(std::move(orig))) {}
 	std::pair<Smt::PostExp,Smt::PostExp> order_rule( size_t i ) const& {
@@ -74,10 +72,9 @@ struct TrsOrderOfTermOrder : TrsOrderInterface {
 	Trs::Rules& _rules;
 	Smt::Solver& _solver;
 	TermOrder _term_order;
-protected:
-	Trs::Rules const& rules() { return _rules; };
-	Smt::Solver& solver() { return _solver; };
 public:
+	Trs::Rules const& rules() override { return _rules; };
+	Smt::Solver& solver() override { return _solver; };
 	TrsOrderOfTermOrder(
 		TermOrder&& org,
 		Trs::Rules& rules,
@@ -116,6 +113,8 @@ private:
 public:
 	template<typename T> requires std::is_base_of_v<TrsPosOrderInterface,T>
 	TrsPosOrder( T&& orig ) : _ptr(std::make_unique<T>(std::move(orig))) {}
+	Trs::Rules const& rules() override { return _ptr->rules(); };
+	Smt::Solver& solver() override {return _ptr->solver(); };
 	std::pair<Smt::PostExp,Smt::PostExp> order_rule( size_t i, Pos const& l, Pos const& r ) const& {
 		return _ptr->order_rule(i,l,r);
 	}

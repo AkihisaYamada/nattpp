@@ -242,7 +242,7 @@ Algebra::Template<Poly::Sig> Poly::instantiate(
 				if( auto pre = g->ref<Smt::PreExp>() ) {
 					auto post = pre->post();
 					assert(post);
-					smtprod *= *post;
+					smtprod.mul_eq(*post,solver.logic.linear);
 					continue;
 				}
 				rargs.push_back(v);

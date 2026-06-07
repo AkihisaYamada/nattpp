@@ -45,7 +45,7 @@ int main( int argc, char* argv[] ) try {
 	vector<unique_ptr<TrsOrder>> rule_removers;
 	rule_removers.push_back(
 		make_unique<DerivedTrsOrder<Poly>>(
-			p.sig, p.systems[0], Poly::Template::MONO_SUM, Smt::Z3(Smt::QF_NIA,otee), Smt::INT
+			p.sig, p.systems[0], Poly::Template::MONO_SUM, Smt::Z3(Smt::QF_LIA,otee), Smt::INT
 		)
 	);
 
@@ -75,7 +75,7 @@ int main( int argc, char* argv[] ) try {
 
 	vector<unique_ptr<TrsPosOrder>> dp_removers;
 	dp_removers.push_back(
-		make_unique<DerivedTrsPosOrder<Poly>>(p.sig, p.systems[0], Poly::Template::SUM, Smt::Z3(Smt::QF_NIA,otee), Smt::INT )
+		make_unique<DerivedTrsPosOrder<Poly>>(p.sig, p.systems[0], Poly::Template::SUM, Smt::Z3(Smt::QF_LIA,otee), Smt::INT )
 	);
 
 	// DP removal loop
@@ -83,7 +83,7 @@ int main( int argc, char* argv[] ) try {
 		if( dps.empty() ) throw true;
 	} while( [&]{
 		for( auto& proc : dp_removers ) {
-			proc->print_name(cerr << "; trying ") << "... " << endl;
+			proc->print_name( cerr << "; trying " ) << "... " << endl;
 			auto const& rem = order_some_dp(*proc,p.systems[0],dps);
 			if( rem.empty() ) {
 				continue;

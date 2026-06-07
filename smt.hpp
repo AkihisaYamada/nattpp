@@ -42,7 +42,7 @@ public:
 	};
 	static BaseSort const BOOL, INT, REAL;
 	using Fun = Sum<int,std::string>;
-	static Fun const AND, OR, NOT, ITE, ADD, MUL, EQ, GE, GT, CONS, CAR, CDR, LIST, NTH;
+	static Fun const AND, OR, NOT, IMP, ITE, ADD, MUL, EQ, GE, GT, CONS, CAR, CDR, LIST, NTH;
 	class PostExp {
 		friend Smt;
 		Term<Fun> _term;
@@ -87,18 +87,16 @@ public:
 private:
 		Opt<int&> is_int() & { return _term.fun().ref<int>(); }
 public:
-		PostExp conj( PostExp const& y ) const;
-		PostExp& conj_eq( PostExp const& y ) &;
-		PostExp disj( PostExp const& y ) const;
-		PostExp& disj_eq( PostExp const& y ) &;
+		PostExp& operator&=( PostExp const& y ) &;
+		PostExp& operator|=( PostExp const& y ) &;
+		PostExp imp( PostExp const& y ) const;
 		PostExp operator!() const;
 		PostExp& operator+=( PostExp const& y ) &;
-		PostExp& operator*=( PostExp const& y ) &;
+		PostExp& mul_eq( PostExp const&, bool linear ) &;
 		PostExp cons( PostExp const& y ) const {
 			return Term<Fun>(CONS,*this,y);
 		}
 		Exp exp() const;
-		static Opt<PostExp> of( Exp const& exp );
 	};
 	static PostExp const TRUE, FALSE;
 	static PostExp car( PostExp const& arg );
@@ -198,6 +196,9 @@ public:
 	static PreExp ite( PreExp const& i, PostExp const& t, PostExp const& e ) {
 		return PreExp(ITE,{i,t,e});
 	}
+	static PostExp mul( PostExp x, PostExp const& y, bool linear ) {
+		return x.mul_eq(y,linear);
+	}
 private:
 	struct _If2 {
 		PreExp const& i;
@@ -244,7 +245,7 @@ public:
 	public:
 		Solver( Solver&& other ) = default;
 		Solver& operator=( Solver&& other ) = default;
-		const Logic logic;
+		Logic const logic;
 		PostExp declare_const( std::string const& name, BaseSort const& sort ) &;
 		PostExp declare_fresh( BaseSort const& sort ) {
 			std::string ret = _make_fresh();
@@ -306,17 +307,14 @@ inline Smt::Sort operator,( Smt::Sort const& x, Smt::Sort const& y ) {
 	return Smt::Sort(x,y);
 }
 
-inline Smt::PostExp operator&&( Smt::PostExp const& x, Smt::PostExp const& y ) {
-	return x.conj(y);
+inline Smt::PostExp operator&&( Smt::PostExp x, Smt::PostExp const& y ) {
+	return x &= y;
 }
-inline Smt::PostExp operator||( Smt::PostExp const& x, Smt::PostExp const& y ) {
-	return x.disj(y);
+inline Smt::PostExp operator||( Smt::PostExp x, Smt::PostExp const& y ) {
+	return x |= y;
 }
 inline Smt::PostExp operator+( Smt::PostExp x, Smt::PostExp const& y ) {
 	return x += y;
-}
-inline Smt::PostExp operator*( Smt::PostExp x, Smt::PostExp const& y ) {
-	return x *= y;
 }
 inline Smt::PostExp operator,( Smt::PostExp const& x, Smt::PostExp const& y ) {
 	return x.cons(y);

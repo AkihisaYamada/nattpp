@@ -143,20 +143,25 @@ public:
 	}
 };
 
-class PathOrder : public TermOrder {
+struct PathOrder : TrsPosOrder {
 	struct SigInfo {
 		Smt::PostExp prec;
 	};
+private:
+	std::unique_ptr<TrsPosOrder> _weight;
 	Map<std::string,SigInfo> _map;
 public:
-	TermOrder& weight;
-	PathOrder( Trs::Sig const& sig, TermOrder& weight, Smt::Solver& solver ) : weight(weight) {
+	PathOrder(
+		Trs::Sig const& sig,
+		Trs::Rules const& rules,
+		std::unique_ptr<TrsPosOrder>&& weight,
+		Smt::Solver& solver
+	) : _weight(std::move(weight)) {
+		size_t sigsize = sig.size();
 		for( auto it1 = sig.begin(); it1 != sig.end(); ) {
 			auto const& [fun1,rank1] = *it1;
-			for( auto it2 = sig.begin(); it2 != it1; it2++ ) {
-				_map.insert(fun1,SigInfo{solver.declare_fresh(Smt::INT)});
-				
-			}
+			auto const& prec = solver.declare_fresh(Smt::INT);
+			_map.insert(fun1,prec);
 		}
 	}
 	std::pair<Smt::PostExp,Smt::PostExp> compare( Exp const& l, Exp const& r ) override {

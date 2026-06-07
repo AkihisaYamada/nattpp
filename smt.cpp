@@ -20,6 +20,7 @@ Smt::BaseSort const Smt::REAL = "Real";
 Smt::Fun const
 	Smt::AND = "and",
 	Smt::OR = "or",
+	Smt::IMP = "=>",
 	Smt::NOT = "not",
 	Smt::ITE = "ite",
 	Smt::ADD = "+",
@@ -90,29 +91,15 @@ string to_string( Smt::Fun const& fun ) {
 	}
 	assert(false);
 }
+
 Exp Smt::PostExp::exp() const {
 	return _term.map<string>(
 		[](Smt::Fun const& fun){
 		return to_string(fun);
 	});
 }
-Smt::PostExp Smt::PostExp::conj( Smt::PostExp const& y ) const {
-	if( *this == TRUE ) {
-		return y;
-	}
-	if( *this == FALSE ) {
-		return *this;
-	}
-	if( y == TRUE ) {
-		return *this;
-	}
-	if( y == FALSE ) {
-		return y;
-	}
-	return Term<Fun>(AND,*this,y);
-}
 
-Smt::PostExp& Smt::PostExp::conj_eq( Smt::PostExp const& arg ) & {
+Smt::PostExp& Smt::PostExp::operator&=( Smt::PostExp const& arg ) & {
 	if( *this == TRUE ) {
 		return *this = arg;
 	}
@@ -129,23 +116,7 @@ Smt::PostExp& Smt::PostExp::conj_eq( Smt::PostExp const& arg ) & {
 	return *this;
 }
 
-Smt::PostExp Smt::PostExp::disj( Smt::PostExp const& y ) const {
-	if( *this == TRUE ) {
-		return *this;
-	}
-	if( *this == FALSE ) {
-		return y;
-	}
-	if( y == TRUE ) {
-		return y;
-	}
-	if( y == FALSE ) {
-		return *this;
-	}
-	return Term<Fun>(OR,*this,y);
-}
-
-Smt::PostExp& Smt::PostExp::disj_eq( Smt::PostExp const& arg ) & {
+Smt::PostExp& Smt::PostExp::operator|=( Smt::PostExp const& arg ) & {
 	if( *this == TRUE || arg == FALSE ) {
 		return *this;
 	}
@@ -160,6 +131,25 @@ Smt::PostExp& Smt::PostExp::disj_eq( Smt::PostExp const& arg ) & {
 	}
 	_term = Term<Fun>(OR,_term,arg._term);
 	return *this;
+}
+
+Smt::PostExp Smt::PostExp::imp( Smt::PostExp const& arg ) const {
+	if( _term.fun() == NOT ) {
+		return *this || arg;
+	}
+	if( *this == TRUE || arg == FALSE ) {
+		return arg;
+	}
+	if( *this == FALSE ) {
+		return TRUE;
+	}
+	auto& fun2 = arg._term.fun();
+	auto args2 = arg._term.args();
+	if( fun2 == OR ) {
+		args2.push_back(!*this);
+		return Term<Fun>::app(OR,std::move(args2));
+	}
+	return Term<Fun>(IMP,_term,arg._term);
 }
 
 Smt::PostExp Smt::eq( PostExp const& x, PostExp const& y ) {
@@ -204,46 +194,6 @@ Opt<std::tuple<Smt::PostExp,Smt::PostExp,Smt::PostExp>> Smt::PostExp::is_ite() c
 	}
 	return {};
 }
-
-Opt<Smt::PostExp> Smt::PostExp::of( Exp const& exp ) {
-	auto& fun = exp.fun();
-	auto& args = exp.args();
-	if( fun == "+" ) {
-		PostExp ret = 0;
-		for( auto arg : args ) {
-			auto sarg = of(arg);
-			if( !sarg ) {
-				return {};
-			}
-			ret += *sarg;
-		}
-		return ret;
-	}
-	if( fun == "*" ) {
-		PostExp ret = 1;
-		for( auto arg : args ) {
-			auto sarg = of(arg);
-			if( !sarg ) {
-				return {};
-			}
-			ret *= *sarg;
-		}
-		return ret;
-	}
-	if( fun == "ite" ) {
-		if( args.size() == 3 )
-		if( auto i = of(args[0]) )
-		if( auto t = of(args[1]) )
-		if( auto e = of(args[2]) ) {
-			return ite(*i,*t,*e);
-		}
-		return {};
-	}
-	if( auto i = to_int(fun) ) {
-		return *i;
-	}
-	return {};
-};
 
 Opt<Smt::BaseSort> Smt::BaseSort::of( Exp const& exp ) {
 	if( exp == "int" ) {
@@ -413,19 +363,19 @@ Smt::PostExp& Smt::PostExp::operator+=( PostExp const& arg ) & {
 	}
 	return *this = Term<Fun>(ADD,*this,arg);
 }
-Smt::PostExp& Smt::PostExp::operator*=( PostExp const& arg ) & {
-	if( auto num = this->is_int() ) {
+Smt::PostExp& Smt::PostExp::mul_eq( Smt::PostExp const& y, bool linear ) & {
+	if( auto num = is_int() ) {
 		if( *num == 0 ) {
 			return *this;
 		}
 		if ( *num == 1 ) {
-			return *this = arg;
+			return *this = y;
 		}
-		if( auto num2 = arg.is_int() ) {
+		if( auto num2 = y.is_int() ) {
 			*num *= *num2;
 			return *this;
 		}
-	} else if( auto num2 = arg.is_int() ) {
+	} else if( auto num2 = y.is_int() ) {
 		if( *num2 == 0 ) {
 			return *this = 0;
 		}
@@ -433,7 +383,19 @@ Smt::PostExp& Smt::PostExp::operator*=( PostExp const& arg ) & {
 			return *this;
 		}
 	}
-	return *this = Term<Fun>(MUL,*this,arg);
+	if( linear ) {
+		if( auto const& ite = is_ite() ) {
+			auto const& [i,t,e] = *ite;
+			_term = Term<Fun>(ITE,i,Smt::mul(t,y,linear),Smt::mul(e,y,linear));
+			return *this;
+		}
+		if( auto const& ite = y.is_ite() ) {
+			auto const& [i,t,e] = *ite;
+			_term = Term<Fun>(ITE,i,Smt::mul(*this,t,linear),Smt::mul(*this,e,linear));
+			return *this;
+		}
+	}
+	return *this = Term<Fun>(MUL,*this,y);
 }
 
 Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
@@ -541,13 +503,13 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 				if( efun1 == ITE ) {
 					assert( eargs1.size() == 3 );
 					auto v = let(INT,earg2);//TODO
-					return ite( eargs1[0], eargs1[1] * v, eargs1[2] * v );
+					return ite( eargs1[0], Smt::mul(eargs1[1],v,logic.linear), Smt::mul(eargs1[1],v,logic.linear) );
 				}
 				auto const& eargs2 = earg2._term.args();
 				if( efun2 == ITE ) {
 					assert( eargs2.size() == 3 );
 					auto v = let(INT,earg1);//TODO
-					return ite( eargs2[0], v * eargs2[1], v * eargs2[2] );
+					return ite( eargs2[0], Smt::mul(v,eargs2[1],logic.linear), Smt::mul(v,eargs2[2],logic.linear) );
 				}
 			}
 			return Term<Fun>(MUL,earg1,earg2);
@@ -609,7 +571,7 @@ int Smt::test() try {
 	cout << "this is Smt::test()." << endl;
 	cout << 1 + PostExp("x") << endl;
 	cout << !!(PostExp(0) + []{ return PostExp("x"); }) << endl;
-	cout << ite(PostExp("p"), 3 * PostExp("x") * PostExp("y"), 0) << endl;
+	cout << ite(PostExp("p"), PostExp(3) * PostExp("x") * PostExp("y"), PostExp(0)) << endl;
 	cout << !(Smt::eq(PostExp("x"),PostExp("y")) && Smt::ge(PostExp("y"),3)) << endl;
 	auto z3 = Z3(QF_LIA,cout);
 	auto x = z3.declare_const("x","Int");

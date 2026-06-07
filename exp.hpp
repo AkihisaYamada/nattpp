@@ -69,6 +69,14 @@ public:
 	std::vector<Term> const& args() const & {
 		return _mem->second;
 	};
+	F& arg( size_t i )& {
+		assert( i < args().size() );
+		return args()[i];
+	}
+	Term const& arg( size_t i ) const& {
+		assert( i < args().size() );
+		return args()[i];
+	}
 	template<typename G>
 	Term<G> map( std::function<G(F const&)> f ) const {
 		Term<G> ret = f(fun());
@@ -88,6 +96,10 @@ public:
 	}
 	bool operator==( Term const& other ) const {
 		return _mem == other._mem;
+	}
+	Opt<F const&> unapplied() const& {
+		if( args().empty() ) return {fun()};
+		return {};
 	}
 };
 

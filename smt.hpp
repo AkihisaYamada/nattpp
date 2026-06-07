@@ -16,6 +16,7 @@ public:
 	public:
 		bool const linear;
 		char const* const str;
+		static Logic of( Term<std::string> const& );
 	};
 	static Logic const QF_LIA, QF_LRA, LIA, LRA, QF_NIA, QF_NRA, NIA, NRA;
 	class BaseSort {
@@ -297,11 +298,12 @@ public:
 			return _status == UNSAT;
 		}
 		PostExp get_value( PostExp const& e ) &;
+		static Solver of( Term<std::string> const& );
 	};
 	class Z3 : public Solver {
 	public:
-		Z3( Logic const& logic, Opt<std::ostream&> tee = {} ) :
-			Solver( std::make_unique<Proc>("z3",std::vector<std::string>{"z3","-smt2","-in"},tee), logic ) {}
+		Z3( Logic const& logic, Opt<OStream> && tee = {} ) :
+			Solver( std::make_unique<Proc>(std::string("z3"),std::vector<std::string>{"z3","-smt2","-in"},std::move(tee)), logic ) {}
 	};
 	static int test();
 };

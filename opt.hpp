@@ -15,8 +15,8 @@ class Opt {
 	friend class Opt;
 public:
 	Opt() {}
-	Opt( Opt&& other ) : _opt(std::move(other._opt)) {}
-	Opt( Opt const& other ) : _opt(other._opt) {}
+	Opt( Opt&& other ) = default;
+	Opt( Opt const& other ) = default;
 	Opt( T&& org ) : _opt(std::move(org)) {}
 	template<typename S> requires std::is_convertible_v<S,T>
 	Opt( S const& org ) : _opt(org) {}
@@ -24,7 +24,7 @@ public:
 	 * @brief Constructs optional object in-place.
 	 */
 	template<typename... Ts>
-	Opt( std::in_place_t const& t, Ts&&... xs... ) : _opt(t,std::forward<Ts>(xs)...) {}
+	Opt( std::in_place_t, Ts&&... xs ) : _opt(std::in_place,std::forward<Ts>(xs)...) {}
 	operator bool() const {
 		return (bool)_opt;
 	}
@@ -70,8 +70,13 @@ public:
 		if(_opt) return *_opt;
 		return other;
 	}
-	bool operator&&( std::function<bool(T const&)> f ) const& {
-		return *this && f(*_opt);
+	template<typename O>
+	O operator>>=( std::function<O(T&&)> const& f ) && {
+		return *this ? f(*_opt) : O();
+	}
+	template<typename O>
+	O operator>>=( std::function<O(T const&)> const& f ) const& {
+		return *this ? f(*_opt) : O();
 	}
 	template<typename U>
 	bool contains( U const& other ) const {
@@ -86,6 +91,10 @@ public:
 	template<typename U> requires std::is_convertible_v<T,U>
 	operator Opt<U&>() & {
 		return Opt<U&>( _opt ? &*_opt : nullptr );
+	}
+	template<class... Args>
+	static Opt make( Args&&... args ) {
+		return Opt(std::in_place,std::forward<Args>(args)...);
 	}
 	template<class... Args>
 	T& emplace( Args&&... args ) & {

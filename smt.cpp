@@ -567,13 +567,47 @@ Smt::PostExp Smt::Solver::let( Sort const& sort, PostExp const& val ) & {
 	assert(false);
 };
 
+Smt::Logic Smt::Logic::of( Term<std::string> const& x ) {
+	if( auto c = x.unapplied() ) {
+		if( *c == "QF_LIA" ) return QF_LIA;
+		if( *c == "QF_LRA" ) return QF_LRA;
+		if( *c == "LIA" ) return LIA;
+		if( *c == "LRA" ) return LRA;
+		if( *c == "QF_NIA" ) return QF_NIA;
+		if( *c == "QF_NRA" ) return QF_NRA;
+		if( *c == "NIA" ) return NIA;
+		if( *c == "NRA" ) return NRA;
+	}
+	throw Error("#unknown-logic",x);
+}
+Smt::Solver Smt::Solver::of( Term<std::string> const& x ) {
+	size_t n = x.args().size();
+	if( x.fun() == "z3" ) {
+		if( n > 0 ) {
+			auto logic = Logic::of(x.arg(0));
+			size_t i = 1;
+			while( i < n ) {
+				auto const& key = x.arg(i).unapplied();
+				if( !key || !key->starts_with(':') ) throw Error("#malformed-smt-solver",x);
+				i++;
+				if( i == n ) throw Error("#missing-argument",*key);
+				auto const& val = x.arg(i);
+				i++;
+				throw Error("#unexpected-key",*key);
+			}
+			return Z3(logic);
+		}
+	}
+	throw Error("#malformed-smt-solver",x);
+}
+
 int Smt::test() try {
 	cout << "this is Smt::test()." << endl;
 	cout << 1 + PostExp("x") << endl;
 	cout << !!(PostExp(0) + []{ return PostExp("x"); }) << endl;
 	cout << ite(PostExp("p"), PostExp(3) * PostExp("x") * PostExp("y"), PostExp(0)) << endl;
 	cout << !(Smt::eq(PostExp("x"),PostExp("y")) && Smt::ge(PostExp("y"),3)) << endl;
-	auto z3 = Z3(QF_LIA,cout);
+	auto z3 = Smt::Solver::of({"z3","QF_LIA"});
 	auto x = z3.declare_const("x","Int");
 	auto y = z3.define_fun("y",{},Smt::INT,5);
 	z3.ass( Smt::gt( x, y + 4 ) );

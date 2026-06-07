@@ -102,7 +102,7 @@ public:
 	}
 	Smt::PreExp ge( Poly const& p2 ) const;
 	static Poly ite( Smt::PreExp const& c, Poly const& p1, Poly const& p2 );
-	static std::pair<Smt::PostExp,Smt::PostExp> compare( Poly const& p1, Poly const& p2, Smt::Solver& solver );
+	static Smt::Compare compare( Poly const& p1, Poly const& p2, Smt::Solver& solver );
 	static Poly sum( std::vector<Poly> const& args ) {
 		Poly ret;
 		for( auto const& arg : args ) {

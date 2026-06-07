@@ -133,6 +133,16 @@ public:
 	bool contains( U const& other ) const {
 		return *this && **this == other;
 	}
+	/** @brief Returns a copy of the value or given default. */
+	T value_or( T&& def ) {
+		if(_ptr) return *_ptr;
+		return def;
+	}
+	/** @brief Refers to the value or the default. */
+	T const& value_or( T const& def ) const & {
+		if(_ptr) return *_ptr;
+		return def;
+	}
 };
 
 #endif

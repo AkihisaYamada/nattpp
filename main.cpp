@@ -73,11 +73,13 @@ int main( int argc, char* argv[] ) try {
 	Dps dps = make_dps(p.sig,p.systems[0]);
 	cout << dps << endl;
 
-	vector<unique_ptr<TrsPosOrder>> dp_removers;
+	vector<unique_ptr<TrsOrder>> dp_removers;
 	dp_removers.push_back(
 		make_unique<DerivedTrsPosOrder<Poly>>(p.sig, p.systems[0], Poly::Template::SUM, Smt::Z3(Smt::QF_LIA,otee), Smt::INT )
 	);
-
+	dp_removers.push_back(
+		make_unique<PathOrder>(p.sig,p.systems[0],make_unique<TrivOrder>(Smt::Z3(Smt::QF_LIA,otee)))
+	);
 	// DP removal loop
 	do {
 		if( dps.empty() ) throw true;

@@ -5,13 +5,19 @@
 #include"smt.hpp"
 
 struct TermOrder {
+	virtual Smt::Solver& solver() = 0;
 	virtual std::ostream& print_name( std::ostream& os ) = 0;
 	virtual std::ostream& print( std::ostream& os, Trs::Sig const& sig ) = 0;
-	virtual std::pair<Smt::PostExp,Smt::PostExp> compare( Exp const& l, Exp const& r ) = 0;
+	virtual Smt::Compare compare( Exp const& l, Exp const& r ) = 0;
 };
 
 struct TrivOrder : TermOrder {
-	std::pair<Smt::PostExp,Smt::PostExp> compare( Exp const& l, Exp const& r ) override {
+	Smt::Solver _solver;
+	TrivOrder( Smt::Solver&& sol ) : _solver(std::move(sol)) {}
+	Smt::Solver& solver() override {
+		return _solver;
+	}
+	Smt::Compare compare( Exp const& l, Exp const& r ) override {
 		return {Smt::TRUE,Smt::FALSE};
 	};
 	std::ostream& print_name( std::ostream& os ) override {
@@ -24,7 +30,7 @@ struct TrivOrder : TermOrder {
 
 template<typename A>
 struct DerivedTermOrder : TermOrder {
-	Smt::Solver solver;
+	Smt::Solver _solver;
 	DerivedTermOrder( DerivedTermOrder const& ) = delete;
 	DerivedTermOrder( DerivedTermOrder && ) = default;
 	Algebra::Intp<std::string,A> const intp;
@@ -32,14 +38,14 @@ struct DerivedTermOrder : TermOrder {
 	DerivedTermOrder(
 		Trs::Sig const& sig,
 		A::Template const& temp,
-		Smt::Solver&& sol,
+		Smt::Solver&& sol_,
 		Smt::Sort const& sort
-	) : solver(std::move(sol)),
-		deriver(temp.deriver(sig,solver)),
-		intp(A::expand(deriver.derive(A::algebra(solver)),solver,sort)) {
+	) : _solver(std::move(sol_)),
+		deriver(temp.deriver(sig,_solver)),
+		intp(A::expand(deriver.derive(A::algebra(_solver)),_solver,sort)) {
 	}
-	std::pair<Smt::PostExp,Smt::PostExp> compare( Exp const& l, Exp const& r ) override {
-		return A::compare(intp.eval(l),intp.eval(r),solver);
+	Smt::Compare compare( Exp const& l, Exp const& r ) override {
+		return A::compare(intp.eval(l),intp.eval(r),_solver);
 	}
 	std::ostream& print_name( std::ostream& os ) override {
 		return os << "derived-order";
@@ -47,15 +53,17 @@ struct DerivedTermOrder : TermOrder {
 	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
 		os << '(';
 		for( auto [f,arity] : sig ) {
-			os << "\n    (" << f << ' ' << A::instantiate(solver,deriver(f)) << ')';
+			os << "\n    (" << f << ' ' << A::instantiate(solver(),deriver(f)) << ')';
 		}
 		return os << ')';
+	}
+	Smt::Solver& solver() override {
+		return _solver;
 	}
 };
 
 struct TrsOrder : TermOrder {
-	virtual Smt::Solver& solver() = 0;
-	virtual std::pair<Smt::PostExp,Smt::PostExp> order_rule( size_t i ) & = 0;
+	virtual Smt::Compare order_rule( size_t i ) & = 0;
 };
 
 std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules );
@@ -64,29 +72,30 @@ template<typename A>
 struct DerivedTrsOrder : TrsOrder {
 private:
 	DerivedTermOrder<A> _term_order;
-	Map<size_t,std::pair<Smt::PostExp,Smt::PostExp>> _ords;
+	Map<size_t,Smt::Compare> _ords;
 public:
 	DerivedTrsOrder(
 		Trs::Sig const& sig,
 		Trs::Rules& rules,
 		A::Template const& temp,
-		Smt::Solver&& solver,
+		Smt::Solver&& sol_,
 		Smt::Sort const& sort
-	) : _term_order(sig,temp,std::move(solver),sort) {
+	) : _term_order(sig,temp,std::move(sol_),sort) {
+		auto& sol = solver();
 		for( auto const& [i,rule] : rules ) {
 			auto [ge,gt] = _term_order.compare(rule.first,rule.second);
-			auto gev = _term_order.solver.let(Smt::BOOL,ge);
-			auto gtv = _term_order.solver.let(Smt::BOOL,gt);
-			_ords.insert(i,std::pair(gev,gtv));
+			auto gev = sol.let(Smt::BOOL,ge);
+			auto gtv = sol.let(Smt::BOOL,gt);
+			_ords.insert(i,Smt::Compare{gev,gtv});
 		}
 	}
-	Smt::Solver& solver() override { return _term_order.solver; }
-	std::pair<Smt::PostExp,Smt::PostExp> order_rule( size_t i ) & override {
+	Smt::Solver& solver() override { return _term_order.solver(); }
+	Smt::Compare order_rule( size_t i ) & override {
 		auto o = _ords.find(i);
 		assert(o);
 		return *o;
 	}
-	std::pair<Smt::PostExp,Smt::PostExp> compare( Exp const& l, Exp const& r ) override {
+	Smt::Compare compare( Exp const& l, Exp const& r ) override {
 		return _term_order.compare(l,r);
 	}
 	std::ostream& print_name( std::ostream& os ) override {
@@ -98,8 +107,8 @@ public:
 };
 
 struct TrsPosOrder : TrsOrder {
-	virtual std::pair<Smt::PostExp,Smt::PostExp> order_rule( size_t i, Pos const& l, Pos const& r ) & = 0;
-	std::pair<Smt::PostExp,Smt::PostExp> order_rule( size_t i ) & override {
+	virtual Smt::Compare order_rule( size_t i, Pos const& l, Pos const& r ) & = 0;
+	Smt::Compare order_rule( size_t i ) & override {
 		return order_rule(i,{},{});
 	}
 };
@@ -124,15 +133,15 @@ public:
 			_arules.insert(n,std::pair{_term_order.intp.annotate(rule.first),_term_order.intp.annotate(rule.second)});
 		}
 	}
-	Smt::Solver& solver() override { return _term_order.solver; }
-	std::pair<Smt::PostExp,Smt::PostExp> order_rule( size_t i, Pos const& lpos, Pos const& rpos ) & override {
+	Smt::Solver& solver() override { return _term_order.solver(); }
+	Smt::Compare order_rule( size_t i, Pos const& lpos, Pos const& rpos ) & override {
 		auto arule = _arules.find(i);
 		assert(arule);
 		auto lv = arule->first.at(lpos).fun().second;
 		auto rv = arule->second.at(rpos).fun().second;
 		return A::compare(lv,rv,solver());
 	}
-	std::pair<Smt::PostExp,Smt::PostExp> compare( Exp const& l, Exp const& r ) override {
+	Smt::Compare compare( Exp const& l, Exp const& r ) override {
 		return _term_order.compare(l,r);
 	}
 	std::ostream& print_name( std::ostream& os ) override {
@@ -143,29 +152,46 @@ public:
 	}
 };
 
-struct PathOrder : TrsPosOrder {
+struct PathOrder : TrsOrder {
 	struct SigInfo {
 		Smt::PostExp prec;
 	};
 private:
-	std::unique_ptr<TrsPosOrder> _weight;
-	Map<std::string,SigInfo> _map;
+	std::unique_ptr<TermOrder> _weight;
+	Map<std::string,SigInfo> _sig;
+	Map<size_t,Smt::Compare> _ord;
+	Map<std::pair<Term<std::string>,Term<std::string>>,Smt::Compare> _table;
 public:
 	PathOrder(
 		Trs::Sig const& sig,
 		Trs::Rules const& rules,
-		std::unique_ptr<TrsPosOrder>&& weight,
-		Smt::Solver& solver
+		std::unique_ptr<TermOrder>&& weight
 	) : _weight(std::move(weight)) {
 		size_t sigsize = sig.size();
-		for( auto it1 = sig.begin(); it1 != sig.end(); ) {
-			auto const& [fun1,rank1] = *it1;
-			auto const& prec = solver.declare_fresh(Smt::INT);
-			_map.insert(fun1,prec);
+		for( auto const&[fun1,rank1] : sig ) {
+			auto const& prec = solver().declare_fresh(Smt::INT);
+			_sig.insert(fun1,prec);
+		}
+		for( auto const& [n,rule] : rules ) {
+			auto const& l = rule.first;
+			auto const& r = rule.second;
+			_ord.insert(n,compare(l,r));
 		}
 	}
-	std::pair<Smt::PostExp,Smt::PostExp> compare( Exp const& l, Exp const& r ) override {
-		throw Error("#unsupported");
+	std::ostream& print_name( std::ostream& os ) override {
+		return _weight->print_name( os << "(path-order " );
+	}
+	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
+		return os << "blahblah";
+	}
+	Smt::Solver& solver() override {
+		return _weight->solver();
+	}
+	Smt::Compare compare( Exp const& l, Exp const& r ) override;
+	Smt::Compare order_rule( size_t i ) & override {
+		auto opt = _ord.find(i);
+		assert( opt );
+		return *opt;
 	}
 };
 

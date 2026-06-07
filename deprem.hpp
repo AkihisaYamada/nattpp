@@ -4,6 +4,6 @@
 #include "termord.hpp"
 #include "dp.hpp"
 
-std::vector<size_t> order_some_dp( TrsPosOrder& order, Trs::Rules const& rules, Dps const& dps );
+std::vector<size_t> order_some_dp( TrsOrder& order, Trs::Rules const& rules, Dps const& dps );
 
 #endif

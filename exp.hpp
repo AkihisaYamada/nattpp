@@ -91,12 +91,17 @@ public:
 	}
 };
 
-struct Exp : Term<std::string> {
-	using Term<std::string>::Term;
-	Exp( Term && other ) : Term<std::string>(std::move(other)) {}
-	Exp( Term const& other ) : Term<std::string>(other) {}
-	static int test();
-};
+template<typename F>
+std::compare_three_way_result_t<F>
+operator<=>( Term<F> const& l, Term<F> const& r ) {
+	auto root = l.fun() <=> r.fun();
+	if( root != 0 ) return root;
+	return l.args() <=> r.args();
+}
+
+using Exp = Term<std::string>;
+
+static void exp_test();
 
 struct Error : std::exception, Exp {
 	using Exp::Exp;

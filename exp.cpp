@@ -104,9 +104,8 @@ Opt<Exp> Reader::reads_exp() {
 	return {};
 }
 
-int Exp::test() {
+void exp_test() {
 	cout << Exp("foo") << endl;
 	cout << Exp("foo","bar") << endl;
 	cout << Exp("foo",Exp("bar","buz")) << endl;
-	return 0;
 }

@@ -4,8 +4,8 @@
 #include"problem.hpp"
 
 struct Dp {
-	Trs::Term first;
-	Trs::Term second;
+	Exp first;
+	Exp second;
 	size_t org;
 	Pos rpos;
 };

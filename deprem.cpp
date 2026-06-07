@@ -1,6 +1,6 @@
 #include "deprem.hpp"
 
-std::vector<size_t> order_some_dp( TrsPosOrder& order, Trs::Rules const& rules, Dps const& dps ) {
+std::vector<size_t> order_some_dp( TrsOrder& order, Trs::Rules const& rules, Dps const& dps ) {
 	Smt::PostExp disj = Smt::FALSE;
 	std::vector<std::pair<size_t,Smt::PostExp>> gts;
 	auto& solver = order.solver();
@@ -13,7 +13,7 @@ std::vector<size_t> order_some_dp( TrsPosOrder& order, Trs::Rules const& rules, 
 		solver.ass(ge);
 	}
 	for( auto const& [i,dp] : dps ) {
-		auto const& [ge,gt] = order.order_rule(dp.org,{},dp.rpos);
+		auto const& [ge,gt] = order.compare(dp.first,dp.second);
 		solver.ass(ge);
 		disj |= gt;
 		gts.emplace_back(i,gt);

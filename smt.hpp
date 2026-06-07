@@ -101,6 +101,9 @@ public:
 	static PostExp const TRUE, FALSE;
 	static PostExp car( PostExp const& arg );
 	static PostExp cdr( PostExp const& arg );
+	struct Compare {
+		PostExp ge, gt;
+	};
 	class PreExp {
 		friend Smt;
 		using App = std::pair<Fun,std::vector<PreExp>>;

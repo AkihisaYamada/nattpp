@@ -5,7 +5,7 @@
 using namespace std;
 
 static void collect_dps(
-	Trs::Sig const& sig, size_t org, Trs::Term const& l, Trs::Term const& r,
+	Trs::Sig const& sig, size_t org, Exp const& l, Exp const& r,
 	Map<size_t,Dp>& dps, Pos& rpos, size_t depth, size_t& dp_ind
 ) {
 	if( auto rank = sig.find(r.fun()) )

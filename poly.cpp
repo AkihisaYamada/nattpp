@@ -121,7 +121,7 @@ static Smt::PostExp order_sub( Poly const& p1, Poly const& p2 ) {
 Smt::PreExp Poly::ge( Poly const& p2 ) const {
 	return order_sub(*this,p2) && Smt::ge((*this)[{}],p2[{}]);
 }
-pair<Smt::PostExp,Smt::PostExp> Poly::compare( Poly const& p1, Poly const& p2, Smt::Solver& solver ) {
+Smt::Compare Poly::compare( Poly const& p1, Poly const& p2, Smt::Solver& solver ) {
 	auto const& val = solver.let(Smt::BOOL,order_sub(p1,p2));
 	auto const& c1 = solver.expand(p1[{}]);
 	auto const& c2 = solver.expand(p2[{}]);

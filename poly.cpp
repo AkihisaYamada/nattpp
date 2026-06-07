@@ -87,32 +87,28 @@ Poly Poly::operator*( Poly const& p2 ) const {
 	return std::move(ret);
 }
 
-static Smt::PostExp order_sub( Poly const& p1, Poly const& p2 ) {
-	Smt::PostExp ge = Smt::TRUE;
+static Smt::PreExp order_sub( Poly const& p1, Poly const& p2 ) {
+	Smt::PreExp ge = Smt::TRUE;
 	iter2(p1.map(),p2.map(),[&]( auto it1, auto it2 ){
-		auto post1 = it1->second.post();
-		assert(post1);
-		auto post2 = it2->second.post();
-		assert(post2);
+		auto const& e1 = it1->second;
+		auto const& e2 = it2->second;
 		switch( it1->first.range() ) {
 			case Poly::NONE: return;
-			case Poly::POS: ge = ge && Smt::ge(*post1,*post2); return;
-			case Poly::NEG: ge = ge && Smt::ge(*post2,*post1); return;
-			case Poly::FULL: ge = ge && Smt::eq(*post1,*post2); return;
+			case Poly::POS: ge = ge && Smt::ge(e1,e2); return;
+			case Poly::NEG: ge = ge && Smt::ge(e2,e1); return;
+			case Poly::FULL: ge = ge && Smt::eq(e1,e2); return;
 		}
 	},[&]( auto it1 ){
-		auto post1 = it1->second.post();
-		assert(post1);
+		auto const& e1 = it1->second;
 		switch( it1->first.range() ) {
 			case Poly::NEG: case Poly::FULL:
-			ge = ge && Smt::eq(*post1,0);
+			ge = ge && Smt::eq(e1,Smt::PreExp(0));
 		}
 	},[&]( auto it2 ){
-		auto post2 = it2->second.post();
-		assert(post2);
+		auto const& e2 = it2->second;
 		switch( it2->first.range() ) {
 			case Poly::NEG: case Poly::FULL:
-			ge = ge && Smt::eq(*post2,0);
+			ge = ge && Smt::eq(e2,Smt::PreExp(0));
 		}
 	});
 	return ge;

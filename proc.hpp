@@ -6,6 +6,7 @@
 #include<vector>
 #include<iostream>
 #include<ext/stdio_filebuf.h>
+#include"util.hpp"
 #include"exp.hpp"
 
 /** either existing ostream pointer or an ostream */
@@ -38,6 +39,10 @@ private:
 	int sync() override {
 		tee->flush();
 		return buf1.pubsync();
+	}
+	std::streamsize xsputn(const char* s, std::streamsize n) override {
+		tee->write(s,n);
+		return buf1.sputn(s,n);
 	}
 };
 

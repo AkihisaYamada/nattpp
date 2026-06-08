@@ -78,9 +78,8 @@ int main( int argc, char* argv[] ) try {
 
 	vector<unique_ptr<TrsOrder>> dp_removers;
 	dp_removers.push_back(
-		make_unique<DerivedTrsPosOrder<Poly>>(
-			p.sig, p.systems[0], Poly::Template::SUM, mksolver(), Smt::INT
-		)
+		make_unique<DerivedTrsPosOrder<Poly>>
+			(p.sig, p.systems[0], Poly::Template::SUM, mksolver(), Smt::INT )
 	);
 	dp_removers.push_back(
 		make_unique<PathOrder>(p.sig,p.systems[0],make_unique<TrivOrder>(mksolver()))

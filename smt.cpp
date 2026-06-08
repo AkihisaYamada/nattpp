@@ -595,9 +595,7 @@ Smt::Solver Smt::Solver::of( Term<std::string> const& x ) {
 				auto const& val = x.arg(i);
 				i++;
 				if( *key == ":tee" ) {
-					auto const& file = val.unapplied();
-					if( !file ) throw Error("#malformed-file",val);
-					tee.emplace(ofstream(*file));
+					tee.emplace(OStream::of(val));
 				} else {
 					throw Error("#unexpected-key",*key);
 				}

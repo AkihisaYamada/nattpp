@@ -13,9 +13,13 @@ class OStream {
 	std::ostream* const _ptr;
 	std::ofstream _ofs;
 public:
-	OStream( std::string const& path ) : _ofs(path,std::ios::out), _ptr(&_ofs) {}
+	OStream( std::ofstream&& ofs ) : _ofs(std::move(ofs)), _ptr(&_ofs) {}
 	OStream( std::ostream& other ) : _ptr(&other) {}
-	OStream( OStream&& ) = default;
+	OStream( OStream&& other ) :
+		// tricky! If other is holding ofstream, then this _ptr should point to this _ofs.
+		_ptr( other._ptr == &other._ofs ? &_ofs : other._ptr ),
+		_ofs(std::move(other._ofs))
+	{}
 	operator std::ostream*() & { return _ptr; }
 	std::ostream* operator->() & { return _ptr; }
 	static OStream of( Exp const& x );
@@ -54,7 +58,7 @@ private:
 		int from;
 		_Maker( std::string const& cmd, std::vector<std::string> const& args );
 	};
-	Proc( _Maker const& maker, Opt<OStream> tee );
+	Proc( _Maker const& maker, Opt<OStream>&& tee );
 	Proc( Proc const& other ) = delete;
 	Proc& operator=( Proc const& other ) = delete;
 public:

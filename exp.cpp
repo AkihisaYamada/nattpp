@@ -1,4 +1,5 @@
 #include <cassert>
+#include <sstream>
 #include "exp.hpp"
 
 using namespace std;
@@ -102,6 +103,14 @@ Opt<Exp> Reader::reads_exp() {
 		return ret;
 	}
 	return {};
+}
+
+Exp Exp::of( string const& str ) {
+	std::istringstream is(str);
+	Reader reader(is);
+	auto ret = reader.read_exp();
+	if( !reader.eof() ) throw reader.error("#unexpected");
+	return ret;
 }
 
 void exp_test() {

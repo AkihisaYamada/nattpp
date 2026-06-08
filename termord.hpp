@@ -64,6 +64,7 @@ struct DerivedTermOrder : TermOrder {
 
 struct TrsOrder : TermOrder {
 	virtual Smt::Compare order_rule( size_t i ) & = 0;
+	static std::unique_ptr<TrsOrder> of( Exp const& x );
 };
 
 std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules );
@@ -194,5 +195,6 @@ public:
 		return *opt;
 	}
 };
+
 
 #endif

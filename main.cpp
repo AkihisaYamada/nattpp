@@ -13,23 +13,20 @@ int main( int argc, char* argv[] ) try {
 	ostream* ptee = nullptr;
 	ostream* pprf = nullptr;
 	bool exit_on_error = false;
+	Opt<Exp> solverexp;
 	for( int i = 1; i < argc; i++ ) {
 		if( argv[i][0] == '-' ) {
-			string_view arg = argv[i];
-			if( arg == "-tee" ) {
-				if( ptee != nullptr ) throw Error("#duplicate-option","-tee");
-				i++;
-				if( i == argc ) throw Error("#missing-arg","-tee");
-				ptee = new ofstream(argv[i]);
-				continue;
-			}
-			if( arg == "-proof" ) {
-				if( pprf != nullptr ) throw Error("#duplicate-option","-proof");
-				i++;
-				if( i == argc ) throw Error("#missing-arg","-proof");
+			string_view opt = argv[i];
+			i++;
+			if( i == argc ) throw Error("#missing-arg",opt);
+			if( opt == "-proof" ) {
+				if( pprf != nullptr ) throw Error("#duplicate-option",opt);
 				pprf = new ofstream(argv[i]);
+			} else if( opt == "-solver" ) {
+				solverexp = Exp::of(argv[i]);
+			} else {
+				throw Error("#unknown-option",argv[i]);
 			}
-			throw Error("#unknown-option",argv[i]);
 		} else {
 			if( pis != nullptr ) throw Error("#too-many-arguments",argv[i]);
 			pis = new ifstream(argv[i]);
@@ -38,14 +35,20 @@ int main( int argc, char* argv[] ) try {
 		}
 	}
 	if( pis == nullptr ) pis = &cin;
-	auto otee = ptee ? Opt<ostream&>{*ptee} : Opt<ostream&>{};
+	auto mksolver = [&]()->Smt::Solver{
+		if( solverexp ) {
+			return Smt::Solver::of(*solverexp);
+		} else {
+			return Smt::Z3(Smt::QF_LIA);
+		}
+	};
 	auto p = Problem(*pis);
 	cout << p << endl;
 
 	vector<unique_ptr<TrsOrder>> rule_removers;
 	rule_removers.push_back(
 		make_unique<DerivedTrsOrder<Poly>>(
-			p.sig, p.systems[0], Poly::Template::MONO_SUM, Smt::Z3(Smt::QF_LIA,otee), Smt::INT
+			p.sig, p.systems[0], Poly::Template::MONO_SUM, mksolver(), Smt::INT
 		)
 	);
 
@@ -75,10 +78,12 @@ int main( int argc, char* argv[] ) try {
 
 	vector<unique_ptr<TrsOrder>> dp_removers;
 	dp_removers.push_back(
-		make_unique<DerivedTrsPosOrder<Poly>>(p.sig, p.systems[0], Poly::Template::SUM, Smt::Z3(Smt::QF_LIA,otee), Smt::INT )
+		make_unique<DerivedTrsPosOrder<Poly>>(
+			p.sig, p.systems[0], Poly::Template::SUM, mksolver(), Smt::INT
+		)
 	);
 	dp_removers.push_back(
-		make_unique<PathOrder>(p.sig,p.systems[0],make_unique<TrivOrder>(Smt::Z3(Smt::QF_LIA,otee)))
+		make_unique<PathOrder>(p.sig,p.systems[0],make_unique<TrivOrder>(mksolver()))
 	);
 	// DP removal loop
 	do {

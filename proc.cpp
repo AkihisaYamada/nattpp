@@ -33,12 +33,12 @@ Proc::_Maker::_Maker( string const& cmd, vector<string> const& args ) {
 //	cerr << "Proc: " << cmd << "; pid=" << pid << endl;
 }
 
-Proc::Proc( _Maker const& maker, Opt<OStream> tee ) :
+Proc::Proc( _Maker const& maker, Opt<OStream>&& tee ) :
 	_pid(maker.pid),
 	_to_filebuf(__gnu_cxx::stdio_filebuf<char>(maker.to,std::ios::out)),
 	_from_filebuf(__gnu_cxx::stdio_filebuf<char>(maker.from,std::ios::in)),
 	// this part is tricky.
-	_tee( tee ? Opt<TeeBuf>::make(_to_filebuf,std::move(*tee)) : Opt<TeeBuf>{} ),
+	_tee( tee ? Opt<TeeBuf>::make(_to_filebuf,*(std::move(tee))) : Opt<TeeBuf>{} ),
 	to( _tee ? (std::streambuf*)&*_tee : &_to_filebuf ),
 	from(&_from_filebuf) {
 }
@@ -53,7 +53,7 @@ OStream OStream::of( Exp const& x ) {
 	} else if( f == "file" ) {
 		if( n == 1 )
 		if( auto const& path = x.arg(0).unapplied() ) {
-			return *path;
+			return ofstream(*path);
 		}
 	}
 	throw Error("#malformed-out",x);

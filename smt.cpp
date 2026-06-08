@@ -386,12 +386,12 @@ Smt::PostExp& Smt::PostExp::mul_eq( Smt::PostExp const& y, bool linear ) & {
 	if( linear ) {
 		if( auto const& ite = is_ite() ) {
 			auto const& [i,t,e] = *ite;
-			_term = Term<Fun>(ITE,i,Smt::mul(t,y,linear),Smt::mul(e,y,linear));
+			_term = Term<Fun>(ITE,i,Smt::mul(t,y,true),Smt::mul(e,y,true));
 			return *this;
 		}
 		if( auto const& ite = y.is_ite() ) {
 			auto const& [i,t,e] = *ite;
-			_term = Term<Fun>(ITE,i,Smt::mul(*this,t,linear),Smt::mul(*this,e,linear));
+			_term = Term<Fun>(ITE,i,Smt::mul(*this,t,true),Smt::mul(*this,e,true));
 			return *this;
 		}
 	}
@@ -503,13 +503,13 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 				if( efun1 == ITE ) {
 					assert( eargs1.size() == 3 );
 					auto v = let(INT,earg2);//TODO
-					return ite( eargs1[0], Smt::mul(eargs1[1],v,logic.linear), Smt::mul(eargs1[1],v,logic.linear) );
+					return ite( eargs1[0], Smt::mul(eargs1[1],v,true), Smt::mul(eargs1[1],v,true) );
 				}
 				auto const& eargs2 = earg2._term.args();
 				if( efun2 == ITE ) {
 					assert( eargs2.size() == 3 );
 					auto v = let(INT,earg1);//TODO
-					return ite( eargs2[0], Smt::mul(v,eargs2[1],logic.linear), Smt::mul(v,eargs2[2],logic.linear) );
+					return ite( eargs2[0], Smt::mul(v,eargs2[1],true), Smt::mul(v,eargs2[2],true) );
 				}
 			}
 			return Term<Fun>(MUL,earg1,earg2);
@@ -582,6 +582,7 @@ Smt::Logic Smt::Logic::of( Term<std::string> const& x ) {
 }
 Smt::Solver Smt::Solver::of( Term<std::string> const& x ) {
 	size_t n = x.args().size();
+	Opt<OStream> tee;
 	if( x.fun() == "z3" ) {
 		if( n > 0 ) {
 			auto logic = Logic::of(x.arg(0));
@@ -593,9 +594,15 @@ Smt::Solver Smt::Solver::of( Term<std::string> const& x ) {
 				if( i == n ) throw Error("#missing-argument",*key);
 				auto const& val = x.arg(i);
 				i++;
-				throw Error("#unexpected-key",*key);
+				if( *key == ":tee" ) {
+					auto const& file = val.unapplied();
+					if( !file ) throw Error("#malformed-file",val);
+					tee.emplace(ofstream(*file));
+				} else {
+					throw Error("#unexpected-key",*key);
+				}
 			}
-			return Z3(logic);
+			return Z3(logic,std::move(tee));
 		}
 	}
 	throw Error("#malformed-smt-solver",x);

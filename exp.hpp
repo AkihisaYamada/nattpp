@@ -44,7 +44,7 @@ public:
 		(std::is_constructible_v<Term,Args> && ...)
 	)
 	Term( S const& fun, Args const&... args ) :
-		_mem(App(fun,{Term(args)...})) {}
+		_mem(App(fun,std::vector<Term>{Term(args)...})) {}
 	/**
 	 * @brief accesses the function
 	 */
@@ -111,7 +111,12 @@ operator<=>( Term<F> const& l, Term<F> const& r ) {
 	return l.args() <=> r.args();
 }
 
-using Exp = Term<std::string>;
+struct Exp : Term<std::string> {
+	using Term<std::string>::Term;
+	Exp( Term<std::string> const& other ) : Term<std::string>(other) {}
+	Exp( Term<std::string> && other ) : Term<std::string>(std::move(other)) {}
+	static Exp of( std::string const& );
+};
 
 static void exp_test();
 
@@ -247,6 +252,10 @@ public:
 		auto exp = reads_exp();
 		if( !exp ) throw error("#missing-expression");
 		return *exp;
+	}
+	bool eof() {
+		_fetch();
+		return _fetched.ref<None>();
 	}
 };
 

@@ -74,3 +74,7 @@ std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules ) 
 	}
 	return std::move(ret);
 }
+
+std::unique_ptr<TrsOrder> TrsOrder::of( Exp const& x ) {
+	
+}

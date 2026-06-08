@@ -503,7 +503,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 				if( efun1 == ITE ) {
 					assert( eargs1.size() == 3 );
 					auto v = let(INT,earg2);//TODO
-					return ite( eargs1[0], Smt::mul(eargs1[1],v,true), Smt::mul(eargs1[1],v,true) );
+					return ite( eargs1[0], Smt::mul(eargs1[1],v,true), Smt::mul(eargs1[2],v,true) );
 				}
 				auto const& eargs2 = earg2._term.args();
 				if( efun2 == ITE ) {

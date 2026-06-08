@@ -567,7 +567,7 @@ Smt::PostExp Smt::Solver::let( Sort const& sort, PostExp const& val ) & {
 	assert(false);
 };
 
-Smt::Logic Smt::Logic::of( Term<std::string> const& x ) {
+Smt::Logic Smt::Logic::of( Exp const& x ) {
 	if( auto c = x.unapplied() ) {
 		if( *c == "QF_LIA" ) return QF_LIA;
 		if( *c == "QF_LRA" ) return QF_LRA;
@@ -580,26 +580,19 @@ Smt::Logic Smt::Logic::of( Term<std::string> const& x ) {
 	}
 	throw Error("#unknown-logic",x);
 }
-Smt::Solver Smt::Solver::of( Term<std::string> const& x ) {
+Smt::Solver Smt::Solver::of( Exp const& x ) {
 	size_t n = x.args().size();
 	Opt<OStream> tee;
 	if( x.fun() == "z3" ) {
 		if( n > 0 ) {
 			auto logic = Logic::of(x.arg(0));
-			size_t i = 1;
-			while( i < n ) {
-				auto const& key = x.arg(i).unapplied();
-				if( !key || !key->starts_with(':') ) throw Error("#malformed-smt-solver",x);
-				i++;
-				if( i == n ) throw Error("#missing-argument",*key);
-				auto const& val = x.arg(i);
-				i++;
-				if( *key == ":tee" ) {
+			x.process_keys(1,[&]( auto key, auto val ){
+				if( key == "tee" ) {
 					tee.emplace(OStream::of(val));
 				} else {
-					throw Error("#unexpected-key",*key);
+					throw Error("#unexpected-key",key);
 				}
-			}
+			});
 			return Z3(logic,std::move(tee));
 		}
 	}

@@ -16,7 +16,7 @@ public:
 	public:
 		bool const linear;
 		char const* const str;
-		static Logic of( Term<std::string> const& );
+		static Logic of( Exp const& );
 	};
 	static Logic const QF_LIA, QF_LRA, LIA, LRA, QF_NIA, QF_NRA, NIA, NRA;
 	class BaseSort {
@@ -298,7 +298,7 @@ public:
 			return _status == UNSAT;
 		}
 		PostExp get_value( PostExp const& e ) &;
-		static Solver of( Term<std::string> const& );
+		static Solver of( Exp const& );
 	};
 	class Z3 : public Solver {
 	public:

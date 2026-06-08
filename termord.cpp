@@ -1,4 +1,5 @@
 #include "termord.hpp"
+#include "poly.hpp"
 
 using namespace std;
 
@@ -75,6 +76,41 @@ std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules ) 
 	return std::move(ret);
 }
 
-std::unique_ptr<TrsOrder> TrsOrder::of( Exp const& x ) {
-	
+std::unique_ptr<TrsOrder> TrsOrder::of(
+	Exp const& x,
+	Trs::Sig const& sig,
+	Trs::Rules const& trs,
+	bool mono,
+	std::function<Smt::Solver()> const& default_smt
+) {
+	auto const& f = x.fun();
+	size_t n = x.args().size();
+	Opt<Exp> smt;
+	auto mk_smt = [&]{
+		if( smt ) return Smt::Solver::of(*smt);
+		return default_smt();
+	};
+	auto common_keys = [&]( string_view const& key, Exp const& val ){
+		if( key == "smt" ) {
+			smt = {val};
+		} else {
+			throw Error("#unexpected-key",key,val);
+		}
+	};
+	if( f == "trivial" ) {
+		x.process_keys(0,common_keys);
+		return std::make_unique<TrivOrder>(mk_smt()); 
+	} else if( f == "template" ) {
+		if( n > 0 )
+		if( auto name = x.arg(0).unapplied() ) {
+			if( *name == "sum" ) {
+				x.process_keys(1,common_keys);
+				return std::make_unique<DerivedTrsPosOrder<Poly>>
+					(sig, trs, mono ? Poly::Template::MONO_SUM : Poly::Template::SUM, mk_smt(), Smt::INT);
+			}
+		}
+		throw Error("#malformed-template",x);
+	} else {
+		throw Error("#unknown-order",x);
+	}
 }

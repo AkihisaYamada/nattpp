@@ -58,6 +58,16 @@ public:
 		if(_opt) return *_opt;
 		return def;
 	}
+	template<typename E>
+	T value_or_throw( E const& err ) {
+		if(_opt) return *_opt;
+		throw err;
+	}
+	template<typename E>
+	T const& value_or_throw( E const& err ) const& {
+		if(_opt) return *_opt;
+		throw err;
+	}
 	T const* operator->() const & {
 		assert(_opt);
 		return _opt.operator->();
@@ -151,6 +161,16 @@ public:
 	T const& value_or( T const& def ) const & {
 		if(_ptr) return *_ptr;
 		return def;
+	}
+	template<typename E>
+	T value_or_throw( E const& err ) {
+		if(_ptr) return *_ptr;
+		throw err;
+	}
+	template<typename E>
+	T const& value_or_throw( E const& err ) const& {
+		if(_ptr) return *_ptr;
+		throw err;
 	}
 };
 

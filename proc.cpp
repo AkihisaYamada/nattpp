@@ -72,20 +72,13 @@ Proc Proc::of( Exp const& x ) {
 			cmd_args.push_back(*str);
 		}
 		Opt<OStream> tee;
-		size_t i = 1;
-		while( i < n ) {
-			auto const& key = x.arg(i).unapplied();
-			if( !key || !key->starts_with(':') ) throw Error("#unexpected",x.arg(i));
-			i++;
-			if( i == n ) throw Error("#missing-value",*key);
-			auto const& val = x.arg(i);
-			i++;
-			if( *key == ":tee" ) {
+		x.process_keys(1,[&]( auto key, auto val ){
+			if( key == "tee" ) {
 				tee.emplace(OStream::of(val));
 			} else {
-				throw Error("#unexpected",*key);
+				throw Error("#unexpected",key);
 			}
-		}
+		});
 		return Proc(line.fun(),cmd_args,std::move(tee));
 	}
 	throw Error("#malformed-proc",x);

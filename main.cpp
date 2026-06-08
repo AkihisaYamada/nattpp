@@ -13,7 +13,9 @@ int main( int argc, char* argv[] ) try {
 	ostream* ptee = nullptr;
 	ostream* pprf = nullptr;
 	bool exit_on_error = false;
-	Opt<Exp> solverexp;
+	Opt<Exp> default_smt_spec;
+	vector<char*> rule_remover_specs;
+	vector<char*> dp_remover_specs;
 	for( int i = 1; i < argc; i++ ) {
 		if( argv[i][0] == '-' ) {
 			string_view opt = argv[i];
@@ -22,8 +24,12 @@ int main( int argc, char* argv[] ) try {
 			if( opt == "-proof" ) {
 				if( pprf != nullptr ) throw Error("#duplicate-option",opt);
 				pprf = new ofstream(argv[i]);
-			} else if( opt == "-solver" ) {
-				solverexp = Exp::of(argv[i]);
+			} else if( opt == "-smt" ) {
+				default_smt_spec = {Exp::of(argv[i])};
+			} else if( opt == "-r" ) {// rule remover
+				rule_remover_specs.push_back(argv[i]);
+			} else if( opt == "-d" ) {// dp remover
+				dp_remover_specs.push_back(argv[i]);
 			} else {
 				throw Error("#unknown-option",argv[i]);
 			}
@@ -35,22 +41,22 @@ int main( int argc, char* argv[] ) try {
 		}
 	}
 	if( pis == nullptr ) pis = &cin;
-	auto mksolver = [&]()->Smt::Solver{
-		if( solverexp ) {
-			return Smt::Solver::of(*solverexp);
+	auto default_smt = [&]()->Smt::Solver{
+		if( default_smt_spec ) {
+			return Smt::Solver::of(*default_smt_spec);
 		} else {
 			return Smt::Z3(Smt::QF_LIA);
 		}
 	};
 	auto p = Problem(*pis);
 	cout << p << endl;
+	auto const& sig = p.sig;
+	auto const& trs = p.systems[0];
 
 	vector<unique_ptr<TrsOrder>> rule_removers;
-	rule_removers.push_back(
-		make_unique<DerivedTrsOrder<Poly>>(
-			p.sig, p.systems[0], Poly::Template::MONO_SUM, mksolver(), Smt::INT
-		)
-	);
+	for( auto x : rule_remover_specs ) {
+		rule_removers.push_back(TrsOrder::of(Exp::of(x),sig,trs,true,default_smt));
+	}
 
 	// rule removal loop
 	do {
@@ -77,13 +83,9 @@ int main( int argc, char* argv[] ) try {
 	cout << dps << endl;
 
 	vector<unique_ptr<TrsOrder>> dp_removers;
-	dp_removers.push_back(
-		make_unique<DerivedTrsPosOrder<Poly>>
-			(p.sig, p.systems[0], Poly::Template::SUM, mksolver(), Smt::INT )
-	);
-	dp_removers.push_back(
-		make_unique<PathOrder>(p.sig,p.systems[0],make_unique<TrivOrder>(mksolver()))
-	);
+	for( auto x : dp_remover_specs ) {
+		dp_removers.push_back(TrsOrder::of(Exp::of(x),sig,trs,false,default_smt));
+	}
 	// DP removal loop
 	do {
 		if( dps.empty() ) throw true;
@@ -115,5 +117,8 @@ int main( int argc, char* argv[] ) try {
 	exit(1);
 } catch( Error const& e ) {
 	cerr << e << endl;
+	exit(-1);
+} catch( std::exception const& e ) {
+	cerr << e.what() << endl;
 	exit(-1);
 }

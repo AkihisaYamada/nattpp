@@ -105,6 +105,17 @@ Opt<Exp> Reader::reads_exp() {
 	return {};
 }
 
+void Exp::process_keys( size_t i, std::function<void(std::string_view const&,Exp const&)> const& f ) const& {
+	size_t n = args().size();
+	while( i < n ) {
+		auto const& key = is_key(arg(i)).value_or_throw(Error("#unexpected",arg(i)));
+		i++;
+		if( i == n ) throw Error("#missing-arg",arg(i));
+		f(key,arg(i));
+		i++;
+	}
+}
+
 Exp Exp::of( string const& str ) {
 	std::istringstream is(str);
 	Reader reader(is);

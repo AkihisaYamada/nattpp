@@ -69,7 +69,7 @@ public:
 	std::vector<Term> const& args() const & {
 		return _mem->second;
 	};
-	F& arg( size_t i )& {
+	Term& arg( size_t i ) & {
 		assert( i < args().size() );
 		return args()[i];
 	}
@@ -111,11 +111,25 @@ operator<=>( Term<F> const& l, Term<F> const& r ) {
 	return l.args() <=> r.args();
 }
 
+/** deleted for inefficiency */
+Opt<std::string_view> is_key( std::string && ) = delete;
+Opt<std::string_view> is_key( Term<std::string> && ) = delete;
+inline Opt<std::string_view> is_key( std::string const& str ) {
+	if( str.starts_with(':') ) return std::string_view(str).substr(1);
+	return {};
+}
+inline Opt<std::string_view> is_key( Term<std::string> const& x ) {
+	if( auto const& f = x.unapplied() ) return is_key(*f);
+	return {};
+}
+
 struct Exp : Term<std::string> {
 	using Term<std::string>::Term;
 	Exp( Term<std::string> const& other ) : Term<std::string>(other) {}
 	Exp( Term<std::string> && other ) : Term<std::string>(std::move(other)) {}
 	static Exp of( std::string const& );
+	/** Processes key-value pairs from the ith argument. */
+	void process_keys( size_t i, std::function<void(std::string_view const&,Exp const&)> const& f ) const&;
 };
 
 static void exp_test();

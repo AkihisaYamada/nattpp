@@ -11,7 +11,25 @@ struct TermOrder {
 	virtual Smt::Compare compare( Exp const& l, Exp const& r ) = 0;
 };
 
-struct TrivOrder : TermOrder {
+struct TrsOrder : TermOrder {
+	virtual Smt::Compare order_rule( size_t i ) & = 0;
+	static std::unique_ptr<TrsOrder> of(
+		Exp const& x,
+		Trs::Sig const& sig,
+		Trs::Rules const& trs,
+		bool mono,
+		std::function<Smt::Solver()> const& default_smt
+	);
+};
+
+struct TrsPosOrder : TrsOrder {
+	virtual Smt::Compare order_rule( size_t i, Pos const& l, Pos const& r ) & = 0;
+	Smt::Compare order_rule( size_t i ) & override {
+		return order_rule(i,{},{});
+	}
+};
+
+struct TrivOrder : TrsOrder {
 	Smt::Solver _solver;
 	TrivOrder( Smt::Solver&& sol ) : _solver(std::move(sol)) {}
 	Smt::Solver& solver() override {
@@ -25,6 +43,9 @@ struct TrivOrder : TermOrder {
 	};
 	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
 		return os;
+	}
+	Smt::Compare order_rule( size_t i ) & override {
+		return {Smt::TRUE,Smt::FALSE};
 	}
 };
 
@@ -60,11 +81,6 @@ struct DerivedTermOrder : TermOrder {
 	Smt::Solver& solver() override {
 		return _solver;
 	}
-};
-
-struct TrsOrder : TermOrder {
-	virtual Smt::Compare order_rule( size_t i ) & = 0;
-	static std::unique_ptr<TrsOrder> of( Exp const& x );
 };
 
 std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules );
@@ -104,13 +120,6 @@ public:
 	}
 	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
 		return _term_order.print(os,sig);
-	}
-};
-
-struct TrsPosOrder : TrsOrder {
-	virtual Smt::Compare order_rule( size_t i, Pos const& l, Pos const& r ) & = 0;
-	Smt::Compare order_rule( size_t i ) & override {
-		return order_rule(i,{},{});
 	}
 };
 

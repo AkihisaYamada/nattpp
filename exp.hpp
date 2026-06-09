@@ -43,8 +43,8 @@ public:
 		std::is_constructible_v<F,S> &&
 		(std::is_constructible_v<Term,Args> && ...)
 	)
-	Term( S const& fun, Args const&... args ) :
-		_mem(App(fun,std::vector<Term>{Term(args)...})) {}
+	Term( S const& fun, Args&&... args ) :
+		_mem(App(fun,std::vector<Term>{Term(std::forward<Args>(args))...})) {}
 	/**
 	 * @brief accesses the function
 	 */
@@ -102,7 +102,6 @@ public:
 		return {};
 	}
 };
-
 template<typename F>
 std::compare_three_way_result_t<F>
 operator<=>( Term<F> const& l, Term<F> const& r ) {
@@ -151,9 +150,8 @@ struct Exp : Term<std::string> {
 	}
 	/** Processes key-value pairs from the ith argument. */
 	void process_keys( size_t i, std::function<void(std::string_view const&,Exp const&)> const& f ) const&;
+	static void test();
 };
-
-static void exp_test();
 
 template<typename F>
 Term<F> const& Term<F>::at( Pos const& pos ) const& {

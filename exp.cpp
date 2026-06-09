@@ -146,8 +146,10 @@ Exp Exp::of( string const& str ) {
 	return ret;
 }
 
-void exp_test() {
+void Exp::test() {
 	cout << Exp("foo") << endl;
 	cout << Exp("foo","bar") << endl;
-	cout << Exp("foo",Exp("bar","buz")) << endl;
+	auto t = Exp("foo",Exp("bar","buz"));
+	cout << t << endl;
+	assert( Exp::of("( foo; comment\n(bar  buz)") == t );
 }

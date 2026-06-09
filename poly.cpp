@@ -126,7 +126,7 @@ Smt::Compare Poly::compare( Poly const& p1, Poly const& p2, Smt::Solver& solver 
 
 Poly& Poly::expand( Smt::Solver& solver, Smt::Sort const& sort ) {
 	for( auto& [vars,coeff] : _map ) {
-		if( !solver.logic.linear || vars.vars().empty() ) {
+		if( !solver.logic.linear() || vars.vars().empty() ) {
 			coeff = solver.let(sort,coeff);
 		} else {
 			coeff = solver.expand(coeff);
@@ -238,7 +238,7 @@ Algebra::Template<Poly::Sig> Poly::instantiate(
 				if( auto pre = g->ref<Smt::PreExp>() ) {
 					auto post = pre->post();
 					assert(post);
-					smtprod.mul_eq(*post,solver.logic.linear);
+					smtprod.mul_eq(*post,solver.logic.linear());
 					continue;
 				}
 				rargs.push_back(v);

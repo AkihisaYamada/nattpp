@@ -155,7 +155,8 @@ class Reader {
 	class None {};
 	struct Key { std::string str; };
 	struct Sym { std::string str; };
-	Sum<None,LPar,RPar,Key,Sym> _fetched;
+	struct Str { std::string str; };
+	Sum<None,LPar,RPar,Key,Str,Sym> _fetched;
 	void _fetch();
 	unsigned int _line = 1;
 	unsigned int _column = 1;
@@ -164,9 +165,11 @@ class Reader {
 		if( _fetched.ref<LPar>() ) return "#lparen";
 		if( _fetched.ref<RPar>() ) return "#rparen";
 		if( auto key = _fetched.ref<Key>() ) return key->str;
+		if( auto str = _fetched.ref<Str>() ) return str->str;
 		if( auto sym = _fetched.ref<Sym>() ) return sym->str;
 		return "#none";
 	}
+	std::string _read_string_literal() &;
 public:
 	Reader( std::istream& is ) : _is(is), _fetched(None()) {}
 	template<typename... Args>
@@ -197,26 +200,27 @@ public:
 	}
 	Opt<std::string> reads_key() {
 		_fetch();
-		if( auto key = _fetched.ref<Key>() ) {
-			std::string str = std::move(key->str);
+		return _fetched.ref<Key>() >>= [&]( Key key )->Opt<std::string>{
 			_fetched = None();
-			return str;
-		}
-		return {};
+			return {std::move(key.str)};
+		};
+	}
+	Opt<std::string> reads_str() {
+		_fetch();
+		return _fetched.ref<Key>() >>= [&]( Key key )->Opt<std::string>{
+			_fetched = None();
+			return {std::move(key.str)};
+		};
 	}
 	Opt<std::string> reads_sym() {
 		_fetch();
-		if( auto sym = _fetched.ref<Sym>() ) {
-			std::string str = std::move(sym->str);
+		return _fetched.ref<Sym>() >>= [&]( Sym sym )->Opt<std::string>{
 			_fetched = None();
-			return str;
-		}
-		return {};
+			return std::move(sym.str);
+		};
 	}
 	std::string read_sym() {
-		auto sym = reads_sym();
-		if( !sym ) throw error("#missing-symbol");
-		return *sym;
+		return reads_sym().value_or_throw(error("#missing-symbol"));
 	}
 	bool reads_sym( char const* str ) {
 		_fetch();
@@ -244,14 +248,10 @@ public:
 		}
 	}
 	void read_sym( char const* str ) {
-		if( !reads_sym(str) ) {
-			throw error("#missing-symbol",str);
-		}
+		if( !reads_sym(str) ) throw error("#missing-symbol",str);
 	}
 	unsigned int read_nat() {
-		auto opt = reads_nat();
-		if( !opt ) throw error("#missing-number");
-		return *opt;
+		return reads_nat().value_or_throw(error("#missing-number"));
 	}
 	unsigned int read_nat( std::function<bool(unsigned int)> const& test ) {
 		auto ret = read_nat();
@@ -263,9 +263,7 @@ public:
 	}
 	Opt<Exp> reads_exp();
 	Exp read_exp() {
-		auto exp = reads_exp();
-		if( !exp ) throw error("#missing-expression");
-		return *exp;
+		return reads_exp().value_or_throw(error("#missing-expression"));
 	}
 	bool eof() {
 		_fetch();

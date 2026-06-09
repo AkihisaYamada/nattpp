@@ -43,6 +43,24 @@ static string read_sym_rest( istream& is, int c ) {
 		}
 	}
 }
+string Reader::_read_string_literal() & {
+	string str = "\"";
+	for(;;) {
+		switch( auto c = _is.get() ) {
+		case '\"': str.push_back('\"'); return str;
+		case '\\':
+			switch( auto e = _is.get() ) {
+			case '\"': str.push_back(e); break;
+			case '\\': str.push_back(e); break;
+			case 'n': str.push_back('\n'); break;
+			case 'r': str.push_back('\r'); break;
+			case 't': str.push_back('\t'); break;
+			default: throw error( "#unsupported-escape", string("\\")+(char)e );
+			} break;
+		default: str.push_back(c); break;
+		}
+	}
+}
 
 void Reader::_fetch() {
 	if( _fetched.ref<None>() ) {
@@ -68,7 +86,8 @@ void Reader::_fetch() {
 				_fetched = RPar();
 				return;
 			case '"':
-				throw error("unsupported symbol (\")");
+				_fetched = Str(_read_string_literal());
+				return;
 			case '\'':
 				throw error("unsupported symbol (')");
 			case ':':
@@ -86,11 +105,14 @@ void Reader::_fetch() {
 }
 
 Opt<Exp> Reader::reads_exp() {
-	if( auto sym = reads_sym() ) {
-		return Exp(std::move(*sym));
-	}
 	if( auto key = reads_key() ) {// keys are treated as symbols
 		return Exp(*key);
+	}
+	if( auto str = reads_str() ) {// string literals are treated as symbols
+		return Exp(*str);
+	}
+	if( auto sym = reads_sym() ) {
+		return Exp(std::move(*sym));
 	}
 	if( opens() ) {
 		if( closes() ) {

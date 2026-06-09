@@ -5,17 +5,18 @@
 
 using namespace std;
 
-Smt::Logic const Smt::QF_LIA = {"QF_LIA",true};
-Smt::Logic const Smt::QF_LRA = {"QF_LRA",true};
-Smt::Logic const Smt::LIA = {"LIA",true};
-Smt::Logic const Smt::LRA = {"LRA",true};
-Smt::Logic const Smt::QF_NIA = {"QF_NIA",false};
-Smt::Logic const Smt::QF_NRA = {"QF_NRA",false};
-Smt::Logic const Smt::NIA = {"NIA",false};
-Smt::Logic const Smt::NRA = {"NRA",false};
 Smt::BaseSort const Smt::BOOL = "Bool";
 Smt::BaseSort const Smt::INT = "Int";
 Smt::BaseSort const Smt::REAL = "Real";
+
+Smt::Logic const Smt::QF_LIA = {"QF_LIA",true,Smt::INT};
+Smt::Logic const Smt::QF_LRA = {"QF_LRA",true,Smt::REAL};
+Smt::Logic const Smt::LIA = {"LIA",true,Smt::INT};
+Smt::Logic const Smt::LRA = {"LRA",true,Smt::REAL};
+Smt::Logic const Smt::QF_NIA = {"QF_NIA",false,Smt::INT};
+Smt::Logic const Smt::QF_NRA = {"QF_NRA",false,Smt::REAL};
+Smt::Logic const Smt::NIA = {"NIA",false,Smt::INT};
+Smt::Logic const Smt::NRA = {"NRA",false,Smt::REAL};
 
 Smt::Fun const
 	Smt::AND = "and",
@@ -212,7 +213,7 @@ Algebra::Intp<string,Smt::PreExp> const Smt::ALGEBRA = []( string const& fun, ve
 Smt::Solver::Solver( unique_ptr<Proc>&& proc, Logic const& logic ) :
 	_status(UNKNOWN), _proc(std::move(proc)), _reader(_proc->from), _var_count(0), logic(logic)
 {
-	_proc->to << "(set-logic " << logic.str << ')' << endl;
+	_proc->to << "(set-logic " << logic._str << ')' << endl;
 }
 
 Smt::Solver& Smt::Solver::ass( PostExp const& e ) & {
@@ -499,7 +500,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 				}
 			}
 			auto const& eargs1 = earg1._term.args();
-			if( logic.linear ) {
+			if( logic.linear() ) {
 				if( efun1 == ITE ) {
 					assert( eargs1.size() == 3 );
 					auto v = let(INT,earg2);//TODO

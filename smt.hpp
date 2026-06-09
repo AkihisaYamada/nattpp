@@ -10,15 +10,6 @@ public:
 	struct Error : ::Error {
 		using ::Error::Error;
 	};
-	class Logic {
-		friend Smt;
-		Logic( char const* str, bool linear ) : str(str), linear(linear) {}
-	public:
-		bool const linear;
-		char const* const str;
-		static Logic of( Exp const& );
-	};
-	static Logic const QF_LIA, QF_LRA, LIA, LRA, QF_NIA, QF_NRA, NIA, NRA;
 	class BaseSort {
 		std::string _name;
 		BaseSort( char const* name ) : _name(name) {}
@@ -44,6 +35,17 @@ public:
 		static Sort of( Exp const& x );
 	};
 	static BaseSort const BOOL, INT, REAL;
+	class Logic {
+		bool _linear;
+		char const* _str;
+		BaseSort const& _base_sort;
+		friend Smt;
+		Logic( char const* str, bool linear, BaseSort const& base_sort ) : _str(str), _linear(linear), _base_sort(base_sort) {}
+	public:
+		bool linear() const { return _linear; }
+		static Logic of( Exp const& );
+	};
+	static Logic const QF_LIA, QF_LRA, LIA, LRA, QF_NIA, QF_NRA, NIA, NRA;
 	using Fun = Sum<int,std::string>;
 	static Fun const AND, OR, NOT, IMP, ITE, ADD, MUL, EQ, GE, GT, CONS, CAR, CDR, LIST, NTH;
 	class PostExp {

@@ -80,13 +80,15 @@ public:
 		if(_opt) return *_opt;
 		return other;
 	}
-	template<typename O>
-	O operator>>=( std::function<O(T&&)> const& f ) && {
-		return *this ? f(*_opt) : O();
+	template<typename F>
+	auto operator>>=( F const& f ) && {
+		using O = std::invoke_result_t<F,T&&>;
+		return *this ? f(std::move(*_opt)) : O{};
 	}
-	template<typename O>
-	O operator>>=( std::function<O(T const&)> const& f ) const& {
-		return *this ? f(*_opt) : O();
+	template<typename F>
+	auto operator>>=( F const& f ) const& {
+		using O = std::invoke_result_t<F, T const&>;
+		return *this ? f(*_opt) : O{};
 	}
 	template<typename U>
 	bool contains( U const& other ) const {
@@ -171,6 +173,16 @@ public:
 	T const& value_or_throw( E const& err ) const& {
 		if(_ptr) return *_ptr;
 		throw err;
+	}
+	template<typename F>
+	auto operator>>=( F const& f ) & {
+		using O = std::invoke_result_t<F,T&>;
+		return *this ? f(*_ptr) : O{};
+	}
+	template<typename F>
+	auto operator>>=( F const& f ) const& {
+		using O = std::invoke_result_t<F, T const&>;
+		return *this ? f(*_ptr) : O{};
 	}
 };
 

@@ -69,7 +69,7 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 	if( fun == "arity" ) {
 		while( auto const& arg = exp.gets_arg(n) ) {
 			auto const& arity = arg->fun();
-			if( arity == "t" || stoi(arity) == rank.arity ) {
+			if( arity == "otherwise" || stoi(arity) == rank.arity ) {
 				size_t j = 0;
 				auto const& aarg = arg->get_arg(j);
 				arg->get_end(j);
@@ -131,7 +131,7 @@ Poly::Template const Poly::Template::MONO_SUM = Exp{
 			Exp{"var",":constrain",Exp{">=","_","0"}}
 		},
 	},
-	Exp{"t",
+	Exp{"otherwise",
 		Exp{"+",
 			Exp{"args","+",
 				Exp{"*",Exp{"ite",Exp{"var",":sort","Bool"},"2","1"},"arg"}
@@ -150,7 +150,7 @@ Poly::Template const Poly::Template::SUM = Exp{
 			Exp{"var",":constrain",Exp{">=","_","0"}}
 		},
 	},
-	Exp{"t",
+	Exp{"otherwise",
 		Exp{"+",
 			Exp{"args","+",
 				Exp{"*",Exp{"ite",Exp{"var",":sort","bool"},"1","0"},"arg"}

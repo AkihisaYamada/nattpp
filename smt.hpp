@@ -20,13 +20,14 @@ public:
 	};
 	static Logic const QF_LIA, QF_LRA, LIA, LRA, QF_NIA, QF_NRA, NIA, NRA;
 	class BaseSort {
+		std::string _name;
+		BaseSort( char const* name ) : _name(name) {}
+		BaseSort( std::string const& name ) : _name(name) {}
 	public:
-		std::string const name;
+		std::string name() && { return std::move(_name); }
+		std::string const& name() const& { return _name; }
 		static Opt<BaseSort> of( Exp const& );
-	private:
 		friend Smt;
-		BaseSort( char const* name ) : name(name) {}
-		BaseSort( std::string const& name ) : name(name) {}
 	};
 	class Sort {
 		using _Cons = std::pair<Sort,Sort>;
@@ -40,6 +41,7 @@ public:
 		OptMem<_Cons> cons() const & {
 			return OptMem<_Cons>(_un.ref<Mem<_Cons>>());
 		}
+		static Sort of( Exp const& x );
 	};
 	static BaseSort const BOOL, INT, REAL;
 	using Fun = Sum<int,std::string>;
@@ -306,7 +308,8 @@ public:
 			Solver( std::make_unique<Proc>(std::string("z3"),std::vector<std::string>{"z3","-smt2","-in"},std::move(tee)), logic ) {}
 	};
 	static int test();
-};
+static_assert(std::is_move_assignable_v<BaseSort>);
+static_assert(std::is_move_assignable_v<Mem<std::pair<Sort,Sort>, false>>);};
 
 inline Smt::Sort operator,( Smt::Sort const& x, Smt::Sort const& y ) {
 	return Smt::Sort(x,y);
@@ -341,7 +344,7 @@ inline Smt::PreExp operator,( Smt::PreExp const& x, Smt::PreExp const& y ) {
 	return x.cons(y);
 }
 inline std::ostream& operator<<( std::ostream& os, Smt::BaseSort const& x ) {
-	return os << x.name;
+	return os << x.name();
 }
 std::ostream& operator<<( std::ostream& os, Smt::Sort const& e );
 std::ostream& operator<<( std::ostream& os, Smt::Fun const& f );

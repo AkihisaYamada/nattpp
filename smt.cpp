@@ -260,7 +260,7 @@ Smt::Solver& Smt::Solver::result() & {
 }
 
 Smt::PostExp Smt::Solver::declare_const( string const& name, BaseSort const& sort ) & {
-	_proc->to << "(declare-const " << name << ' ' << sort.name << ')' << endl;
+	_proc->to << "(declare-const " << name << ' ' << sort._name << ')' << endl;
 	return Term<Fun>(Fun(in_place_type<string>,name));
 }
 
@@ -274,7 +274,7 @@ Smt::PostExp Smt::Solver::define_fun(
 	for( auto [var,psort] : params ) {
 		_proc->to << '(' << var << ' ' << psort << ") ";
 	}
-	_proc->to << ") " << sort.name << ' ' << body << ')' << endl;
+	_proc->to << ") " << sort._name << ' ' << body << ')' << endl;
 	return Term<Fun>(Fun(in_place_type<string>,name));
 }
 
@@ -580,6 +580,24 @@ Smt::Logic Smt::Logic::of( Exp const& x ) {
 	}
 	throw Error("#unknown-logic",x);
 }
+Smt::Sort Smt::Sort::of( Exp const& x ) {
+	auto const& f = x.fun();
+	auto const& n = x.args().size();
+	if( n == 0 ) {
+		if( f == "Bool" ) return BOOL;
+		if( f == "Int" ) return INT;
+		if( f == "Real" ) return REAL;
+	} else if( f == "tuple" ) {
+		size_t i = n - 1;
+		Sort ret = of(x.arg(i));
+		while( i > 0 ) {
+			i--;
+			ret = Sort(ret,of(x.arg(i)));
+		}
+	}
+	throw Error("#malformed-sort",x);
+}
+
 Smt::Solver Smt::Solver::of( Exp const& x ) {
 	size_t n = x.args().size();
 	Opt<OStream> tee;

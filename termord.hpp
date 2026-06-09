@@ -18,7 +18,8 @@ struct TrsOrder : TermOrder {
 		Trs::Sig const& sig,
 		Trs::Rules const& trs,
 		bool mono,
-		std::function<Smt::Solver()> const& default_smt
+		std::function<Smt::Solver()> const& default_smt,
+		Smt::Sort const& default_sort
 	);
 };
 
@@ -52,8 +53,6 @@ struct TrivOrder : TrsOrder {
 template<typename A>
 struct DerivedTermOrder : TermOrder {
 	Smt::Solver _solver;
-	DerivedTermOrder( DerivedTermOrder const& ) = delete;
-	DerivedTermOrder( DerivedTermOrder && ) = default;
 	Algebra::Intp<std::string,A> const intp;
 	Algebra::Deriver<std::string, typename A::Sig> const deriver;
 	DerivedTermOrder(
@@ -129,15 +128,13 @@ struct DerivedTrsPosOrder : TrsPosOrder {
 protected:
 	DerivedTermOrder<A> _term_order;
 	Map<size_t,std::pair<Term<ASig>,Term<ASig>>> _arules;
-	DerivedTrsPosOrder( DerivedTrsPosOrder const& ) = delete;
 public:
-	DerivedTrsPosOrder( DerivedTrsPosOrder && ) = default;
 	DerivedTrsPosOrder(
 		Trs::Sig const& sig,
 		Trs::Rules const& rules,
 		A::Template const& temp,
 		Smt::Solver&& solver,
-		Smt::BaseSort const& sort
+		Smt::Sort const& sort
 	) : _term_order(sig,temp,std::move(solver),sort) {
 		for( auto [n,rule] : rules ) {
 			_arules.insert(n,std::pair{_term_order.intp.annotate(rule.first),_term_order.intp.annotate(rule.second)});

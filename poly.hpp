@@ -137,7 +137,7 @@ public:
 
 	class Template : public Exp {
 	public:
-		Template( Exp const& exp ) : Exp(exp) {}
+		using Exp::Exp;
 		Algebra::Deriver<std::string,Sig> deriver(
 			Trs::Sig const& sig,
 			Smt::Solver& solver

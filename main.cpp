@@ -55,7 +55,7 @@ int main( int argc, char* argv[] ) try {
 
 	vector<unique_ptr<TrsOrder>> rule_removers;
 	for( auto x : rule_remover_specs ) {
-		rule_removers.push_back(TrsOrder::of(Exp::of(x),sig,trs,true,default_smt));
+		rule_removers.push_back(TrsOrder::of(Exp::of(x),sig,trs,true,default_smt,Smt::INT));
 	}
 
 	// rule removal loop
@@ -84,7 +84,7 @@ int main( int argc, char* argv[] ) try {
 
 	vector<unique_ptr<TrsOrder>> dp_removers;
 	for( auto x : dp_remover_specs ) {
-		dp_removers.push_back(TrsOrder::of(Exp::of(x),sig,trs,false,default_smt));
+		dp_removers.push_back(TrsOrder::of(Exp::of(x),sig,trs,false,default_smt,Smt::INT));
 	}
 	// DP removal loop
 	do {

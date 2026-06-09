@@ -28,11 +28,11 @@ public:
 	operator bool() const {
 		return (bool)_opt;
 	}
-	Opt& operator=( Opt && other ) {
+	Opt& operator=( Opt && other ) & {
 		_opt = std::move(other._opt);
 		return *this;
 	}
-	Opt& operator=( Opt const& other ) {
+	Opt& operator=( Opt const& other ) & {
 		_opt = other._opt;
 		return *this;
 	}

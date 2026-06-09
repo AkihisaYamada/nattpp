@@ -196,14 +196,17 @@ Opt<std::tuple<Smt::PostExp,Smt::PostExp,Smt::PostExp>> Smt::PostExp::is_ite() c
 	return {};
 }
 
-Opt<Smt::BaseSort> Smt::BaseSort::of( Exp const& exp ) {
-	if( exp == "int" ) {
+Smt::BaseSort Smt::BaseSort::of( Exp const& exp ) {
+	if( exp == "Int" ) {
 		return Smt::INT;
 	}
-	if( exp == "bool" ) {
+	if( exp == "Bool" ) {
 		return Smt::BOOL;
 	}
-	return {};
+	if( exp == "Real" ) {
+		return Smt::REAL;
+	}
+	throw Error("#unknown-base-sort",exp);
 }
 
 Algebra::Intp<string,Smt::PreExp> const Smt::ALGEBRA = []( string const& fun, vector<Smt::PreExp>&& args ){
@@ -211,7 +214,7 @@ Algebra::Intp<string,Smt::PreExp> const Smt::ALGEBRA = []( string const& fun, ve
 };
 
 Smt::Solver::Solver( unique_ptr<Proc>&& proc, Logic const& logic ) :
-	_status(UNKNOWN), _proc(std::move(proc)), _reader(_proc->from), _var_count(0), logic(logic)
+	_status(UNKNOWN), _proc(std::move(proc)), _reader(_proc->from), _var_count(0), _logic(logic)
 {
 	_proc->to << "(set-logic " << logic._str << ')' << endl;
 }
@@ -500,16 +503,16 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 				}
 			}
 			auto const& eargs1 = earg1._term.args();
-			if( logic.linear() ) {
+			if( logic().linear() ) {
 				if( efun1 == ITE ) {
 					assert( eargs1.size() == 3 );
-					auto v = let(INT,earg2);//TODO
+					auto v = let(logic().base_sort(),earg2);//TODO
 					return ite( eargs1[0], Smt::mul(eargs1[1],v,true), Smt::mul(eargs1[2],v,true) );
 				}
 				auto const& eargs2 = earg2._term.args();
 				if( efun2 == ITE ) {
 					assert( eargs2.size() == 3 );
-					auto v = let(INT,earg1);//TODO
+					auto v = let(logic().base_sort(),earg1);//TODO
 					return ite( eargs2[0], Smt::mul(v,eargs2[1],true), Smt::mul(v,eargs2[2],true) );
 				}
 			}

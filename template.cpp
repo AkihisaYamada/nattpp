@@ -28,89 +28,82 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 	int pos
 ) {
 	auto const& fun = exp.fun();
-	auto const& args = exp.args();
+	size_t n = 0;
 	if( fun == "arg" ) {
+		exp.get_end(n);
 		return Algebra::Arg(pos);
 	}
 	if( fun == "var" ) {
-		auto it = args.begin();
-		arity_check( it != args.end(), exp );
-		auto base = Smt::BaseSort::of(*it);
-		if( !base ) {
-			throw Error("#unexpected",*it);
-		}
-		arity_check( it->args().empty(), *it );
-		it++;
-		auto const& ret = solver.declare_fresh(*base);
-		while( it != args.end() ) {
-			if( *it == ":constrain" ) {
-				it++;
-				if( it == args.end() ) {
-					throw Error{"#missing-exp",exp};
-				}
-				Subst<string> subst = {{"_",ret.exp()}};
-				solver.ass(Smt::ALGEBRA.eval(subst.eval(*it)));
-				it++;
+		Opt<Smt::BaseSort> sort;
+		Opt<Exp> constrain;
+		exp.process_keys(n,[&]( auto const& key, auto const& val ){
+			if( key == "sort" ) {
+				sort = {Smt::BaseSort::of(val)};
+			} else if( key == "constrain" ) {
+				constrain = {val};
 			} else {
-				throw Error{"#malformed",exp};
+				throw Error{"#unknown-key",key};
 			}
+		});
+		auto const& ret = solver.declare_fresh( sort ? *sort : solver.logic().base_sort() );
+		if( constrain ) {
+			Subst<string> subst = {{"_",ret.exp()}};
+			solver.ass(Smt::ALGEBRA.eval(subst.eval(*constrain)));
 		}
 		return ret;
 	}
 	if( fun == "args" ) {
-		if( args.size() != 2 ) {
-			throw Error{"#arity-mismatch",exp};
+		auto const& agg = exp.get_arg(n);
+		auto const& argexp = exp.get_arg(n);
+		exp.get_end(n);
+		if( auto aggfun = agg.unapplied() )
+		if( auto pfun = poly_fun(*aggfun) ) {
+			auto ret = Term<Sum<Sig,Algebra::Arg>>(*pfun);
+			for( int i = 0; i < rank.arity; i++ ) {
+				ret.args().push_back(_deriver_inner(f,rank,solver,argexp,i));
+			}
+			return ret;
 		}
-		if( !args[0].args().empty() ) {
-			throw Error{"#invalid",exp};
-		}
-		auto& afun = args[0].fun();
-		auto pfun = poly_fun(afun);
-		if( !pfun ) {
-			throw Error{"#invalid",exp};
-		}
-		auto ret = Term<Sum<Sig,Algebra::Arg>>(*pfun);
-		for( int i = 0; i < rank.arity; i++ ) {
-			ret.args().push_back(_deriver_inner(f,rank,solver,args[1],i));
-		}
-		return ret;
+		throw Error("#invalid-arg-aggregator",agg);
 	}
 	if( fun == "arity" ) {
-		for( auto const& arg : args ) {
-			auto const& arity = arg.fun();
+		while( auto const& arg = exp.gets_arg(n) ) {
+			auto const& arity = arg->fun();
 			if( arity == "t" || stoi(arity) == rank.arity ) {
-				auto const& aargs = arg.args();
-				if( aargs.size() != 1 ) {
-					throw Error{"#format",fun};
-				}
-				return _deriver_inner(f,rank,solver,aargs[0],pos);
+				size_t j = 0;
+				auto const& aarg = arg->get_arg(j);
+				arg->get_end(j);
+				return _deriver_inner(f,rank,solver,aarg,pos);
 			}
 		}
 		throw Error{"#no-matching-arity",f};
 	}
 	if( fun == "ite" ) {
-		if( args.size() != 3 ) {
-			throw Error("#arity",exp);
-		}
-		auto i = _deriver_inner(f,rank,solver,args[0],pos);
+		auto iexp = exp.get_arg(n);
+		auto texp = exp.get_arg(n);
+		auto eexp = exp.get_arg(n);
+		exp.get_end(n);
+		auto i = _deriver_inner(f,rank,solver,iexp,pos);
 		if( auto ifun = i.fun().ref<Sig>() )
 		if( auto ie = ifun->ref<Smt::PreExp>() ) {
 			return Term<Sum<Sig,Algebra::Arg>>(
 				Cond{*ie},
-				_deriver_inner(f,rank,solver,args[1],pos),
-				_deriver_inner(f,rank,solver,args[2],pos)
+				_deriver_inner(f,rank,solver,texp,pos),
+				_deriver_inner(f,rank,solver,eexp,pos)
 			);
 		}
 		throw Error{"#template-format",exp};
 	}
 	if( auto pfun = poly_fun(fun) ) {
 		auto ret = Term<Sum<Sig,Algebra::Arg>>(*pfun);
-		for( auto& arg : args ) {
-			ret.args().push_back(_deriver_inner(f,rank,solver,arg,pos));
+		while( auto const& arg = exp.gets_arg(n) ) {
+			ret.args().push_back(_deriver_inner(f,rank,solver,*arg,pos));
 		}
+		exp.get_end(n);
 		return ret;
 	}
 	if( auto i = to_int(fun) ) {
+		exp.get_end(n);
 		return Smt::PostExp(*i);
 	}
 	throw Error{"#template-format",exp};
@@ -131,38 +124,38 @@ Algebra::Deriver<string,Poly::Sig> Poly::Template::deriver( Trs::Sig const& sig,
 
 Poly::Template const Poly::Template::MONO_SUM = Exp{
 	"arity",
-	Exp{"0",Exp{"var","int",":constrain",Exp{">=","_","0"}}},
+	Exp{"0",Exp{"var",":constrain",Exp{">=","_","0"}}},
 	Exp{"1",
 		Exp{"+",
-			Exp{"*",Exp{"ite",Exp{"var","bool"},"2","1"},"arg"},
-			Exp{"var","int",":constrain",Exp{">=","_","0"}}
+			Exp{"*",Exp{"ite",Exp{"var",":sort","Bool"},"2","1"},"arg"},
+			Exp{"var",":constrain",Exp{">=","_","0"}}
 		},
 	},
 	Exp{"t",
 		Exp{"+",
 			Exp{"args","+",
-				Exp{"*",Exp{"ite",Exp{"var","bool"},"2","1"},"arg"}
+				Exp{"*",Exp{"ite",Exp{"var",":sort","Bool"},"2","1"},"arg"}
 			},
-			Exp{"var","int",":constrain",Exp{">=","_","0"}}
+			Exp{"var",":constrain",Exp{">=","_","0"}}
 		}
 	}
 };
 
 Poly::Template const Poly::Template::SUM = Exp{
 	"arity",
-	Exp{"0",Exp{"var","int",":constrain",Exp{">=","_","0"}}},
+	Exp{"0",Exp{"var",":constrain",Exp{">=","_","0"}}},
 	Exp{"1",
 		Exp{"+",
-			Exp{"*",Exp{"ite",Exp{"var","bool"},"1","0"},"arg"},
-			Exp{"var","int",":constrain",Exp{">=","_","0"}}
+			Exp{"*",Exp{"ite",Exp{"var",":sort","bool"},"1","0"},"arg"},
+			Exp{"var",":constrain",Exp{">=","_","0"}}
 		},
 	},
 	Exp{"t",
 		Exp{"+",
 			Exp{"args","+",
-				Exp{"*",Exp{"ite",Exp{"var","bool"},"1","0"},"arg"}
+				Exp{"*",Exp{"ite",Exp{"var",":sort","bool"},"1","0"},"arg"}
 			},
-			Exp{"var","int",":constrain",Exp{">=","_","0"}}
+			Exp{"var",":constrain",Exp{">=","_","0"}}
 		}
 	}
 };

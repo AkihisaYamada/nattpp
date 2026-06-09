@@ -122,21 +122,38 @@ inline Opt<std::string_view> is_key( Term<std::string> const& x ) {
 	if( auto const& f = x.unapplied() ) return is_key(*f);
 	return {};
 }
+struct Error : std::exception, Term<std::string> {
+	using Term<std::string>::Term;
+};
+
 
 struct Exp : Term<std::string> {
 	using Term<std::string>::Term;
 	Exp( Term<std::string> const& other ) : Term<std::string>(other) {}
 	Exp( Term<std::string> && other ) : Term<std::string>(std::move(other)) {}
 	static Exp of( std::string const& );
+	/** Returns i-th argument and increment i. */
+	Opt<Exp> gets_arg( size_t& i ) const& {
+		if( i < args().size() ) {
+			auto const& a = arg(i);
+			if( !is_key(a) ) {
+				i++;
+				return {a};
+			}
+		}
+		return {};
+	}
+	Exp get_arg( size_t& i ) const& {
+		return gets_arg(i).value_or_throw(Error("#too-few-args",*this));
+	}
+	void get_end( size_t i ) const& {
+		if( i != args().size() ) throw Error("#expected-rparen",arg(i));
+	}
 	/** Processes key-value pairs from the ith argument. */
 	void process_keys( size_t i, std::function<void(std::string_view const&,Exp const&)> const& f ) const&;
 };
 
 static void exp_test();
-
-struct Error : std::exception, Exp {
-	using Exp::Exp;
-};
 
 template<typename F>
 Term<F> const& Term<F>::at( Pos const& pos ) const& {

@@ -85,7 +85,7 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 	Smt::Sort const& default_sort
 ) {
 	auto const& f = x.fun();
-	size_t n = x.args().size();
+	size_t n = 0;
 	Opt<Exp> smt;
 	auto mk_smt = [&]{ return smt ? Smt::Solver::of(*smt) : default_smt(); };
 	Opt<Smt::Sort> sort;
@@ -103,16 +103,15 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 		} else common_keys(key,val);
 	};
 	if( f == "trivial" ) {
-		x.process_keys(0,common_keys);
+		x.process_keys(n,common_keys);
 		return std::make_unique<TrivOrder>(mk_smt()); 
 	} else if( f == "sum" ) {
-		x.process_keys(0,sort_keys);
+		x.process_keys(n,sort_keys);
 		return std::make_unique<DerivedTrsPosOrder<Poly>>
 			( sig, trs, mono ? Poly::Template::MONO_SUM : Poly::Template::SUM, mk_smt(), mk_sort() );
 	} else if( f == "template" ) {
-		if( n == 0 ) throw Error("#missing-template",x);
-		Poly::Template t = x.arg(0);
-		x.process_keys(1,sort_keys);
+		Poly::Template t = x.get_arg(n);
+		x.process_keys(n,sort_keys);
 		return std::make_unique<DerivedTrsPosOrder<Poly>>(sig,trs,t,mk_smt(),mk_sort());
 	} else {
 		throw Error("#unknown-order",x);

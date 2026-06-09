@@ -62,9 +62,22 @@ public:
 	using Template = Term<Sum<G,Arg>>;
 
 	template<typename F, typename G>
-	class Deriver :
-		public std::function<Term<Sum<G,Arg>>(F const&)>
-	{
+	struct Deriver : std::function<Term<Sum<G,Arg>>(F const&)> {
+		using std::function<Term<Sum<G,Arg>>(F const&)>::function;
+		template<typename T>
+		Intp<F,T> derive( auto ) && = delete;
+		template<typename T>
+		Intp<F,T> derive( Intp<G,T> && intp ) const & {
+			return [intp=std::move(intp),this]( F const& f, std::vector<T>&& args ){
+				return _intp_inner(intp,(*this)(f),std::move(args));
+			};
+		}
+		template<typename T>
+		Intp<F,T> derive( Intp<G,T> const& intp ) const & {
+			return [&]( F const& f, std::vector<T>&& args ){
+				return _intp_inner(intp,(*this)(f),std::move(args));
+			};
+		}
 	private:
 		template<typename T>
 		static T _intp_inner( Intp<G,T> const& intp, Term<Sum<G,Arg>> const& e, std::vector<T> const& vs ) {
@@ -84,22 +97,6 @@ public:
 			}
 			assert(false);
 		};
-	public:
-		using std::function<Term<Sum<G,Arg>>(F const&)>::function;
-		template<typename T>
-		Intp<F,T> derive( auto ) && = delete;
-		template<typename T>
-		Intp<F,T> derive( Intp<G,T> && intp ) const & {
-			return [intp=std::move(intp),this]( F const& f, std::vector<T>&& args ){
-				return _intp_inner(intp,(*this)(f),std::move(args));
-			};
-		}
-		template<typename T>
-		Intp<F,T> derive( Intp<G,T> const& intp ) const & {
-			return [&]( F const& f, std::vector<T>&& args ){
-				return _intp_inner(intp,(*this)(f),std::move(args));
-			};
-		}
 	};
 
 	static int test();

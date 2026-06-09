@@ -172,11 +172,12 @@ public:
 	PathOrder(
 		Trs::Sig const& sig,
 		Trs::Rules const& rules,
-		std::unique_ptr<TermOrder>&& weight
+		std::unique_ptr<TermOrder>&& weight,
+		Smt::BaseSort const& prec_sort
 	) : _weight(std::move(weight)) {
 		size_t sigsize = sig.size();
 		for( auto const&[fun1,rank1] : sig ) {
-			auto const& prec = solver().declare_fresh(Smt::INT);
+			auto const& prec = solver().declare_fresh(prec_sort);
 			_sig.insert(fun1,prec);
 		}
 		for( auto const& [n,rule] : rules ) {

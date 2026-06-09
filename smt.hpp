@@ -17,7 +17,7 @@ public:
 	public:
 		std::string name() && { return std::move(_name); }
 		std::string const& name() const& { return _name; }
-		static Opt<BaseSort> of( Exp const& );
+		static BaseSort of( Exp const& );
 		friend Smt;
 	};
 	class Sort {
@@ -43,6 +43,7 @@ public:
 		Logic( char const* str, bool linear, BaseSort const& base_sort ) : _str(str), _linear(linear), _base_sort(base_sort) {}
 	public:
 		bool linear() const { return _linear; }
+		BaseSort const& base_sort() const& { return _base_sort; }
 		static Logic of( Exp const& );
 	};
 	static Logic const QF_LIA, QF_LRA, LIA, LRA, QF_NIA, QF_NRA, NIA, NRA;
@@ -246,6 +247,7 @@ public:
 		std::unique_ptr<Proc> _proc;
 		Reader _reader;
 		size_t _var_count;
+		Logic _logic;
 		Solver( std::unique_ptr<Proc>&& proc, Logic const& logic );
 		Solver( Solver const& other ) = delete;
 		Solver& operator=( Solver const& other ) = delete;
@@ -253,7 +255,7 @@ public:
 	public:
 		Solver( Solver&& other ) = default;
 		Solver& operator=( Solver&& other ) = default;
-		Logic const logic;
+		Logic const& logic() const& { return _logic; }
 		PostExp declare_const( std::string const& name, BaseSort const& sort ) &;
 		PostExp declare_fresh( BaseSort const& sort ) {
 			std::string ret = _make_fresh();

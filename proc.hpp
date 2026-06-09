@@ -61,7 +61,7 @@ private:
 		pid_t pid;
 		int to;
 		int from;
-		_Maker( std::string const& cmd, std::vector<std::string> const& args );
+		_Maker( char const* cmd, std::vector<char const*> const& args );
 	};
 	Proc( _Maker const& maker, Opt<OStream>&& tee );
 	Proc( Proc const& other ) = delete;
@@ -70,7 +70,7 @@ public:
 	~Proc() {
 		std::cerr << "~Proc: pid=" << _pid << std::endl;
 	}
-	Proc( std::string const& cmd, std::vector<std::string> const& args, Opt<OStream>&& tee = {} ) :
+	Proc( char const* cmd, std::vector<char const*> const& args, Opt<OStream>&& tee = {} ) :
 		Proc(_Maker(cmd,args),std::move(tee)) {}
 	void finish() {
 		_to_filebuf.close();

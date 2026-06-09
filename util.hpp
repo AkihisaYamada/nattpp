@@ -82,5 +82,16 @@ void iter2(
 		it1++; it2++;
 	}
 }
-
+template<typename... Args>
+std::function<bool(Args...)> operator||(std::function<bool(Args...)>&& f, std::function<bool(Args...)>&& g) {
+	return [f = std::move(f), g = std::move(g)](Args... xs) {
+		return f(xs...) || g(xs...);
+	};
+}
+template<typename... Args>
+std::function<bool(Args...)> operator||(std::function<bool(Args...)>const& f, std::function<bool(Args...)>const& g) {
+	return [&](Args... xs) {
+		return f(xs...) || g(xs...);
+	};
+}
 #endif

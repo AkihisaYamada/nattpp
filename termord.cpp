@@ -90,29 +90,35 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 	auto mk_smt = [&]{ return smt ? Smt::Solver::of(*smt) : default_smt(); };
 	Opt<Smt::Sort> sort;
 	auto mk_sort = [&]{ return sort ? *sort : default_sort; };
-	auto common_keys = [&]( string_view const& key, Exp const& val ){
+	Exp::KeyValProc sort_key = [&]( string_view const& key, Exp const& val ){
+		if( key == "sort" ) {
+			sort = {Smt::Sort::of(val)};
+			return true;
+		}
+		return false;
+	};
+	Exp::KeyValProc solver_key = [&]( string_view const& key, Exp const& val ){
 		if( key == "smt" ) {
 			smt = {val};
-		} else {
-			throw Error("#unexpected-key",key,val);
+			return true;
 		}
-	};
-	auto sort_keys = [&]( string_view const& key, Exp const& val ){
-		if( key == "sort" ) {
-			sort = { Smt::Sort::of(val) };
-		} else common_keys(key,val);
+		return false;
 	};
 	if( f == "trivial" ) {
-		x.process_keys(n,common_keys);
+		x.process_keys(n,solver_key);
 		return std::make_unique<TrivOrder>(mk_smt()); 
 	} else if( f == "sum" ) {
-		x.process_keys(n,sort_keys);
+		x.process_keys( n, sort_key || solver_key );
 		return std::make_unique<DerivedTrsPosOrder<Poly>>
 			( sig, trs, mono ? Poly::Template::MONO_SUM : Poly::Template::SUM, mk_smt(), mk_sort() );
 	} else if( f == "template" ) {
 		Poly::Template t = x.get_arg(n);
-		x.process_keys(n,sort_keys);
+		x.process_keys( n, sort_key || solver_key );
 		return std::make_unique<DerivedTrsPosOrder<Poly>>(sig,trs,t,mk_smt(),mk_sort());
+	} else if( f == "path-order" ) {
+		if( auto w = x.gets_arg(n) ) {
+			
+		}
 	} else {
 		throw Error("#unknown-order",x);
 	}

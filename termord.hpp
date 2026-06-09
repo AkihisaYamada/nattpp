@@ -187,7 +187,7 @@ public:
 		}
 	}
 	std::ostream& print_name( std::ostream& os ) override {
-		return _weight->print_name( os << "(path-order " );
+		return _weight->print_name( os << "(path-order " ) << ')';
 	}
 	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
 		return os << "blahblah";

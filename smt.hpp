@@ -309,11 +309,11 @@ public:
 	class Z3 : public Solver {
 	public:
 		Z3( Logic const& logic, Opt<OStream> && tee = {} ) :
-			Solver( std::make_unique<Proc>(std::string("z3"),std::vector<std::string>{"z3","-smt2","-in"},std::move(tee)), logic ) {}
+			Solver( std::make_unique<Proc>("z3",std::vector{"z3","-smt2","-in"},std::move(tee)), logic ) {}
 	};
 	static int test();
-static_assert(std::is_move_assignable_v<BaseSort>);
-static_assert(std::is_move_assignable_v<Mem<std::pair<Sort,Sort>, false>>);};
+
+};
 
 inline Smt::Sort operator,( Smt::Sort const& x, Smt::Sort const& y ) {
 	return Smt::Sort(x,y);
@@ -356,5 +356,6 @@ inline std::ostream& operator<<( std::ostream& os, Smt::PostExp const& e ) {
 	return os << (Term<Smt::Fun>)e;
 }
 std::ostream& operator<<( std::ostream& os, Smt::PreExp const& e );
+
 
 #endif

@@ -3,7 +3,7 @@
 
 using namespace std;
 
-Proc::_Maker::_Maker( string const& cmd, vector<string> const& args ) {
+Proc::_Maker::_Maker( char const* cmd, vector<char const*> const& args ) {
 	int to_pipe[2], from_pipe[2];
 	if( pipe(to_pipe) || pipe(from_pipe) ) {
 		throw Error("pipe");
@@ -13,7 +13,7 @@ Proc::_Maker::_Maker( string const& cmd, vector<string> const& args ) {
 		char const* argv[args.size()+1];
 		size_t i = 0;
 		for( ; i < args.size(); i++ ) {
-			argv[i] = args[i].c_str();
+			argv[i] = args[i];
 		}
 		argv[i] = nullptr;
 		dup2(to_pipe[0],STDIN_FILENO);
@@ -62,24 +62,22 @@ OStream OStream::of( Exp const& x ) {
 Proc Proc::of( Exp const& x ) {
 	auto const& f = x.fun();
 	if( f == "cmd" ) {
-		size_t n = x.args().size();
-		if( n == 0 ) throw Error("#missing-command",x);
-		auto const& line = x.arg(0);
-		vector<string> cmd_args;
-		for( auto const& arg : line.args() ) { 
-			auto str = arg.unapplied();
-			if( !str ) throw Error("#malformed-cmd-arg",arg);
-			cmd_args.push_back(*str);
+		size_t n = 0;
+		auto const& cmd = x.get_arg(n).unapplied().value_or_throw( Error("#malformed-cmd",x) ).c_str();
+		vector<char const*> cmd_args;
+		while( auto const& arg = x.gets_arg(n) ) {
+			auto str = arg->unapplied().value_or_throw( Error("#malformed-cmd-arg",*arg) );
+			cmd_args.push_back(str.c_str());
 		}
 		Opt<OStream> tee;
-		x.process_keys(1,[&]( auto key, auto val ){
+		x.process_keys(n,[&]( auto key, auto val ){
 			if( key == "tee" ) {
 				tee.emplace(OStream::of(val));
-			} else {
-				throw Error("#unexpected",key);
+				return true;
 			}
+			return false;
 		});
-		return Proc(line.fun(),cmd_args,std::move(tee));
+		return Proc(cmd,cmd_args,std::move(tee));
 	}
 	throw Error("#malformed-proc",x);
 }

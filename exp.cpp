@@ -127,13 +127,14 @@ Opt<Exp> Reader::reads_exp() {
 	return {};
 }
 
-void Exp::process_keys( size_t i, std::function<void(std::string_view const&,Exp const&)> const& f ) const& {
+void Exp::process_keys( size_t& i, KeyValProc const& f ) const& {
 	size_t n = args().size();
 	while( i < n ) {
 		auto const& key = is_key(arg(i)).value_or_throw(Error("#unexpected",arg(i)));
 		i++;
-		if( i == n ) throw Error("#missing-arg",arg(i));
-		f(key,arg(i));
+		if( i == n ) throw Error("#missing-value",key);
+		auto const& val = arg(i);
+		if( !f(key,val) ) throw Error("#unprocessed-key",key,val);
 		i++;
 	}
 }

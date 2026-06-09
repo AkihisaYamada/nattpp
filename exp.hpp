@@ -118,9 +118,17 @@ inline Opt<std::string_view> is_key( std::string const& str ) {
 	return {};
 }
 inline Opt<std::string_view> is_key( Term<std::string> const& x ) {
-	if( auto const& f = x.unapplied() ) return is_key(*f);
+	return x.unapplied() >>= []( auto const& val ){ return is_key(val); };
+}
+Opt<std::string_view> is_str( std::string && ) = delete;
+inline Opt<std::string_view> is_str( std::string const& str ) {
+	if( str.starts_with('"') ) return std::string_view(str).substr(1,str.size()-1);
 	return {};
 }
+inline Opt<std::string_view> is_str( Term<std::string> const& x ) {
+	return x.unapplied() >>= []( auto const& val ){ return is_str(val); };
+}
+
 struct Error : std::exception, Term<std::string> {
 	using Term<std::string>::Term;
 };
@@ -148,8 +156,9 @@ struct Exp : Term<std::string> {
 	void get_end( size_t i ) const& {
 		if( i != args().size() ) throw Error("#expected-rparen",arg(i));
 	}
+	using KeyValProc = std::function<bool(std::string_view const&,Exp const&)>;
 	/** Processes key-value pairs from the ith argument. */
-	void process_keys( size_t i, std::function<void(std::string_view const&,Exp const&)> const& f ) const&;
+	void process_keys( size_t& i, KeyValProc const& f ) const&;
 	static void test();
 };
 

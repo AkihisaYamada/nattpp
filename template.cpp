@@ -39,11 +39,13 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 		exp.process_keys(n,[&]( auto const& key, auto const& val ){
 			if( key == "sort" ) {
 				sort = {Smt::BaseSort::of(val)};
-			} else if( key == "constrain" ) {
-				constrain = {val};
-			} else {
-				throw Error{"#unknown-key",key};
+				return true;
 			}
+			if( key == "constrain" ) {
+				constrain = {val};
+				return true;
+			}
+			return false;
 		});
 		auto const& ret = solver.declare_fresh( sort ? *sort : solver.logic().base_sort() );
 		if( constrain ) {

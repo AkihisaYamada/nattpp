@@ -603,20 +603,18 @@ Smt::Sort Smt::Sort::of( Exp const& x ) {
 }
 
 Smt::Solver Smt::Solver::of( Exp const& x ) {
-	size_t n = x.args().size();
+	size_t n = 0;
 	Opt<OStream> tee;
 	if( x.fun() == "z3" ) {
-		if( n > 0 ) {
-			auto logic = Logic::of(x.arg(0));
-			x.process_keys(1,[&]( auto key, auto val ){
-				if( key == "tee" ) {
-					tee.emplace(OStream::of(val));
-				} else {
-					throw Error("#unexpected-key",key);
-				}
-			});
-			return Z3(logic,std::move(tee));
-		}
+		auto logic = Logic::of(x.get_arg(n));
+		x.process_keys(n,[&]( auto key, auto val ){
+			if( key == "tee" ) {
+				tee.emplace(OStream::of(val));
+				return true;
+			}
+			return false;
+		});
+		return Z3(logic,std::move(tee));
 	}
 	throw Error("#malformed-smt-solver",x);
 }

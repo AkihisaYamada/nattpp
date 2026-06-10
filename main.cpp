@@ -68,12 +68,13 @@ int main( int argc, char* argv[] ) try {
 			if( rem.empty() ) {
 				continue;
 			}
-			cout << "(remove-rule";
+			cout << "(remove-rule\n  ";
+			proc->print( cout, p.sig ) << "\n ";
 			for( size_t i : rem ) {
 				cout << ' ' << i;
 				p.systems[0].erase(i);
 			}
-			proc->print( cout << "\n  :order ", p.sig ) << ")" << endl;
+			cout << ")" << endl;
 			return true;
 		}
 		return false;
@@ -96,12 +97,13 @@ int main( int argc, char* argv[] ) try {
 			if( rem.empty() ) {
 				continue;
 			}
-			cout << "(remove-dp";
+			cout << "(remove-dp\n  ";
+			proc->print( cout, p.sig ) << "\n ";
 			for( size_t i : rem ) {
 				cout << ' ' << i;
 				dps.erase(i);
 			}
-			proc->print( cout << "\n  :order ", p.sig ) << ")" << endl;
+			cout << ')' << endl;
 			return true;
 		}
 		return false;

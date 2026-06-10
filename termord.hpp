@@ -5,11 +5,18 @@
 #include"smt.hpp"
 
 struct TermOrder {
-	using Verb = enum { NONE = 0, RULE = 1 << 1, PAIR = 1 << 2 };
-	virtual Verb verbosity() { return NONE; };
+	enum { NONE = 0, RULE = 1 << 1, PAIR = 1 << 2 };
+	virtual int verbosity() { return NONE; };
 	virtual Smt::Solver& solver() = 0;
 	virtual std::ostream& print_name( std::ostream& os ) = 0;
-	virtual std::ostream& print( std::ostream& os, Trs::Sig const& sig ) = 0;
+	virtual std::ostream& print_sym_info( std::ostream& os, std::string const& f ) = 0;
+	virtual std::ostream& print( std::ostream& os, Trs::Sig const& sig ) {
+		print_name( os << '(' );
+		for( auto [f,arity] : sig ) {
+			print_sym_info( os << "\n    (" << f << ' ', f ) << ')';
+		}
+		return os << ')';
+	}
 	virtual Smt::Compare compare( Exp const& l, Exp const& r ) = 0;
 	static void test();
 };
@@ -45,7 +52,7 @@ struct TrivOrder : TrsOrder {
 	std::ostream& print_name( std::ostream& os ) override {
 		return os << "trivial-order";
 	};
-	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
+	std::ostream& print_sym_info( std::ostream& os, std::string const& sig ) override {
 		return os;
 	}
 	Smt::Compare order_rule( size_t i ) & override {
@@ -57,7 +64,7 @@ template<typename A>
 struct DerivedTermOrder : TermOrder {
 private:
 	Smt::Solver _solver;
-	Verb _verbosity;
+	int _verbosity;
 public:
 	Algebra::Intp<std::string,A> const intp;
 	Algebra::Deriver<std::string, typename A::Sig> const deriver;
@@ -66,7 +73,7 @@ public:
 		A::Template const& temp,
 		Smt::Solver&& sol_,
 		Smt::Sort const& sort,
-		Verb verb = NONE
+		int verb = NONE
 	) : _solver(std::move(sol_)),
 		deriver(temp.deriver(sig,_solver)),
 		intp(A::expand(deriver.derive(A::algebra(_solver)),_solver,sort)),
@@ -78,17 +85,13 @@ public:
 	std::ostream& print_name( std::ostream& os ) override {
 		return os << "derived-order";
 	};
-	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
-		os << '(';
-		for( auto [f,arity] : sig ) {
-			os << "\n    (" << f << ' ' << A::instantiate(solver(),deriver(f)) << ')';
-		}
-		return os << ')';
-	}
 	Smt::Solver& solver() override {
 		return _solver;
 	}
-	Verb verbosity() override {
+	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override {
+		return os << ":intp " << A::instantiate(solver(),deriver(f));
+	}
+	int verbosity() override {
 		return _verbosity;
 	}
 };
@@ -107,7 +110,7 @@ public:
 		A::Template const& temp,
 		Smt::Solver&& sol_,
 		Smt::Sort const& sort,
-		Verb const& verb = NONE
+		int const& verb = NONE
 	) : _term_order(sig,temp,std::move(sol_),sort,verb) {
 		auto& sol = solver();
 		for( auto const& [i,rule] : rules ) {
@@ -129,10 +132,10 @@ public:
 	std::ostream& print_name( std::ostream& os ) override {
 		return _term_order.print_name(os);
 	}
-	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
-		return _term_order.print(os,sig);
+	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override {
+		return _term_order.print_sym_info(os,f);
 	}
-	Verb verbosity() override { return _term_order.verbosity(); }
+	int verbosity() override { return _term_order.verbosity(); }
 };
 
 template<typename A>
@@ -148,7 +151,7 @@ public:
 		A::Template const& temp,
 		Smt::Solver&& solver,
 		Smt::Sort const& sort,
-		Verb const& verb = NONE
+		int const& verb = NONE
 	) : _term_order(sig,temp,std::move(solver),sort,verb) {
 		for( auto [n,rule] : rules ) {
 			_arules.insert(n,std::pair{_term_order.intp.annotate(rule.first),_term_order.intp.annotate(rule.second)});
@@ -168,10 +171,10 @@ public:
 	std::ostream& print_name( std::ostream& os ) override {
 		return _term_order.print_name(os);
 	}
-	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
-		return _term_order.print(os,sig);
+	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override {
+		return _term_order.print_sym_info(os,f);
 	}
-	Verb verbosity() override { return _term_order.verbosity(); }
+	int verbosity() override { return _term_order.verbosity(); }
 };
 
 struct PathOrder : TrsOrder {
@@ -180,13 +183,13 @@ private:
 	Map<std::string,Smt::PostExp> _precs;
 	Map<size_t,Smt::Compare> _ord;
 	Map<std::pair<Term<std::string>,Term<std::string>>,Smt::Compare> _table;
-	Verb _verbosity;
+	int _verbosity;
 public:
 	PathOrder(
 		Trs::Sig const& sig,
 		Trs::Rules const& rules,
 		std::unique_ptr<TermOrder>&& weight,
-		Verb verb
+		int verb
 	) : _weight(std::move(weight)), _verbosity(verb) {
 		size_t sigsize = sig.size();
 		auto& sol = solver();
@@ -201,10 +204,12 @@ public:
 		}
 	}
 	std::ostream& print_name( std::ostream& os ) override {
-		return _weight->print_name( os << "(path-order " ) << ')';
+		return _weight->print_name( os << "path-order " );
 	}
-	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
-		return os << "blahblah";
+	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override {
+		auto prec = _precs.find(f);
+		assert(prec);
+		return _weight->print_sym_info( os << ":prec " << solver().get_value(*prec), f );
 	}
 	Smt::Solver& solver() override {
 		return _weight->solver();
@@ -215,7 +220,7 @@ public:
 		assert( opt );
 		return *opt;
 	}
-	Verb verbosity() override { return _verbosity; }
+	int verbosity() override { return _verbosity; }
 };
 
 

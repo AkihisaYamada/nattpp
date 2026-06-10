@@ -89,7 +89,7 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 	auto mk_smt = [&]{ return smt ? Smt::Solver::of(*smt) : default_smt(); };
 	Opt<Smt::Sort> sort;
 	auto mk_sort = [&]{ return sort ? *sort : default_sort; };
-	Verb verb = NONE;
+	int verb = NONE;
 	Exp::KeyValProc sort_key = [&]( string_view const& key, Exp const& val ){
 		if( key == "sort" ) {
 			sort = {Smt::Sort::of(val)};
@@ -102,7 +102,7 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 			if( val == "rule" ) {
 				verb = RULE;
 			} else if( val == "pair" ) {
-				verb = PAIR;
+				verb = RULE | PAIR;
 			} else {
 				throw Error("#unknown-verbosity",val);
 			}
@@ -155,7 +155,7 @@ void TermOrder::test() {
 	Trs::Rules trs;
 	trs.insert(0,Trs::Rule{{"+","x","y"},{"x"}});
 
-	auto lpo = PathOrder(sig,trs,std::make_unique<TrivOrder>(Smt::Z3(Smt::LIA)),TermOrder::Verb::RULE);
+	auto lpo = PathOrder(sig,trs,std::make_unique<TrivOrder>(Smt::Z3(Smt::LIA)),TermOrder::RULE);
 	cout << lpo.order_rule(0).gt << endl;
 
 }

@@ -100,6 +100,9 @@ ostream& Problem::print( ostream& os ) const {
 	}
 	os << flush;
 	if( systems.empty() ) return os;
+	for( auto const& [f,rank] : sig ) {
+		os << "\n  (fun " << f << ' ' << rank << ')' << flush;
+	}
 	for( auto const& [n,rule] : systems[0] ) {
 		os << "\n  (rule ";
 		rule.print_contents(os);

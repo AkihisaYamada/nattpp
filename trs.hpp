@@ -38,6 +38,11 @@ inline std::ostream& operator<<( std::ostream& os, Trs::Rules const& rules ) {
 	}
 	return os;
 }
+inline std::ostream& operator<<( std::ostream& os, Trs::Rank const& rank ) {
+	os << ":arity " << (int)rank.arity;
+	if( rank.defined ) os << " :defined true";
+	return os;
+}
 
 class Trs::Reader {
 	Sig const& _sig;

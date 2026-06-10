@@ -48,7 +48,7 @@ public:
 	};
 	static Logic const QF_LIA, QF_LRA, LIA, LRA, QF_NIA, QF_NRA, NIA, NRA;
 	using Fun = Sum<int,std::string>;
-	static Fun const AND, OR, NOT, IMP, ITE, ADD, MUL, EQ, GE, GT, CONS, CAR, CDR, LIST, NTH;
+	static Fun const TRUE_F, FALSE_F, AND, OR, NOT, IMP, ITE, ADD, MUL, EQ, GE, GT, CONS, CAR, CDR, LIST, NTH;
 	class PostExp {
 		friend Smt;
 		Term<Fun> _term;
@@ -57,7 +57,9 @@ public:
 		PostExp( PostExp const& ) = default;
 		PostExp( PostExp && ) = default;
 		PostExp() : _term(std::in_place_type<int>) {}
+		PostExp( bool b ) : _term( b ? TRUE_F : FALSE_F ) {}
 		PostExp( int i ) : _term(i) {}
+		PostExp( unsigned int i ) : _term((int)i) {}
 		operator Term<Fun> const() const {
 			return _term;
 		}
@@ -93,8 +95,8 @@ public:
 private:
 		Opt<int&> is_int() & { return _term.fun().ref<int>(); }
 public:
-		PostExp& operator&=( PostExp const& y ) &;
-		PostExp& operator|=( PostExp const& y ) &;
+		PostExp conj( PostExp const& y ) const &;
+		PostExp disj( PostExp const& y ) const &;
 		PostExp imp( PostExp const& y ) const;
 		PostExp operator!() const;
 		PostExp& operator+=( PostExp const& y ) &;
@@ -105,6 +107,34 @@ public:
 		Exp exp() const;
 	};
 	static PostExp const TRUE, FALSE;
+	template<typename C>
+	static PostExp disj( C const& xs, std::function<PostExp(typename C::value_type const&)> const& f ) {
+		std::vector<Term<Fun>> ds;
+		for( auto const& x : xs ) {
+			auto const& fx = f(x);
+			if( fx == TRUE ) return TRUE;
+			if( fx != FALSE ) ds.push_back(fx);
+		}
+		switch( ds.size() ) {
+		case 0: return FALSE;
+		case 1: return PostExp(ds[0]);
+		}
+		return PostExp(app(OR,std::move(ds)));
+	}
+	template<typename C>
+	static PostExp conj( C const& xs, std::function<PostExp(typename C::value_type const&)> const& f ) {
+		std::vector<Term<Fun>> cs;
+		for( auto const& x : xs ) {
+			auto const& fx = f(x);
+			if( fx == FALSE ) return FALSE;
+			if( fx != TRUE ) cs.push_back(fx);
+		}
+		switch( cs.size() ) {
+		case 0: return TRUE;
+		case 1: return cs[0];
+		}
+		return app(AND,std::move(cs));
+	}
 	static PostExp car( PostExp const& arg );
 	static PostExp cdr( PostExp const& arg );
 	struct Compare {
@@ -191,6 +221,10 @@ public:
 	static PostExp gt( PostExp const& x, PostExp const& y );
 	static PreExp gt( PreExp const& x, PreExp const& y ) {
 		return PreExp(GT,{x,y});
+	}
+	static Compare compare( PostExp const& x, PostExp const& y ) {
+		if( x == y ) return { TRUE, FALSE };
+		return {ge(x,y),gt(x,y)};
 	}
 	static PostExp ite( PostExp const& i, PostExp const& t, PostExp const& e );
 	static PreExp ite( PreExp const& i, PreExp const& t, PreExp const& e ) {
@@ -319,11 +353,11 @@ inline Smt::Sort operator,( Smt::Sort const& x, Smt::Sort const& y ) {
 	return Smt::Sort(x,y);
 }
 
-inline Smt::PostExp operator&&( Smt::PostExp x, Smt::PostExp const& y ) {
-	return x &= y;
+inline Smt::PostExp operator&&( Smt::PostExp const& x, Smt::PostExp const& y ) {
+	return x.conj(y);
 }
-inline Smt::PostExp operator||( Smt::PostExp x, Smt::PostExp const& y ) {
-	return x |= y;
+inline Smt::PostExp operator||( Smt::PostExp const& x, Smt::PostExp const& y ) {
+	return x.disj(y);
 }
 inline Smt::PostExp operator+( Smt::PostExp x, Smt::PostExp const& y ) {
 	return x += y;
@@ -356,6 +390,8 @@ inline std::ostream& operator<<( std::ostream& os, Smt::PostExp const& e ) {
 	return os << (Term<Smt::Fun>)e;
 }
 std::ostream& operator<<( std::ostream& os, Smt::PreExp const& e );
-
+inline std::ostream& operator<<( std::ostream& os, Smt::Compare const& c ) {
+	return os << '{' << c.ge << ", " << c.gt << '}';
+}
 
 #endif

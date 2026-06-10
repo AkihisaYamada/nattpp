@@ -60,11 +60,11 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 		exp.get_end(n);
 		if( auto aggfun = agg.unapplied() )
 		if( auto pfun = poly_fun(*aggfun) ) {
-			auto ret = Term<Sum<Sig,Algebra::Arg>>(*pfun);
+			auto args = vector<Term<Sum<Sig,Algebra::Arg>>>();
 			for( int i = 0; i < rank.arity; i++ ) {
-				ret.args().push_back(_deriver_inner(f,rank,solver,argexp,i));
+				args.push_back(_deriver_inner(f,rank,solver,argexp,i));
 			}
-			return ret;
+			return app(*pfun,std::move(args));
 		}
 		throw Error("#invalid-arg-aggregator",agg);
 	}
@@ -97,12 +97,12 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 		throw Error{"#template-format",exp};
 	}
 	if( auto pfun = poly_fun(fun) ) {
-		auto ret = Term<Sum<Sig,Algebra::Arg>>(*pfun);
+		auto args = vector<Term<Sum<Sig,Algebra::Arg>>>();
 		while( auto const& arg = exp.gets_arg(n) ) {
-			ret.args().push_back(_deriver_inner(f,rank,solver,*arg,pos));
+			args.push_back(_deriver_inner(f,rank,solver,*arg,pos));
 		}
 		exp.get_end(n);
-		return ret;
+		return app(*pfun,std::move(args));
 	}
 	if( auto i = to_int(fun) ) {
 		exp.get_end(n);
@@ -148,14 +148,14 @@ Poly::Template const Poly::Template::SUM = Exp{
 	Exp{"0",Exp{"var",":constrain",Exp{">=","_","0"}}},
 	Exp{"1",
 		Exp{"+",
-			Exp{"*",Exp{"ite",Exp{"var",":sort","bool"},"1","0"},"arg"},
+			Exp{"*",Exp{"ite",Exp{"var",":sort","Bool"},"1","0"},"arg"},
 			Exp{"var",":constrain",Exp{">=","_","0"}}
 		},
 	},
 	Exp{"otherwise",
 		Exp{"+",
 			Exp{"args","+",
-				Exp{"*",Exp{"ite",Exp{"var",":sort","bool"},"1","0"},"arg"}
+				Exp{"*",Exp{"ite",Exp{"var",":sort","Bool"},"1","0"},"arg"}
 			},
 			Exp{"var",":constrain",Exp{">=","_","0"}}
 		}

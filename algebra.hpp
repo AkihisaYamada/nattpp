@@ -104,9 +104,7 @@ public:
 
 template<typename F>
 Algebra::Intp<F,Term<F>> const Algebra::TERM = []( F const& f, std::vector<Term<F>>&& args ){
-	Term<F> ret = f;
-	ret.args() = std::move(args);
-	return ret;
+	return app(f,std::move(args));
 };
 
 template<typename F>
@@ -117,9 +115,7 @@ struct Subst : Map<F,Term<F>>, Algebra::Intp<F,Term<F>> {
 			if( auto const& t = Map<F,Term<F>>::find(f) ) {
 				return *t;
 			}
-			Term<F> ret = f;
-			ret.args() = std::move(args);
-			return ret;
+			return app(f,std::move(args));
 		})
 	{}
 };

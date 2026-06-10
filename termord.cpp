@@ -3,54 +3,50 @@
 
 using namespace std;
 
-template<typename T>
-Smt::Compare lex_compare(
-	std::function<Smt::Compare(T const&, T const&)> const& comp, std::vector<T> const& ls, std::vector<T> const& rs
-) {
-	auto all_ge = Smt::TRUE, gt = Smt::FALSE;
-	auto ln = ls.size();
-	auto rn = rs.size();
-	for( size_t i = 0;; i++ ) {
-		if( i == ln ) {
-			return { gt || all_ge, i == rn ? gt : Smt::FALSE };
-		} else if( i == rn ) {
-			return { gt || all_ge, gt || all_ge };
-		}
-		auto const& c = comp(ls[i],rs[i]);
-		gt |= all_ge && c.gt;
-		all_ge &= c.ge;
-	}
-}
-
 Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
-	if( auto const& opt = _table.find({l,r}) ) return *opt;
-	auto some_ge = Smt::FALSE;
-	for( auto const& larg : l.args() ) {
-		auto const& [lge,lgt] = compare(larg,r);
-		some_ge |= lge;
+	if( auto const& opt = _table.find({l,r}) ) {
+//		DEB( l << " <=> " << r << " = " << *opt );
+		return *opt;
 	}
-	if( some_ge == Smt::TRUE ) return {Smt::TRUE,Smt::TRUE};
-	auto all_gt = Smt::TRUE;
-	for( auto const& rarg : r.args() ) {
-		auto const& [rge,rgt] = compare(l,rarg);
-		all_gt &= rgt;
+	auto some_ge = Smt::disj(l.args(),[&]( auto const& larg ){
+		return compare(larg,r).ge;
+	});
+	if( some_ge == Smt::TRUE ) {
+//		DEB( l << " <=> " << r << " = {true,true}" );
+		return {Smt::TRUE,Smt::TRUE};
 	}
-	auto const& lf = _sig.find(l.fun());
-	auto const& rf = _sig.find(r.fun());
-	if( all_gt == Smt::FALSE || !lf || !rf ) return {some_ge,some_ge};
-	auto const& lprec = lf->prec;
-	auto const& rprec = rf->prec;
-	auto const& arg_ord = lex_compare<Term<std::string>>(
+	auto all_gt = Smt::conj(r.args(),[&]( auto const& rarg ){
+		return compare(l,rarg).gt;
+	});
+	auto lf = l.fun();
+	auto rf = r.fun();
+	auto const& lprec = _precs.find(lf);
+	auto const& rprec = _precs.find(rf);
+	if( !lprec ) {// lhs is a variable
+//		DEB( l << " <=> " << r << " = {" << (all_gt && lf == rf) << ", false}" );
+		return { all_gt && lf == rf, Smt::FALSE };
+	}
+	some_ge = solver().let(Smt::BOOL,some_ge);
+	if( !rprec || // rhs is a variable
+		all_gt == Smt::FALSE
+	) {
+//		DEB( l << " <=> " << r << " = " << some_ge );
+		return {some_ge,some_ge};
+	}
+	all_gt = solver().let(Smt::BOOL,all_gt);
+	auto const& [args_ge,args_gt] = lex_compare<Term<std::string>>(
 		[&]( auto const& x, auto const& y ){ return compare(x,y); },
 		l.args(), r.args()
 	);
-	auto const& ge = some_ge || all_gt && Smt::ge(lprec,rprec) && arg_ord.ge;
-	auto const& gt = some_ge || all_gt && ( Smt::gt(lprec,rprec) || Smt::ge(lprec,rprec) && arg_ord.gt);
+	auto const& [pge,pgt] = Smt::compare(*lprec,*rprec);
+	auto const& gt = solver().let( Smt::BOOL, some_ge || ( all_gt && ( pgt || ( pge && args_gt ) ) ) );
+	auto const& ge = gt || ( all_gt && pge && args_ge );
+	_table.insert(pair{l,r},Smt::Compare{ge,gt});
+//	DEB( l << " <=> " << r << " = {" << ge << ", " << gt << '}' );
 	return {ge,gt};
 }
 
 std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules ) {
-	Smt::PostExp disj = Smt::FALSE;
 	vector<pair<size_t,Smt::PostExp>> gts;
 	auto& solver = order.solver();
 	if( solver.is_sat() || solver.is_unsat() ) {
@@ -58,12 +54,14 @@ std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules ) 
 	}
 	solver.push();
 	for( auto [i,rule] : rules ) {
+		if( order.verbosity() & TermOrder::RULE ) {
+			cerr << "; " << rule << endl;
+		}
 		auto const& [ge,gt] = order.order_rule(i);
 		solver.ass(ge);
-		disj |= gt;
 		gts.emplace_back(i,gt);
 	}
-	solver.ass(disj);
+	solver.ass( Smt::disj(gts,[]( auto const& gt ){ return gt.second; }) );
 	solver.check_sat();
 	std::vector<size_t> ret;
 	if( solver.result().is_sat() ) {
@@ -90,9 +88,21 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 	auto mk_smt = [&]{ return smt ? Smt::Solver::of(*smt) : default_smt(); };
 	Opt<Smt::Sort> sort;
 	auto mk_sort = [&]{ return sort ? *sort : default_sort; };
+	Verb verb = NONE;
 	Exp::KeyValProc sort_key = [&]( string_view const& key, Exp const& val ){
 		if( key == "sort" ) {
 			sort = {Smt::Sort::of(val)};
+			return true;
+		}
+		return false;
+	};
+	Exp::KeyValProc verb_key = [&]( string_view const& key, Exp const& val ){
+		if( key == "verbosity" ) {
+			if( val == "rule" ) {
+				verb = RULE;
+			} else {
+				throw Error("#unknown-verbosity",val);
+			}
 			return true;
 		}
 		return false;
@@ -116,10 +126,33 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 		x.process_keys( n, sort_key || solver_key );
 		return std::make_unique<DerivedTrsPosOrder<Poly>>(sig,trs,t,mk_smt(),mk_sort());
 	} else if( f == "path-order" ) {
-		if( auto w = x.gets_arg(n) ) {
-			
-		}
+		auto w = x.gets_arg(n);
+		x.process_keys( n, w ? verb_key : solver_key || verb_key );
+		x.get_end(n);
+		return std::make_unique<PathOrder>(
+			sig, trs,
+			w ? of(*w,sig,trs,mono,default_smt,default_sort) : std::make_unique<TrivOrder>(mk_smt()),
+			verb
+		);
 	} else {
 		throw Error("#unknown-order",x);
 	}
+}
+
+void TermOrder::test() {
+	cout << "=== TermOrder ===" << endl;
+	auto z3 = Smt::Z3(Smt::LIA);
+	auto x = z3.declare_const("x",Smt::INT);
+	auto y = z3.declare_const("y",Smt::INT);
+	auto z = z3.declare_const("z",Smt::INT);
+	cout << lex_compare<Smt::PostExp>(Smt::compare,{x,y},{x,z}).ge << endl;
+	cout << lex_compare<Smt::PostExp>(Smt::compare,{x},{x,z}).ge << endl;
+
+	Trs::Sig sig = {{"+",{2}}};
+	Trs::Rules trs;
+	trs.insert(0,Trs::Rule{{"+","x","y"},{"x"}});
+
+	auto lpo = PathOrder(sig,trs,std::make_unique<TrivOrder>(Smt::Z3(Smt::LIA)),TermOrder::Verb::RULE);
+	cout << lpo.order_rule(0).gt << endl;
+
 }

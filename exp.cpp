@@ -118,11 +118,12 @@ Opt<Exp> Reader::reads_exp() {
 		if( closes() ) {
 			return Exp("()");
 		}
-		Exp ret = read_sym();
+		auto fun = read_sym();
+		vector<Term<string>> args;
 		while( !closes() ) {
-			ret.args().push_back(read_exp());
+			args.push_back(read_exp());
 		}
-		return ret;
+		return {app(fun,std::move(args))};
 	}
 	return {};
 }

@@ -20,6 +20,7 @@ public:
 	using Sig = Map<std::string,Rank>;
 	class Reader;
 	struct Rule : std::pair<Term,Term> {
+		using std::pair<Term,Term>::pair;
 		int weight;
 		Rule( Term const& l, Term const& r, int weight ) : std::pair<Term,Term>(l,r), weight(weight) {}
 		std::ostream& print_contents( std::ostream& os ) const;

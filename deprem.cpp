@@ -15,7 +15,7 @@ std::vector<size_t> order_some_dp( TrsOrder& order, Trs::Rules const& rules, Dps
 	for( auto const& [i,dp] : dps ) {
 		auto const& [ge,gt] = order.compare(dp.first,dp.second);
 		solver.ass(ge);
-		disj |= gt;
+		disj = disj || gt;
 		gts.emplace_back(i,gt);
 	}
 	solver.ass(disj);

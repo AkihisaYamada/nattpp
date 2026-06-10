@@ -9,6 +9,7 @@
 
 #define DEB(a) do { std::cerr << __FILE__ << ':' << __LINE__ << ' ' << a << std::endl; } while(0)
 #define DEBval(a) ([&]{ auto const& _r = a; DEB(_r); return _r; }())
+#define return_DEB(in,ret) DEB(in << ret); return ret;
 
 static Opt<int> to_int( std::string const& str ) try {
 	return std::stoi(str);

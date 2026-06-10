@@ -20,6 +20,8 @@ std::ostream& operator<<( std::ostream& os, Pos const& pos );
 
 template<typename F>
 class Term {
+	template<typename G>
+	friend class Term;
 	typedef F Fun;
 	/**
 	 * @brief Application. The pair of the function and the vector of arguments.
@@ -32,12 +34,11 @@ public:
 	/** @brief move constructor */
 	Term( Term && other ) : _mem(std::move(other._mem)) {}
 	template<typename S> requires std::is_constructible_v<F,S>
-	Term( std::in_place_t const&, S const& fun, std::vector<Term>&& args ) :
-		_mem(App(fun,std::move(args))) {}
+	Term( std::in_place_t const&, S&& fun, std::vector<Term>&& args ) :
+		_mem(App(std::forward<S>(fun),std::move(args))) {}
 	template<typename S> requires std::is_constructible_v<F,S>
-	static Term app( S const& fun, std::vector<Term>&& args ) {
-		return Term(std::in_place,fun,std::move(args));
-	}
+	Term( std::in_place_t const&, S&& fun, std::vector<Term>const& args ) :
+		_mem(App(std::forward<S>(fun),args)) {}
 	/** @brief Application */
 	template<typename S, typename... Args> requires (
 		std::is_constructible_v<F,S> &&
@@ -60,8 +61,8 @@ public:
 	/**
 	 * @brief accesses the arguments
 	 */
-	std::vector<Term>& args() & {
-		return _mem->second;
+	std::vector<Term> args() && {
+		return std::move(_mem->second);
 	};
 	/**
 	 * @brief accesses the arguments
@@ -69,9 +70,9 @@ public:
 	std::vector<Term> const& args() const & {
 		return _mem->second;
 	};
-	Term& arg( size_t i ) & {
+	Term arg( size_t i ) && {
 		assert( i < args().size() );
-		return args()[i];
+		return std::move(args()[i]);
 	}
 	Term const& arg( size_t i ) const& {
 		assert( i < args().size() );
@@ -80,8 +81,8 @@ public:
 	template<typename G>
 	Term<G> map( std::function<G(F const&)> f ) const {
 		Term<G> ret = f(fun());
-		for( auto& arg : args() ) {
-			ret.args().push_back(arg.map(f));
+		for( auto& arg : _mem->second ) {
+			ret._mem->second.push_back(arg.map(f));
 		}
 		return ret;
 	}
@@ -108,6 +109,16 @@ operator<=>( Term<F> const& l, Term<F> const& r ) {
 	auto root = l.fun() <=> r.fun();
 	if( root != 0 ) return root;
 	return l.args() <=> r.args();
+}
+template<typename F, typename S>
+requires std::is_constructible_v<F,S>
+static Term<F> app( S&& fun, std::vector<Term<F>>&& args ) {
+	return Term(std::in_place,std::forward<S>(fun),std::move(args));
+}
+template<typename F, typename S>
+requires std::is_constructible_v<F,S>
+static Term<F> app( S&& fun, std::vector<Term<F>>const& args ) {
+	return Term(std::in_place,std::forward<S>(fun),args);
 }
 
 /** deleted for inefficiency */

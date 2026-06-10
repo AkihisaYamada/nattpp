@@ -229,7 +229,7 @@ Algebra::Template<Poly::Sig> Poly::instantiate(
 				rargs.push_back(smtsum);
 			}
 			if( rargs.size() == 1 ) return rargs[0];
-			return Algebra::Template<Poly::Sig>::app(Poly::ADD,std::move(rargs));
+			return app(Poly::ADD,std::move(rargs));
 		}
 		if( f->ref<Poly::Mul>() ) {
 			Smt::PostExp smtprod = 1;
@@ -248,7 +248,7 @@ Algebra::Template<Poly::Sig> Poly::instantiate(
 				rargs.push_back(smtprod);
 			}
 			if( rargs.size() == 1 ) return rargs[0];
-			return Algebra::Template<Poly::Sig>::app(Poly::MUL,std::move(rargs));
+			return app(Poly::MUL,std::move(rargs));
 		}
 		if( auto const& cond = f->ref<Poly::Cond>() ) {
 			assert( args.size() == 2 );
@@ -258,10 +258,10 @@ Algebra::Template<Poly::Sig> Poly::instantiate(
 			if( auto b = condval.is_bool() ) {
 				return args[ *b ? 0 : 1 ];
 			}
-			return Algebra::Template<Poly::Sig>::app(Poly::Cond(condval),std::move(args));
+			return app(Poly::Cond(condval),std::move(args));
 		}
 	}
-	return Algebra::Template<Poly::Sig>::app(sym,std::move(args));
+	return app(sym,std::move(args));
 }
 
 int Poly::test() {

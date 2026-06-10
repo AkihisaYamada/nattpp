@@ -33,17 +33,12 @@ Opt<Trs::Term> Trs::Reader::reads() {
 		if( arity == 0 ) {
 			throw Error{"#applied-const",*fun};
 		}
-		Term ret = *fun;
+		vector<::Term<string>> args;
 		for( unsigned char n = 0; n < arity; n++ ) {
-			auto const& arg = reads();
-			if( !arg ) {
-				throw Error{"#too-few-args",ret};
-			}
-			ret.args().push_back(*arg);
+			args.push_back( reads().value_or_throw(Error{"#too-few-args",app(*fun,args)}) );
 		}
-		if( !_reader.closes() ) {
-			throw Error{"too-many-args",ret};
-		}
+		auto ret = app(*fun,args);
+		if( !_reader.closes() ) throw Error{"too-many-args",ret};
 		return ret;
 	}
 	return {};

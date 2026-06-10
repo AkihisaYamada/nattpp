@@ -5,10 +5,13 @@
 #include"smt.hpp"
 
 struct TermOrder {
+	using Verb = enum { NONE = 0, RULE = 1 << 1 };
+	virtual Verb verbosity() { return NONE; };
 	virtual Smt::Solver& solver() = 0;
 	virtual std::ostream& print_name( std::ostream& os ) = 0;
 	virtual std::ostream& print( std::ostream& os, Trs::Sig const& sig ) = 0;
 	virtual Smt::Compare compare( Exp const& l, Exp const& r ) = 0;
+	static void test();
 };
 
 struct TrsOrder : TermOrder {
@@ -52,17 +55,22 @@ struct TrivOrder : TrsOrder {
 
 template<typename A>
 struct DerivedTermOrder : TermOrder {
+private:
 	Smt::Solver _solver;
+	Verb _verbosity;
+public:
 	Algebra::Intp<std::string,A> const intp;
 	Algebra::Deriver<std::string, typename A::Sig> const deriver;
 	DerivedTermOrder(
 		Trs::Sig const& sig,
 		A::Template const& temp,
 		Smt::Solver&& sol_,
-		Smt::Sort const& sort
+		Smt::Sort const& sort,
+		Verb verb = NONE
 	) : _solver(std::move(sol_)),
 		deriver(temp.deriver(sig,_solver)),
-		intp(A::expand(deriver.derive(A::algebra(_solver)),_solver,sort)) {
+		intp(A::expand(deriver.derive(A::algebra(_solver)),_solver,sort)),
+		_verbosity(verb) {
 	}
 	Smt::Compare compare( Exp const& l, Exp const& r ) override {
 		return A::compare(intp.eval(l),intp.eval(r),_solver);
@@ -80,6 +88,9 @@ struct DerivedTermOrder : TermOrder {
 	Smt::Solver& solver() override {
 		return _solver;
 	}
+	Verb verbosity() override {
+		return _verbosity;
+	}
 };
 
 std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules );
@@ -95,8 +106,9 @@ public:
 		Trs::Rules& rules,
 		A::Template const& temp,
 		Smt::Solver&& sol_,
-		Smt::Sort const& sort
-	) : _term_order(sig,temp,std::move(sol_),sort) {
+		Smt::Sort const& sort,
+		Verb const& verb = NONE
+	) : _term_order(sig,temp,std::move(sol_),sort,verb) {
 		auto& sol = solver();
 		for( auto const& [i,rule] : rules ) {
 			auto [ge,gt] = _term_order.compare(rule.first,rule.second);
@@ -120,6 +132,7 @@ public:
 	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
 		return _term_order.print(os,sig);
 	}
+	Verb verbosity() override { return _term_order.verbosity(); }
 };
 
 template<typename A>
@@ -134,8 +147,9 @@ public:
 		Trs::Rules const& rules,
 		A::Template const& temp,
 		Smt::Solver&& solver,
-		Smt::Sort const& sort
-	) : _term_order(sig,temp,std::move(solver),sort) {
+		Smt::Sort const& sort,
+		Verb const& verb = NONE
+	) : _term_order(sig,temp,std::move(solver),sort,verb) {
 		for( auto [n,rule] : rules ) {
 			_arules.insert(n,std::pair{_term_order.intp.annotate(rule.first),_term_order.intp.annotate(rule.second)});
 		}
@@ -157,28 +171,28 @@ public:
 	std::ostream& print( std::ostream& os, Trs::Sig const& sig ) override {
 		return _term_order.print(os,sig);
 	}
+	Verb verbosity() override { return _term_order.verbosity(); }
 };
 
 struct PathOrder : TrsOrder {
-	struct SigInfo {
-		Smt::PostExp prec;
-	};
 private:
 	std::unique_ptr<TermOrder> _weight;
-	Map<std::string,SigInfo> _sig;
+	Map<std::string,Smt::PostExp> _precs;
 	Map<size_t,Smt::Compare> _ord;
 	Map<std::pair<Term<std::string>,Term<std::string>>,Smt::Compare> _table;
+	Verb _verbosity;
 public:
 	PathOrder(
 		Trs::Sig const& sig,
 		Trs::Rules const& rules,
 		std::unique_ptr<TermOrder>&& weight,
-		Smt::BaseSort const& prec_sort
-	) : _weight(std::move(weight)) {
+		Verb verb
+	) : _weight(std::move(weight)), _verbosity(verb) {
 		size_t sigsize = sig.size();
+		auto& sol = solver();
+		auto const& sort = sol.logic().base_sort();
 		for( auto const&[fun1,rank1] : sig ) {
-			auto const& prec = solver().declare_fresh(prec_sort);
-			_sig.insert(fun1,prec);
+			_precs.insert(fun1,sol.declare_fresh(sort));
 		}
 		for( auto const& [n,rule] : rules ) {
 			auto const& l = rule.first;
@@ -201,7 +215,31 @@ public:
 		assert( opt );
 		return *opt;
 	}
+	Verb verbosity() override { return _verbosity; }
 };
 
+
+template<typename T>
+Smt::Compare lex_compare(
+	std::function<Smt::Compare(T const&, T const&)> const& comp, std::vector<T> const& ls, std::vector<T> const& rs
+) {
+	auto all_ge = Smt::TRUE, gt = Smt::FALSE;
+	auto ln = ls.size();
+	auto rn = rs.size();
+	for( size_t i = 0;; i++ ) {
+		if( i == ln ) {
+			if( i == rn ) {
+				return { gt || all_ge, gt };
+			} else {
+				return { gt, gt };
+			}
+		} else if( i == rn ) {
+			return { gt || all_ge, gt || all_ge };
+		}
+		auto const& c = comp(ls[i],rs[i]);
+		gt = gt || (all_ge && c.gt);
+		all_ge = all_ge && c.ge;
+	}
+}
 
 #endif

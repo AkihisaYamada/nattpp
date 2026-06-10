@@ -11,7 +11,7 @@
 #define DEBval(a) ([&]{ auto const& _r = a; DEB(_r); return _r; }())
 #define return_DEB(in,ret) DEB(in << ret); return ret;
 
-static Opt<int> to_int( std::string const& str ) try {
+static Opt<int> is_int( std::string const& str ) try {
 	return std::stoi(str);
 } catch( std::exception const& err ) {
 	return {};
@@ -83,12 +83,15 @@ void iter2(
 		it1++; it2++;
 	}
 }
+
+/** pointwise disjunction */
 template<typename... Args>
 std::function<bool(Args...)> operator||(std::function<bool(Args...)>&& f, std::function<bool(Args...)>&& g) {
 	return [f = std::move(f), g = std::move(g)](Args... xs) {
 		return f(xs...) || g(xs...);
 	};
 }
+/** pointwise disjunction */
 template<typename... Args>
 std::function<bool(Args...)> operator||(std::function<bool(Args...)>const& f, std::function<bool(Args...)>const& g) {
 	return [&](Args... xs) {

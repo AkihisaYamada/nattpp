@@ -104,7 +104,7 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 		exp.get_end(n);
 		return app(*pfun,std::move(args));
 	}
-	if( auto i = to_int(fun) ) {
+	if( auto i = is_int(fun) ) {
 		exp.get_end(n);
 		return Smt::PostExp(*i);
 	}
@@ -116,7 +116,7 @@ Algebra::Deriver<string,Poly::Sig> Poly::Template::deriver( Trs::Sig const& sig,
 	for( auto [f,rank] : sig ) {
 		map.insert(f,_deriver_inner(f,rank,solver,*this,0));
 	}
-	return [map = move(map)]( string const& f )->Term<Sum<Sig,Algebra::Arg>> {
+	return [map = std::move(map)]( string const& f )->Term<Sum<Sig,Algebra::Arg>> {
 		if( auto val = map.find(f) ) {
 			return *val;
 		}

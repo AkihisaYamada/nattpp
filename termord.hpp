@@ -1,10 +1,11 @@
 #ifndef TERMORD_HPP_
 #define TERMORD_HPP_
 
-#include<list>
+#include"trs.hpp"
 #include"smt.hpp"
 
 struct TermOrder {
+    virtual ~TermOrder() = default;// to be able to make pointer of TermOrder 
 	enum { NONE = 0, RULE = 1 << 1, PAIR = 1 << 2 };
 	virtual int verbosity() { return NONE; };
 	virtual Smt::Solver& solver() = 0;
@@ -66,8 +67,8 @@ private:
 	Smt::Solver _solver;
 	int _verbosity;
 public:
-	Algebra::Intp<std::string,A> const intp;
 	Algebra::Deriver<std::string, typename A::Sig> const deriver;
+	Algebra::Intp<std::string,A> const intp;
 	DerivedTermOrder(
 		Trs::Sig const& sig,
 		A::Template const& temp,
@@ -75,9 +76,9 @@ public:
 		Smt::Sort const& sort,
 		int verb = NONE
 	) : _solver(std::move(sol_)),
+		_verbosity(verb),
 		deriver(temp.deriver(sig,_solver)),
-		intp(A::expand(deriver.derive(A::algebra(_solver)),_solver,sort)),
-		_verbosity(verb) {
+		intp(A::expand(deriver.derive(A::algebra(_solver)),_solver,sort)) {
 	}
 	Smt::Compare compare( Exp const& l, Exp const& r ) override {
 		return A::compare(intp.eval(l),intp.eval(r),_solver);
@@ -179,23 +180,58 @@ public:
 
 struct PathOrder : TrsOrder {
 private:
+	struct _SymInfo {
+		Smt::PostExp prec;
+		int post_arity;// arity after argument rearrangement
+		std::vector<std::vector<Smt::PostExp>> map;// map[i][j] means i-th position is taken by j-th argument
+	};
 	std::unique_ptr<TermOrder> _weight;
-	Map<std::string,Smt::PostExp> _precs;
+	Map<std::string,_SymInfo> _info;
 	Map<size_t,Smt::Compare> _ord;
 	Map<std::pair<Term<std::string>,Term<std::string>>,Smt::Compare> _table;
 	int _verbosity;
 public:
+	struct Status {
+		struct Straight {};
+		struct Mapped {
+			size_t post_arity;
+		};
+	private:
+		Sum<Straight,Mapped> _sum;
+	public:
+		Status( Straight const& ) : _sum(Straight()) {}
+		Status( Mapped b ) : _sum(b) {}
+		bool is_straight() { return _sum.ref<Straight>(); }
+		Opt<size_t> post_arity() {
+			return _sum.ref<Mapped>() >>= [&]( auto b )->Opt<size_t>{ return {b.post_arity}; };
+		}
+		static std::function<Status(Trs::Rank const&)> of( Exp const& );
+	};
 	PathOrder(
 		Trs::Sig const& sig,
 		Trs::Rules const& rules,
 		std::unique_ptr<TermOrder>&& weight,
+		std::function<Status(Trs::Rank const&)> status,
 		int verb
 	) : _weight(std::move(weight)), _verbosity(verb) {
 		size_t sigsize = sig.size();
 		auto& sol = solver();
 		auto const& sort = sol.logic().base_sort();
-		for( auto const&[fun1,rank1] : sig ) {
-			_precs.insert(fun1,sol.declare_fresh(sort));
+		for( auto const&[f,rank] : sig ) {
+			_SymInfo info;
+			info.prec = sol.declare_fresh(sort);
+			if( auto post_arity = status(rank).post_arity() ) {
+				for( size_t i = 0; i < *post_arity; i++ ) {// i-th position after rearrangement
+					auto postmap = std::vector<Smt::PostExp>(rank.arity);
+					for( size_t j = 0; j < rank.arity; j++ ) {
+						postmap.push_back( sol.declare_fresh(Smt::BOOL) );
+					}
+					for( size_t k = 0; k < i; k++ ) {// i-th position cannot be shared
+						sol.ass( !postmap[k] || !postmap[i] );
+					}
+				}
+			}
+			_info.insert(f,info);
 		}
 		for( auto const& [n,rule] : rules ) {
 			auto const& l = rule.first;
@@ -207,9 +243,9 @@ public:
 		return _weight->print_name( os << "path-order " );
 	}
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override {
-		auto prec = _precs.find(f);
-		assert(prec);
-		return _weight->print_sym_info( os << ":prec " << solver().get_value(*prec), f );
+		auto info = _info.find(f);
+		assert(info);
+		return _weight->print_sym_info( os << ":prec " << solver().get_value(info->prec), f );
 	}
 	Smt::Solver& solver() override {
 		return _weight->solver();
@@ -224,10 +260,8 @@ public:
 };
 
 
-template<typename T>
-Smt::Compare lex_compare(
-	std::function<Smt::Compare(T const&, T const&)> const& comp, std::vector<T> const& ls, std::vector<T> const& rs
-) {
+template<typename F, typename T>
+Smt::Compare lex_compare( F const& comp, std::vector<T> const& ls, std::vector<T> const& rs ) {
 	auto all_ge = Smt::TRUE, gt = Smt::FALSE;
 	auto ln = ls.size();
 	auto rn = rs.size();
@@ -244,6 +278,44 @@ Smt::Compare lex_compare(
 		auto const& c = comp(ls[i],rs[i]);
 		gt = gt || (all_ge && c.gt);
 		all_ge = all_ge && c.ge;
+	}
+}
+
+template<typename F, typename T>
+Smt::Compare mapped_lex_compare(
+	F const& comp,
+	std::vector<std::vector<Smt::PostExp>> const& lmap,
+	std::vector<std::vector<Smt::PostExp>> const& rmap,
+	std::vector<T> const& ls,
+	std::vector<T> const& rs
+) {
+	auto all_ge = Smt::TRUE, gt = Smt::FALSE;
+	auto ln = lmap.size();
+	auto rn = rmap.size();
+	auto lin = ls.size();
+	auto rin = rs.size();
+	for( size_t i = 0;; i++ ) {
+		if( i == ln ) {
+			if( i == rn ) {
+				return { gt || all_ge, gt };
+			} else {
+				return { gt, gt };
+			}
+		} else if( i == rn ) {
+			return { gt || all_ge, gt || all_ge };
+		}
+		auto ige = Smt::disj( 0, lin, [&]( size_t const& j ){
+			return lmap[i][j] && Smt::disj( 0, rin, [&]( size_t const& k ){
+				return rmap[i][k] && comp(ls[j],rs[k]).ge;
+			} );
+		} );
+		auto igt = Smt::disj( 0, lin, [&]( size_t const& j ){
+			return lmap[i][j] && Smt::disj( 0, rin, [&]( size_t const& k ){
+				return rmap[i][k] && comp(ls[j],rs[k]).gt;
+			} );
+		} );
+		gt = gt || (all_ge && igt);
+		all_ge = all_ge && ige;
 	}
 }
 

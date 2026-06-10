@@ -1,7 +1,5 @@
-#include<map>
 #include<fstream>
 #include<fcntl.h>
-#include"poly.hpp"
 #include"problem.hpp"
 #include"termord.hpp"
 #include"deprem.hpp"

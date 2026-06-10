@@ -25,23 +25,23 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 	});
 	auto lf = l.fun();
 	auto rf = r.fun();
-	auto const& lprec = _precs.find(lf);
-	auto const& rprec = _precs.find(rf);
-	if( !lprec ) {// lhs is a variable
+	auto const& linfo = _info.find(lf);
+	auto const& rinfo = _info.find(rf);
+	if( !linfo ) {// lhs is a variable
 		return memo({ solver().let( Smt::BOOL, all_gt && lf == rf ), Smt::FALSE });
 	}
 	some_ge = solver().let(Smt::BOOL,some_ge);
-	if( !rprec || // rhs is a variable
+	if( !rinfo || // rhs is a variable
 		all_gt == Smt::FALSE
 	) {
 		return memo({some_ge,some_ge});
 	}
 	all_gt = solver().let(Smt::BOOL,all_gt);
-	auto const& [args_ge,args_gt] = lex_compare<Term<std::string>>(
+	auto const& [args_ge,args_gt] = mapped_lex_compare(
 		[&]( auto const& x, auto const& y ){ return compare(x,y); },
-		l.args(), r.args()
+		linfo->map, rinfo->map, l.args(), r.args()
 	);
-	auto const& [pge,pgt] = Smt::compare(*lprec,*rprec);
+	auto const& [pge,pgt] = Smt::compare(linfo->prec,rinfo->prec);
 	auto const& gt = solver().let( Smt::BOOL, some_ge || ( all_gt && ( pgt || ( pge && args_gt ) ) ) );
 	auto const& ge = solver().let( Smt::BOOL, gt || ( all_gt && pge && args_ge ) );
 	return memo({ge,gt});
@@ -73,6 +73,30 @@ std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules ) 
 		}
 	}
 	return std::move(ret);
+}
+
+std::function<PathOrder::Status(Trs::Rank const&)> PathOrder::Status::of( Exp const& x ) {
+	size_t n = 0;
+	if( x.fun() == "straight" ) {
+		x.get_end(n);
+		return [](auto){ return Straight(); };
+	}
+	if( x.fun() == "map" ) {
+		int num = -1;
+		x.process_keys( n, [&]( auto const& key, Exp const& val ){
+			if( key == "num" ) {
+				num = (
+					val.unapplied() >>= []( auto sym ){ return is_int(sym); }
+				).value_or_throw( Error("#malformed-numer",val) );
+				return true;
+			}
+			return false;
+		} );
+		return [num]( Trs::Rank const& rank ){
+			return Mapped( num == -1 ? rank.arity : num );
+		};
+	}
+	throw Error("#malformed-status",x);
 }
 
 std::unique_ptr<TrsOrder> TrsOrder::of(
@@ -130,11 +154,20 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 		return std::make_unique<DerivedTrsPosOrder<Poly>>(sig,trs,t,mk_smt(),mk_sort());
 	} else if( f == "path-order" ) {
 		auto w = x.gets_arg(n);
-		x.process_keys( n, w ? verb_key : solver_key || verb_key );
+		std::function<PathOrder::Status(Trs::Rank const&)> status;
+		Exp::KeyValProc status_key = [&]( auto const& key, Exp const& val ){
+			if( key == "status" ) {
+				status = PathOrder::Status::of(val);
+				return true;
+			}
+			return false;
+		};
+		x.process_keys( n, status_key || verb_key || (w ? [](auto,auto){ return false; } : solver_key) );
 		x.get_end(n);
 		return std::make_unique<PathOrder>(
 			sig, trs,
 			w ? of(*w,sig,trs,mono,default_smt,default_sort) : std::make_unique<TrivOrder>(mk_smt()),
+			status,
 			verb
 		);
 	} else {
@@ -148,14 +181,15 @@ void TermOrder::test() {
 	auto x = z3.declare_const("x",Smt::INT);
 	auto y = z3.declare_const("y",Smt::INT);
 	auto z = z3.declare_const("z",Smt::INT);
-	cout << lex_compare<Smt::PostExp>(Smt::compare,{x,y},{x,z}).ge << endl;
-	cout << lex_compare<Smt::PostExp>(Smt::compare,{x},{x,z}).ge << endl;
+	cout << lex_compare(Smt::compare,vector{x,y},{x,z}).ge << endl;
+	cout << lex_compare(Smt::compare,vector{x},{x,z}).ge << endl;
 
 	Trs::Sig sig = {{"+",{2}}};
 	Trs::Rules trs;
 	trs.insert(0,Trs::Rule{{"+","x","y"},{"x"}});
 
-	auto lpo = PathOrder(sig,trs,std::make_unique<TrivOrder>(Smt::Z3(Smt::LIA)),TermOrder::RULE);
+	auto lpo = PathOrder(sig,trs,std::make_unique<TrivOrder>
+		(Smt::Z3(Smt::LIA)),[&](Trs::Rank const&){ return PathOrder::Status::Mapped(2); },TermOrder::RULE);
 	cout << lpo.order_rule(0).gt << endl;
 
 }

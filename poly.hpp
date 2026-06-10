@@ -2,7 +2,7 @@
 #define _POLY_HPP
 #include"util.hpp"
 #include"smt.hpp"
-#include"map.hpp"
+#include"trs.hpp"
 
 class Poly {
 public:

@@ -4,7 +4,6 @@
 #include<cassert>
 #include<string>
 #include<vector>
-#include<set>
 #include<functional>
 #include<iostream>
 #include<exception>
@@ -281,6 +280,7 @@ public:
 			if( !test(*n) ) throw error("#invalid-value",std::to_string(*n));
 			return n;
 		}
+		return {};
 	}
 	void read_sym( char const* str ) {
 		if( !reads_sym(str) ) throw error("#missing-symbol",str);

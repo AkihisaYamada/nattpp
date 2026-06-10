@@ -1,7 +1,7 @@
 #ifndef DP_HPP
 #define DP_HPP
 
-#include"problem.hpp"
+#include"trs.hpp"
 
 struct Dp {
 	Exp first;

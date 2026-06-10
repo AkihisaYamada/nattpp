@@ -60,15 +60,15 @@ public:
 		PostExp( bool b ) : _term( b ? TRUE_F : FALSE_F ) {}
 		PostExp( int i ) : _term(i) {}
 		PostExp( unsigned int i ) : _term((int)i) {}
-		operator Term<Fun> const() const {
+		operator Term<Fun> const&() const& {
 			return _term;
 		}
 		PostExp& operator=( PostExp const& other ) & {
-			_term = other;
+			_term = other._term;
 			return *this;
 		}
 		PostExp& operator=( PostExp&& other ) & {
-			_term = std::move(other);
+			_term = std::move(other._term);
 			return *this;
 		}
 		bool operator==( PostExp const& other ) const {
@@ -107,13 +107,12 @@ public:
 		Exp exp() const;
 	};
 	static PostExp const TRUE, FALSE;
-	template<typename C>
-	static PostExp disj( C const& xs, std::function<PostExp(typename C::value_type const&)> const& f ) {
+	static PostExp disj( auto i, auto const& end, auto const& f ) {
 		std::vector<Term<Fun>> ds;
-		for( auto const& x : xs ) {
-			auto const& fx = f(x);
+		for( ; i != end; i++ ) {
+			PostExp const& fx = f(i);
 			if( fx == TRUE ) return TRUE;
-			if( fx != FALSE ) ds.push_back(fx);
+			if( fx != FALSE ) ds.push_back(fx._term);
 		}
 		switch( ds.size() ) {
 		case 0: return FALSE;
@@ -122,18 +121,25 @@ public:
 		return PostExp(app(OR,std::move(ds)));
 	}
 	template<typename C>
-	static PostExp conj( C const& xs, std::function<PostExp(typename C::value_type const&)> const& f ) {
+	static PostExp disj( C const& xs, auto const& f ) {
+		return disj( xs.begin(), xs.end(), [&]( typename C::const_iterator const& i ){ return f(*i); } );
+	}
+	static PostExp conj( auto i, auto const& end, auto const& f ) {
 		std::vector<Term<Fun>> cs;
-		for( auto const& x : xs ) {
-			auto const& fx = f(x);
+		for( ; i != end; i++ ) {
+			PostExp const& fx = f(i);
 			if( fx == FALSE ) return FALSE;
-			if( fx != TRUE ) cs.push_back(fx);
+			if( fx != TRUE ) cs.push_back(fx._term);
 		}
 		switch( cs.size() ) {
 		case 0: return TRUE;
 		case 1: return cs[0];
 		}
 		return app(AND,std::move(cs));
+	}
+	template<typename C>
+	static PostExp conj( C const& xs, auto const& f ) {
+		return conj( xs.begin(), xs.end(), [&]( auto const& i ){ return f(*i); } );
 	}
 	static PostExp car( PostExp const& arg );
 	static PostExp cdr( PostExp const& arg );
@@ -288,7 +294,6 @@ public:
 		std::string _make_fresh() &;
 	public:
 		Solver( Solver&& other ) = default;
-		Solver& operator=( Solver&& other ) = default;
 		Logic const& logic() const& { return _logic; }
 		PostExp declare_const( std::string const& name, BaseSort const& sort ) &;
 		PostExp declare_fresh( BaseSort const& sort ) {

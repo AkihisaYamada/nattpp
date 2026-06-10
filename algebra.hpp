@@ -1,9 +1,8 @@
 #ifndef _ALGEBRA_HPP
 #define _ALGEBRA_HPP
 
-#include<cstdint>
 #include"map.hpp"
-#include"trs.hpp"
+#include"exp.hpp"
 
 class Algebra {
 	Algebra() = delete;

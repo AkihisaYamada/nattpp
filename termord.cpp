@@ -5,15 +5,20 @@ using namespace std;
 
 Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 	if( auto const& opt = _table.find({l,r}) ) {
-//		DEB( l << " <=> " << r << " = " << *opt );
 		return *opt;
 	}
+	auto memo = [&]( Smt::Compare const& comp ){
+		if( verbosity() & PAIR ) {
+			cerr << "; " << l << " <=> " << r << " = " << comp << endl;
+		}
+		_table.insert(pair{l,r},comp);
+		return comp;
+	};
 	auto some_ge = Smt::disj(l.args(),[&]( auto const& larg ){
 		return compare(larg,r).ge;
 	});
 	if( some_ge == Smt::TRUE ) {
-//		DEB( l << " <=> " << r << " = {true,true}" );
-		return {Smt::TRUE,Smt::TRUE};
+		return memo({Smt::TRUE,Smt::TRUE});
 	}
 	auto all_gt = Smt::conj(r.args(),[&]( auto const& rarg ){
 		return compare(l,rarg).gt;
@@ -23,15 +28,13 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 	auto const& lprec = _precs.find(lf);
 	auto const& rprec = _precs.find(rf);
 	if( !lprec ) {// lhs is a variable
-//		DEB( l << " <=> " << r << " = {" << (all_gt && lf == rf) << ", false}" );
-		return { all_gt && lf == rf, Smt::FALSE };
+		return memo({ solver().let( Smt::BOOL, all_gt && lf == rf ), Smt::FALSE });
 	}
 	some_ge = solver().let(Smt::BOOL,some_ge);
 	if( !rprec || // rhs is a variable
 		all_gt == Smt::FALSE
 	) {
-//		DEB( l << " <=> " << r << " = " << some_ge );
-		return {some_ge,some_ge};
+		return memo({some_ge,some_ge});
 	}
 	all_gt = solver().let(Smt::BOOL,all_gt);
 	auto const& [args_ge,args_gt] = lex_compare<Term<std::string>>(
@@ -40,10 +43,8 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 	);
 	auto const& [pge,pgt] = Smt::compare(*lprec,*rprec);
 	auto const& gt = solver().let( Smt::BOOL, some_ge || ( all_gt && ( pgt || ( pge && args_gt ) ) ) );
-	auto const& ge = gt || ( all_gt && pge && args_ge );
-	_table.insert(pair{l,r},Smt::Compare{ge,gt});
-//	DEB( l << " <=> " << r << " = {" << ge << ", " << gt << '}' );
-	return {ge,gt};
+	auto const& ge = solver().let( Smt::BOOL, gt || ( all_gt && pge && args_ge ) );
+	return memo({ge,gt});
 }
 
 std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules ) {
@@ -100,6 +101,8 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 		if( key == "verbosity" ) {
 			if( val == "rule" ) {
 				verb = RULE;
+			} else if( val == "pair" ) {
+				verb = PAIR;
 			} else {
 				throw Error("#unknown-verbosity",val);
 			}

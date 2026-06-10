@@ -5,7 +5,7 @@
 #include"smt.hpp"
 
 struct TermOrder {
-	using Verb = enum { NONE = 0, RULE = 1 << 1 };
+	using Verb = enum { NONE = 0, RULE = 1 << 1, PAIR = 1 << 2 };
 	virtual Verb verbosity() { return NONE; };
 	virtual Smt::Solver& solver() = 0;
 	virtual std::ostream& print_name( std::ostream& os ) = 0;

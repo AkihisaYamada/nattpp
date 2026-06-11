@@ -7,8 +7,7 @@
 using namespace std;
 
 int main( int argc, char* argv[] ) try {
-	istream* pis = nullptr;
-	ostream* ptee = nullptr;
+	Opt<ifstream> ois;
 	ostream* pprf = nullptr;
 	bool exit_on_error = false;
 	Opt<Exp> default_smt_spec;
@@ -32,15 +31,14 @@ int main( int argc, char* argv[] ) try {
 				throw Error("#unknown-option",argv[i]);
 			}
 		} else {
-			if( pis != nullptr ) throw Error("#too-many-arguments",argv[i]);
-			pis = new ifstream(argv[i]);
-			if( pis->fail() ) {
+			if( ois ) throw Error("#too-many-arguments",argv[i]);
+			ois.emplace(argv[i]);
+			if( ois->fail() ) {
 				throw Error("#open-failed",argv[i]);
 			}
 			exit_on_error = true;
 		}
 	}
-	if( pis == nullptr ) pis = &cin;
 	auto default_smt = [&]()->Smt::Solver{
 		if( default_smt_spec ) {
 			return Smt::Solver::of(*default_smt_spec);
@@ -48,7 +46,7 @@ int main( int argc, char* argv[] ) try {
 			return Smt::Z3(Smt::QF_LIA);
 		}
 	};
-	auto p = Problem(*pis);
+	auto p = Problem( ois ? *ois : cin );
 	cout << p << endl;
 	auto const& sig = p.sig;
 	auto const& trs = p.systems[0];

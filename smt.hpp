@@ -21,19 +21,18 @@ public:
 		friend Smt;
 	};
 	class Sort {
-		using _Cons = std::pair<Sort,Sort>;
-		Sum<BaseSort,Mem<_Cons>> _un;
+		struct _Cons;
+		Sum<BaseSort,Ref<_Cons>> _un;
 	public:
 		Sort( BaseSort const& base ) : _un(base) {}
-		Sort( Sort const& x, Sort const& y ) : _un(Mem<_Cons>(x,y)) {}
+		Sort( Sort const& x, Sort const& y );
 		Opt<BaseSort const&> base() const & {
 			return _un.ref<BaseSort>();
 		}
-		OptMem<_Cons> cons() const & {
-			return OptMem<_Cons>(_un.ref<Mem<_Cons>>());
-		}
+		OptRef<_Cons> cons() const &;
 		static Sort of( Exp const& x );
 	};
+
 	static BaseSort const BOOL, INT, REAL;
 	class Logic {
 		bool _linear;
@@ -146,14 +145,14 @@ public:
 	};
 	class PreExp {
 		friend Smt;
-		using App = std::pair<Fun,std::vector<PreExp>>;
-		using Let = std::tuple<PreExp,Sort,std::function<PreExp(PostExp const&)>>;
+		class App;
+		class Let;
 		using Lazy = std::function<PreExp()>;
-		Sum<PostExp,Mem<App>,Mem<Let>,Lazy> _un;
+		Sum<PostExp,Ref<App>,Ref<Let>,Lazy> _un;
 		explicit PreExp( Sort const& sort, PreExp const& val, std::function<PreExp(PostExp const&)> body ) :
-			_un( std::in_place_type<Mem<Let>>, val, sort, body ) {}
+			_un(Ref<Let>::make(val,sort,body)) {}
 		explicit PreExp( Fun const& fun, std::vector<PreExp>&& args ) :
-			_un(std::in_place_type<Mem<App>>,fun,std::move(args)) {}
+			_un(Ref<App>::make(fun,std::move(args))) {}
 	public:
 		PreExp( PostExp const& e ) : _un(e) {}
 		template<typename T>
@@ -162,28 +161,28 @@ public:
 		PreExp operator!() const {
 			return PreExp(NOT,{*this});
 		}
-		auto post() && {
+		Opt<PostExp> post() && {
 			return std::move(_un).ref<PostExp>();
 		}
-		auto post() const& {
+		Opt<PostExp const&> post() const& {
 			return _un.ref<PostExp>();
 		}
-		auto app() && {
-			return OptMem<App>(std::move(_un).ref<Mem<App>>());
+		OptRef<App> app() && {
+			return std::move(_un).ref<Ref<App>>() >>= []( auto ref )->OptRef<App>{ return ref; };
 		}
-		auto app() const& {
-			return OptMem<App>(_un.ref<Mem<App>>());
+		Opt<App const&> app() const& {
+			return _un.ref<Ref<App>>() >>= [](auto ref)->Opt<App const&>{ return {*ref}; };
 		}
-		auto let() && {
-			return OptMem<Let>(std::move(_un).ref<Mem<Let>>());
+		OptRef<Let> let() && {
+			return std::move(_un).ref<Ref<Let>>() >>= []( auto ref )->OptRef<Let>{ return ref; };
 		}
-		auto let() const& {
-			return OptMem<Let>(_un.ref<Mem<Let>>());
+		Opt<Let const&> let() const& {
+			return _un.ref<Ref<Let>>() >>= [](auto ref)->Opt<Let const&>{ return {*ref}; };
 		}
-		auto lazy() && {
-			return Opt<Lazy>(std::move(_un).ref<Lazy>());
+		Opt<Lazy> lazy() && {
+			return {std::move(_un).ref<Lazy>()};
 		}
-		auto lazy() const& {
+		Opt<Lazy const&> lazy() const& {
 			return _un.ref<Lazy>();
 		}
 		PreExp conj( PreExp const& y ) const {
@@ -352,6 +351,24 @@ public:
 	};
 	static int test();
 
+};
+
+struct Smt::Sort::_Cons {
+	Sort first, second;
+};
+inline Smt::Sort::Sort( Sort const& x, Sort const& y ) : _un(Ref<_Cons>::make(x,y)) {}
+inline OptRef<Smt::Sort::_Cons> Smt::Sort::cons() const & {
+	return _un.ref<Ref<_Cons>>() >>= [](auto ref)->OptRef<_Cons>{ return {ref}; };
+}
+
+struct Smt::PreExp::App {
+	Fun fun;
+	std::vector<PreExp> args;
+};
+struct Smt::PreExp::Let {
+	PreExp val;
+	Sort sort;
+	std::function<PreExp(PostExp const&)> body;
 };
 
 inline Smt::Sort operator,( Smt::Sort const& x, Smt::Sort const& y ) {

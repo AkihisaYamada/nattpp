@@ -49,9 +49,9 @@ public:
 		return *std::move(_opt);
 	}
 	/** @brief Returns a copy of the value or given default. */
-	T value_or( T&& def ) {
-		if(_opt) return *_opt;
-		return def;
+	T value_or( T&& def ) && {
+		if(_opt) return std::move(*_opt);
+		return std::move(def);
 	}
 	/** @brief Refers to the value or the default. */
 	T const& value_or( T const& def ) const & {
@@ -82,7 +82,7 @@ public:
 	}
 	template<typename F>
 	auto operator>>=( F const& f ) && {
-		using O = std::invoke_result_t<F,T&&>;
+		using O = std::invoke_result_t<F,T>;
 		return *this ? f(std::move(*_opt)) : O{};
 	}
 	template<typename F>
@@ -154,10 +154,20 @@ public:
 	bool contains( U const& other ) const {
 		return *this && **this == other;
 	}
+	/** @brief Returns a copy of the value or moves the given default. */
+	T value_or( T&& def ) && {
+		if(_ptr) return *_ptr;
+		return std::move(def);
+	}
 	/** @brief Returns a copy of the value or given default. */
-	T value_or( T&& def ) {
+	T value_or( T const& def ) && {
 		if(_ptr) return *_ptr;
 		return def;
+	}
+	/** @brief Returns a copy the value or moves the default. */
+	T value_or( T&& def ) const & {
+		if(_ptr) return *_ptr;
+		return std::move(def);
 	}
 	/** @brief Refers to the value or the default. */
 	T const& value_or( T const& def ) const & {

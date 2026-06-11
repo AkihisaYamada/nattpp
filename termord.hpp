@@ -6,7 +6,7 @@
 
 struct TermOrder {
     virtual ~TermOrder() = default;// to be able to make pointer of TermOrder 
-	enum { NONE = 0, RULE = 1 << 1, PAIR = 1 << 2 };
+	enum { NONE = 0, RULE = 1 << 1, PAIR = 1 << 2, LOG = 1 << 3 };
 	virtual int verbosity() { return NONE; };
 	virtual Smt::Solver& solver() = 0;
 	virtual std::ostream& print_name( std::ostream& os ) = 0;
@@ -204,7 +204,7 @@ public:
 		Opt<size_t> post_arity() {
 			return _sum.ref<Mapped>() >>= [&]( auto b )->Opt<size_t>{ return {b.post_arity}; };
 		}
-		static std::function<Status(Trs::Rank const&)> of( Exp const& );
+		static std::function<Status(Trs::Rank const&)> of( Exp const&, bool mono );
 	};
 	PathOrder(
 		Trs::Sig const& sig,

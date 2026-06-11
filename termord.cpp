@@ -1,4 +1,5 @@
 #include "termord.hpp"
+#include "exp.hpp"
 #include "poly.hpp"
 
 using namespace std;
@@ -10,10 +11,12 @@ PathOrder::PathOrder(
 	std::function<Status(Trs::Rank const&)> status,
 	int verb
 ) : _weight(std::move(weight)), _verbosity(verb) {
+	if( verb & LOG ) cerr << "; initializing path order" << endl;
 	size_t sigsize = sig.size();
 	auto& sol = solver();
 	auto const& sort = sol.logic().base_sort();
 	for( auto const&[f,rank] : sig ) {
+		if( verb & LOG ) cerr << "; for " << f << ' ' << rank << endl;
 		_SymInfo info;
 		info.prec = sol.declare_fresh(sort);
 		if( auto post_arity = status(rank).post_arity() ) {
@@ -21,6 +24,7 @@ PathOrder::PathOrder(
 			for( size_t i = 0; i < rank.arity; i++ ) {
 				info.mapped.push_back( sol.declare_fresh(Smt::BOOL) );
 			}
+			if( verb & LOG ) print_list( cerr << ";   mapped: ", info.mapped.begin(), info.mapped.end() );
 			for( size_t i = 0; i < info.post_arity; i++ ) {// i-th position after rearrangement
 				auto& map = info.map.emplace_back();
 				for( size_t j = 0; j < rank.arity; j++ ) {
@@ -31,6 +35,11 @@ PathOrder::PathOrder(
 						sol.ass( !map[k] || !map[j] );
 					}
 				}
+				if( verb & LOG ) print_list( cerr << ";   map[" << i << "] = ", info.map[i].begin(), info.map[i].end() );
+			}
+		} else {
+			for( size_t i = 0; i < rank.arity; i++ ) {// every argument survives
+				info.mapped.push_back(true);
 			}
 		}
 		_info.insert(f,info);
@@ -90,28 +99,26 @@ std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& f 
 	auto info = _info.find(f);
 	assert(info);
 	os << "(prec " << solver().get_value(info->prec) << ')';
-	if( info->post_arity >= 0 ) {
+	if( info->post_arity > 0 ) {
 		os << " (map ";
-		if( info->post_arity > 0 ) {
-			auto f = [&]( size_t i ){
-				size_t j = 0, n = info->map[i].size();
-				for(;;){
-					if( j == n ) {
-						os << '-';
-						break;
-					}
-					if( solver().get_value(info->map[i][j]) == Smt::TRUE ) {
-						os << j;
-						break;
-					}
-					j++;
+		auto f = [&]( size_t i ){
+			size_t j = 0, n = info->map[i].size();
+			for(;;){
+				if( j == n ) {
+					os << '-';
+					break;
 				}
-			};
-			f(0);
-			for( size_t i = 1; i < info->post_arity; i++ ) {
-				os << ' ';
-				f(i);
+				if( solver().get_value(info->map[i][j]) == Smt::TRUE ) {
+					os << j;
+					break;
+				}
+				j++;
 			}
+		};
+		f(0);
+		for( size_t i = 1; i < info->post_arity; i++ ) {
+			os << ' ';
+			f(i);
 		}
 		os << ')';
 	}
@@ -147,13 +154,14 @@ std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules ) 
 	return std::move(ret);
 }
 
-std::function<PathOrder::Status(Trs::Rank const&)> PathOrder::Status::of( Exp const& x ) {
+std::function<PathOrder::Status(Trs::Rank const&)> PathOrder::Status::of( Exp const& x, bool mono ) {
 	size_t n = 0;
 	if( x.fun() == "straight" ) {
 		x.get_end(n);
 		return [](auto){ return Straight(); };
 	}
 	if( x.fun() == "map" ) {
+		if( mono ) throw Error("#path-order","\"Monotone path-order with argument mapping is not supported.\"");
 		int num = -1;
 		x.process_keys( n, [&]( auto const& key, Exp const& val ){
 			if( key == "num" ) {
@@ -190,6 +198,8 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 				verb = RULE;
 			} else if( val == "pair" ) {
 				verb = RULE | PAIR;
+			} else if( val == "log" ) {
+				verb = RULE | PAIR | LOG;
 			} else {
 				throw Error("#unknown-verbosity",val);
 			}
@@ -220,7 +230,7 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 		Opt<std::function<PathOrder::Status(Trs::Rank const&)>> status;
 		Exp::KeyValProc status_key = [&]( auto const& key, Exp const& val ){
 			if( key == "status" ) {
-				status = {PathOrder::Status::of(val)};
+				status = {PathOrder::Status::of(val,mono)};
 				return true;
 			}
 			return false;

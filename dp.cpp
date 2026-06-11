@@ -7,10 +7,10 @@ static void collect_dps(
 	Map<size_t,Dp>& dps, Pos& rpos, size_t depth, size_t& dp_ind
 ) {
 	if( auto rank = sig.find(r.fun()) )
-	if( rank->defined ) {
-		dps.insert(dp_ind,Dp{l,r,org,rpos});
-		dp_ind++;
-	}
+		if( rank->defined ) {
+			dps.insert(dp_ind,Dp{l,r,org,rpos});
+			dp_ind++;
+		}
 	rpos.emplace_back(0);
 	for( auto const& a : r.args() ) {
 		collect_dps(sig,org,l,a,dps,rpos,depth+1,dp_ind);
@@ -28,14 +28,14 @@ Dps make_dps( Trs::Sig const& sig, Trs::Rules const& rules ) {
 	return std::move(ret);
 }
 
-ostream& operator<<( ostream& os, Dp const& dp ) {
-	return os << "(dp " << dp.first << ' ' << dp.second << " :origin " << dp.org << " :r-pos " << dp.rpos << ')';
+std::ostream& Dp::print_content( std::ostream& os ) const& {
+	return os << first << ' ' << second << " :origin " << org << " :r-pos " << rpos;
 }
 
-ostream& operator<<( ostream& os, Dps const& rules ) {
+ostream& operator<<( ostream& os, Dps const& dps ) {
 	os << "(make-dps";
-	for( auto const& [i,rule] : rules ) {
-		os << "\n  " << rule << " :number " << i << flush;
+	for( auto const& [i,dp] : dps ) {
+		dp.print_content( os << "\n  (dp " ) << " :number " << i << ')' << flush;
 	}
 	return os << ')';
 }

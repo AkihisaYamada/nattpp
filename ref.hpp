@@ -14,7 +14,7 @@ class Ref {
 	std::shared_ptr<T> _ptr;
 	T& operator*() && = delete;
 	T* operator->() && = delete;
-	Ref( std::shared_ptr<T> const& ptr ) : _ptr(ptr) {}
+	Ref( std::shared_ptr<T>&& ptr ) : _ptr(std::move(ptr)) {}
 	template<typename S, bool n>
 	friend class Ref;
 public:
@@ -31,11 +31,11 @@ public:
 	/** @brief Do not turn a constructed object into reference.
 	 * It would need a copy / move. Use Ref<T>::make( Args... ) instead.
 	 */
-	Ref(T) = delete;
+	Ref(T const&) = delete;
 	operator bool() const requires _nullable {
 		return (bool)_ptr;
 	}
-	Ref& operator=( Ref const& other ) = default;
+	Ref& operator=( Ref const& other ) & = default;
 	T& operator*() const & {
 		return *_ptr;
 	}
@@ -60,8 +60,8 @@ public:
 	 * @return a non-null pointer to the constructed object
 	 */
 	template<typename... Ts>
-	static Ref make(Ts const&... args) {
-		return Ref(std::make_shared<T>(args...));
+	static Ref make(Ts&&... args) {
+		return Ref(std::make_shared<T>(std::forward<Ts>(args)...));
 	}
 	template<typename S, bool n1, bool n2>
 	friend bool operator==(Ref<S,n1> const& l, Ref<S,n2> const& r);
@@ -112,7 +112,7 @@ public:
 		return *this;
 	}
 	template<typename... Ts>
-	explicit Mem(Ts const&... args) : _ptr(std::make_shared<T>(args...)) {}
+	explicit Mem(Ts&&... args) : _ptr(std::make_shared<T>(std::forward<Ts>(args)...)) {}
 	/**
 	 * @brief Optional non-null object can be seen as a nullable object
 	 */

@@ -6,8 +6,8 @@ TGT=natt++
 CLANGPP=clang++ -ftemplate-backtrace-limit=0 -Wno-switch
 GPP=gpp
 
-CPP=${CLANGPP} -O3 -std=c++20 -Wfatal-errors
-DEBUG_CPP=${CLANGPP} -O3 -ggdb3 -std=c++20 -Wfatal-errors -fsanitize=alignment
+CPP=${CLANGPP} -O3 -std=c++20 -Wfatal-errors -fsanitize=address,alignment,undefined
+DEBUG_CPP=${CLANGPP} -O1 -ggdb3 -std=c++20 -Wfatal-errors -fsanitize=address,alignment,undefined
 
 DEPEND=_depend
 BUILD=_build

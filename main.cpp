@@ -34,7 +34,9 @@ int main( int argc, char* argv[] ) try {
 		} else {
 			if( pis != nullptr ) throw Error("#too-many-arguments",argv[i]);
 			pis = new ifstream(argv[i]);
-			if( pis->fail() ) throw Error("#open-failed",argv[i]);
+			if( pis->fail() ) {
+				throw Error("#open-failed",argv[i]);
+			}
 			exit_on_error = true;
 		}
 	}

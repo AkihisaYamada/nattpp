@@ -89,9 +89,9 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& f ) {
 	auto info = _info.find(f);
 	assert(info);
-	os << ":prec " << solver().get_value(info->prec);
+	os << "(prec " << solver().get_value(info->prec) << ')';
 	if( info->post_arity >= 0 ) {
-		os << " :map (";
+		os << " (map ";
 		if( info->post_arity > 0 ) {
 			auto f = [&]( size_t i ){
 				size_t j = 0, n = info->map[i].size();

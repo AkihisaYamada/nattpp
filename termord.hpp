@@ -73,12 +73,11 @@ public:
 		Trs::Sig const& sig,
 		A::Template const& temp,
 		Smt::Solver&& sol_,
-		Smt::Sort const& sort,
 		int verb = NONE
 	) : _solver(std::move(sol_)),
 		_verbosity(verb),
 		deriver(temp.deriver(sig,_solver)),
-		intp(A::expand(deriver.derive(A::algebra(_solver)),_solver,sort)) {
+		intp(A::expand(deriver.derive(A::algebra(_solver)),_solver)) {
 	}
 	Smt::Compare compare( Exp const& l, Exp const& r ) override {
 		return A::compare(intp.eval(l),intp.eval(r),_solver);
@@ -151,9 +150,8 @@ public:
 		Trs::Rules const& rules,
 		A::Template const& temp,
 		Smt::Solver&& solver,
-		Smt::Sort const& sort,
 		int const& verb = NONE
-	) : _term_order(sig,temp,std::move(solver),sort,verb) {
+	) : _term_order(sig,temp,std::move(solver),verb) {
 		for( auto [n,rule] : rules ) {
 			_arules.insert(n,std::pair{_term_order.intp.annotate(rule.first),_term_order.intp.annotate(rule.second)});
 		}
@@ -222,12 +220,12 @@ public:
 			info.prec = sol.declare_fresh(sort);
 			if( auto post_arity = status(rank).post_arity() ) {
 				for( size_t i = 0; i < *post_arity; i++ ) {// i-th position after rearrangement
-					auto postmap = std::vector<Smt::PostExp>(rank.arity);
+					auto postmap = std::vector<Smt::PostExp>();
 					for( size_t j = 0; j < rank.arity; j++ ) {
 						postmap.push_back( sol.declare_fresh(Smt::BOOL) );
-					}
-					for( size_t k = 0; k < i; k++ ) {// i-th position cannot be shared
-						sol.ass( !postmap[k] || !postmap[i] );
+						for( size_t k = 0; k < j; k++ ) {// i-th position cannot be shared
+							sol.ass( !postmap[k] || !postmap[j] );
+						}
 					}
 				}
 			}

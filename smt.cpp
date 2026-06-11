@@ -1,6 +1,5 @@
 #include<iostream>
 #include<cassert>
-#include"util.hpp"
 #include"smt.hpp"
 
 using namespace std;
@@ -165,25 +164,25 @@ Smt::PostExp Smt::PostExp::imp( Smt::PostExp const& y ) const {
 
 Smt::PostExp Smt::eq( PostExp const& x, PostExp const& y ) {
 	if( auto xi = x.is_int() )
-	if( auto yi = y.is_int() ) {
-		return *xi == *yi;
-	}
+		if( auto yi = y.is_int() ) {
+			return *xi == *yi;
+		}
 	return Term<Fun>(EQ,x,y);
 }
 
 Smt::PostExp Smt::ge( PostExp const& x, PostExp const& y ) {
 	if( auto xi = x.is_int() )
-	if( auto yi = y.is_int() ) {
-		return *xi >= *yi;
-	}
+		if( auto yi = y.is_int() ) {
+			return *xi >= *yi;
+		}
 	return Term<Fun>(GE,x,y);
 }
 
 Smt::PostExp Smt::gt( PostExp const& x, PostExp const& y ) {
 	if( auto xi = x.is_int() )
-	if( auto yi = y.is_int() ) {
-		return *xi > *yi;
-	}
+		if( auto yi = y.is_int() ) {
+			return *xi > *yi;
+		}
 	return Term<Fun>(GT,x,y);
 }
 

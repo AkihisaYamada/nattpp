@@ -124,10 +124,10 @@ Smt::Compare Poly::compare( Poly const& p1, Poly const& p2, Smt::Solver& solver 
 	return { val && Smt::ge(c1,c2), val && Smt::gt(c1,c2) };
 }
 
-Poly& Poly::expand( Smt::Solver& solver, Smt::Sort const& sort ) {
+Poly& Poly::expand( Smt::Solver& solver ) {
 	for( auto& [vars,coeff] : _map ) {
 		if( !solver.logic().linear() || vars.vars().empty() ) {
-			coeff = solver.let(sort,coeff);
+			coeff = solver.let(coeff);
 		} else {
 			coeff = solver.expand(coeff);
 		}
@@ -235,12 +235,12 @@ Algebra::Template<Poly::Sig> Poly::instantiate(
 			Smt::PostExp smtprod = 1;
 			for( auto const& v : args ) {
 				if( auto g = v.fun().ref<Poly::Sig>() )
-				if( auto pre = g->ref<Smt::PreExp>() ) {
-					auto post = pre->post();
-					assert(post);
-					smtprod.mul_eq(*post,solver.logic().linear());
-					continue;
-				}
+					if( auto pre = g->ref<Smt::PreExp>() ) {
+						auto post = pre->post();
+						assert(post);
+						smtprod.mul_eq(*post,solver.logic().linear());
+						continue;
+					}
 				rargs.push_back(v);
 			}
 			if( rargs.empty() || smtprod == 0 ) return smtprod;
@@ -307,7 +307,7 @@ int Poly::test() {
 	sig.insert("g",1);
 	sig.insert("a",0);
 	auto der = Template::SUM.deriver(sig,z3);
-	auto der_intp = expand(der.derive(z3poly),z3,Smt::INT);
+	auto der_intp = expand(der.derive(z3poly),z3);
 	e = Exp{"f",Exp{"g","x"},"a"};
 	for( auto p : sig ) {
 		cout << "der(" << p.first << ") = " << der(p.first) << endl;

@@ -269,10 +269,10 @@ public:
 	Opt<unsigned int> reads_nat() {
 		_fetch();
 		if( auto sym = _fetched.ref<Sym>() )
-		if( auto val = nat_of(sym->str) ) {
-			_fetched = None();
-			return val;
-		}
+			if( auto val = nat_of(sym->str) ) {
+				_fetched = None();
+				return val;
+			}
 		return {};
 	}
 	Opt<unsigned int> reads_nat( std::function<bool(unsigned int)> const& test ) {

@@ -59,13 +59,13 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 		auto const& argexp = exp.get_arg(n);
 		exp.get_end(n);
 		if( auto aggfun = agg.unapplied() )
-		if( auto pfun = poly_fun(*aggfun) ) {
-			auto args = vector<Term<Sum<Sig,Algebra::Arg>>>();
-			for( int i = 0; i < rank.arity; i++ ) {
-				args.push_back(_deriver_inner(f,rank,solver,argexp,i));
+			if( auto pfun = poly_fun(*aggfun) ) {
+				auto args = vector<Term<Sum<Sig,Algebra::Arg>>>();
+				for( int i = 0; i < rank.arity; i++ ) {
+					args.push_back(_deriver_inner(f,rank,solver,argexp,i));
+				}
+				return app(*pfun,std::move(args));
 			}
-			return app(*pfun,std::move(args));
-		}
 		throw Error("#invalid-arg-aggregator",agg);
 	}
 	if( fun == "arity" ) {
@@ -87,13 +87,13 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 		exp.get_end(n);
 		auto i = _deriver_inner(f,rank,solver,iexp,pos);
 		if( auto ifun = i.fun().ref<Sig>() )
-		if( auto ie = ifun->ref<Smt::PreExp>() ) {
-			return Term<Sum<Sig,Algebra::Arg>>(
-				Cond{*ie},
-				_deriver_inner(f,rank,solver,texp,pos),
-				_deriver_inner(f,rank,solver,eexp,pos)
-			);
-		}
+			if( auto ie = ifun->ref<Smt::PreExp>() ) {
+				return Term<Sum<Sig,Algebra::Arg>>(
+					Cond{*ie},
+					_deriver_inner(f,rank,solver,texp,pos),
+					_deriver_inner(f,rank,solver,eexp,pos)
+				);
+			}
 		throw Error{"#template-format",exp};
 	}
 	if( auto pfun = poly_fun(fun) ) {

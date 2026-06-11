@@ -53,6 +53,9 @@ public:
 		friend Smt;
 		Term<Fun> _term;
 		PostExp( Term<Fun> const& term ) : _term(term) {}
+		template<typename T>
+		PostExp( Opt<T> const& ) = delete;
+		PostExp( auto* p ) = delete;
 	public:
 		PostExp( PostExp const& ) = default;
 		PostExp( PostExp && ) = default;
@@ -60,6 +63,7 @@ public:
 		PostExp( bool b ) : _term( b ? TRUE_F : FALSE_F ) {}
 		PostExp( int i ) : _term(i) {}
 		PostExp( unsigned int i ) : _term((int)i) {}
+		PostExp( char const* str ) : _term(str) {}
 		operator Term<Fun> const&() const& {
 			return _term;
 		}
@@ -318,15 +322,17 @@ public:
 			return define_fun(name,params,sort,expand(body));
 		}
 		PostExp let( Sort const& sort, PostExp const& val ) &;
-		template<class T>
-			requires (!std::is_convertible_v<T,PostExp> && std::is_convertible_v<T,PreExp>)
-		PostExp let( Sort const& sort, T const& val ) & {
+		PostExp let( PostExp const& val ) & {
+			return let(_logic._base_sort,val);
+		}
+		PostExp let( Sort const& sort, PreExp const& val ) & {
 			return let(sort,expand(val));
 		}
+		PostExp let( PreExp const& val ) & {
+			return let(_logic._base_sort,expand(val));
+		}
 		Solver& ass( PostExp const& e ) &;
-		template<class T>
-			requires (!std::is_convertible_v<T,PostExp> && std::is_convertible_v<T,PreExp>)
-		Solver& ass( T const& p ) & {
+		Solver& ass( PreExp const& p ) & {
 			return ass(expand(p));
 		}
 		Solver& push() &;

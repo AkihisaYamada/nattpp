@@ -111,16 +111,7 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 	size_t n = 0;
 	Opt<Exp> smt;
 	auto mk_smt = [&]{ return smt ? Smt::Solver::of(*smt) : default_smt(); };
-	Opt<Smt::Sort> sort;
-	auto mk_sort = [&]{ return sort ? *sort : default_sort; };
 	int verb = NONE;
-	Exp::KeyValProc sort_key = [&]( string_view const& key, Exp const& val ){
-		if( key == "sort" ) {
-			sort = {Smt::Sort::of(val)};
-			return true;
-		}
-		return false;
-	};
 	Exp::KeyValProc verb_key = [&]( string_view const& key, Exp const& val ){
 		if( key == "verbosity" ) {
 			if( val == "rule" ) {
@@ -145,19 +136,19 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 		x.process_keys(n,solver_key);
 		return std::make_unique<TrivOrder>(mk_smt()); 
 	} else if( f == "sum" ) {
-		x.process_keys( n, sort_key || solver_key );
+		x.process_keys( n, solver_key );
 		return std::make_unique<DerivedTrsPosOrder<Poly>>
-			( sig, trs, mono ? Poly::Template::MONO_SUM : Poly::Template::SUM, mk_smt(), mk_sort() );
+			( sig, trs, mono ? Poly::Template::MONO_SUM : Poly::Template::SUM, mk_smt(), verb );
 	} else if( f == "template" ) {
 		Poly::Template t = x.get_arg(n);
-		x.process_keys( n, sort_key || solver_key );
-		return std::make_unique<DerivedTrsPosOrder<Poly>>(sig,trs,t,mk_smt(),mk_sort());
+		x.process_keys( n, solver_key );
+		return std::make_unique<DerivedTrsPosOrder<Poly>>(sig,trs,t,mk_smt(),verb);
 	} else if( f == "path-order" ) {
 		auto w = x.gets_arg(n);
-		std::function<PathOrder::Status(Trs::Rank const&)> status;
+		Opt<std::function<PathOrder::Status(Trs::Rank const&)>> status;
 		Exp::KeyValProc status_key = [&]( auto const& key, Exp const& val ){
 			if( key == "status" ) {
-				status = PathOrder::Status::of(val);
+				status = {PathOrder::Status::of(val)};
 				return true;
 			}
 			return false;
@@ -167,7 +158,7 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 		return std::make_unique<PathOrder>(
 			sig, trs,
 			w ? of(*w,sig,trs,mono,default_smt,default_sort) : std::make_unique<TrivOrder>(mk_smt()),
-			status,
+			status ? *status : []( Trs::Rank const& rank ){ return PathOrder::Status::Straight(); },
 			verb
 		);
 	} else {

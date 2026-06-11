@@ -165,7 +165,7 @@ public:
 		return def;
 	}
 	template<typename E>
-	T value_or_throw( E const& err ) {
+	T& value_or_throw( E const& err )& {
 		if(_ptr) return *_ptr;
 		throw err;
 	}

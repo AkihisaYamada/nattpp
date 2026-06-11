@@ -3,6 +3,45 @@
 
 using namespace std;
 
+PathOrder::PathOrder(
+	Trs::Sig const& sig,
+	Trs::Rules const& rules,
+	std::unique_ptr<TermOrder>&& weight,
+	std::function<Status(Trs::Rank const&)> status,
+	int verb
+) : _weight(std::move(weight)), _verbosity(verb) {
+	size_t sigsize = sig.size();
+	auto& sol = solver();
+	auto const& sort = sol.logic().base_sort();
+	for( auto const&[f,rank] : sig ) {
+		_SymInfo info;
+		info.prec = sol.declare_fresh(sort);
+		if( auto post_arity = status(rank).post_arity() ) {
+			info.post_arity = *post_arity;
+			for( size_t i = 0; i < rank.arity; i++ ) {
+				info.mapped.push_back( sol.declare_fresh(Smt::BOOL) );
+			}
+			for( size_t i = 0; i < info.post_arity; i++ ) {// i-th position after rearrangement
+				auto& map = info.map.emplace_back();
+				for( size_t j = 0; j < rank.arity; j++ ) {
+					auto const& ij = sol.declare_fresh(Smt::BOOL);
+					map.push_back(ij);
+					sol.ass( ij.imp(info.mapped[j]) );// j-th argument is marked mapped
+					for( size_t k = 0; k < j; k++ ) {// i-th position cannot be shared
+						sol.ass( !map[k] || !map[j] );
+					}
+				}
+			}
+		}
+		_info.insert(f,info);
+	}
+	for( auto const& [n,rule] : rules ) {
+		auto const& l = rule.first;
+		auto const& r = rule.second;
+		_ord.insert(n,compare(l,r));
+	}
+}
+
 Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 	if( auto const& opt = _table.find({l,r}) ) {
 		return *opt;
@@ -14,38 +53,71 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 		_table.insert(pair{l,r},comp);
 		return comp;
 	};
-	auto some_ge = Smt::disj(l.args(),[&]( auto const& larg ){
-		return compare(larg,r).ge;
-	});
-	if( some_ge == Smt::TRUE ) {
+	auto const& [lf,largs] = *l;
+	auto const& linfo = _info.find(lf);
+	auto some_arg_ge = (bool)linfo && Smt::disj( 0, largs.size(), [&]( size_t i ){
+		return linfo->mapped[i] && compare(largs[i],r).ge;// l_i survives and l_i >= r
+	} );
+	if( some_arg_ge == Smt::TRUE ) {
 		return memo({Smt::TRUE,Smt::TRUE});
 	}
-	auto all_gt = Smt::conj(r.args(),[&]( auto const& rarg ){
-		return compare(l,rarg).gt;
-	});
-	auto lf = l.fun();
-	auto rf = r.fun();
-	auto const& linfo = _info.find(lf);
+	auto const& [rf,rargs] = *r;
 	auto const& rinfo = _info.find(rf);
+	auto gt_all_arg = (bool)rinfo || Smt::conj( 0, rargs.size(),[&]( size_t j ){
+		return rinfo->mapped[j].imp( compare(l,rargs[j]).gt );// if r_j survives, then l > r_j
+	});
 	if( !linfo ) {// lhs is a variable
-		return memo({ solver().let( Smt::BOOL, all_gt && lf == rf ), Smt::FALSE });
+		return memo({ solver().let( Smt::BOOL, gt_all_arg && lf == rf ), Smt::FALSE });
 	}
-	some_ge = solver().let(Smt::BOOL,some_ge);
+	some_arg_ge = solver().let(Smt::BOOL,some_arg_ge);
 	if( !rinfo || // rhs is a variable
-		all_gt == Smt::FALSE
+		gt_all_arg == Smt::FALSE
 	) {
-		return memo({some_ge,some_ge});
+		return memo({some_arg_ge,some_arg_ge});
 	}
-	all_gt = solver().let(Smt::BOOL,all_gt);
+	gt_all_arg = solver().let(Smt::BOOL,gt_all_arg);
 	auto const& [args_ge,args_gt] = mapped_lex_compare(
 		[&]( auto const& x, auto const& y ){ return compare(x,y); },
 		linfo->map, rinfo->map, l.args(), r.args()
 	);
 	auto const& [pge,pgt] = Smt::compare(linfo->prec,rinfo->prec);
-	auto const& gt = solver().let( Smt::BOOL, some_ge || ( all_gt && ( pgt || ( pge && args_gt ) ) ) );
-	auto const& ge = solver().let( Smt::BOOL, gt || ( all_gt && pge && args_ge ) );
+	auto const& gt = solver().let( Smt::BOOL, some_arg_ge || ( gt_all_arg && ( pgt || ( pge && args_gt ) ) ) );
+	auto const& ge = solver().let( Smt::BOOL, gt || ( gt_all_arg && pge && args_ge ) );
 	return memo({ge,gt});
 }
+
+std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& f ) {
+	auto info = _info.find(f);
+	assert(info);
+	os << ":prec " << solver().get_value(info->prec);
+	if( info->post_arity >= 0 ) {
+		os << " :map (";
+		if( info->post_arity > 0 ) {
+			auto f = [&]( size_t i ){
+				size_t j = 0, n = info->map[i].size();
+				for(;;){
+					if( j == n ) {
+						os << '-';
+						break;
+					}
+					if( solver().get_value(info->map[i][j]) == Smt::TRUE ) {
+						os << j;
+						break;
+					}
+					j++;
+				}
+			};
+			f(0);
+			for( size_t i = 1; i < info->post_arity; i++ ) {
+				os << ' ';
+				f(i);
+			}
+		}
+		os << ')';
+	}
+	return _weight->print_sym_info( os, f );
+}
+
 
 std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules ) {
 	vector<pair<size_t,Smt::PostExp>> gts;

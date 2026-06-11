@@ -181,6 +181,7 @@ private:
 	struct _SymInfo {
 		Smt::PostExp prec;
 		int post_arity;// arity after argument rearrangement
+		std::vector<Smt::PostExp> mapped;// flags if the corresponding argument is mapped
 		std::vector<std::vector<Smt::PostExp>> map;// map[i][j] means i-th position is taken by j-th argument
 	};
 	std::unique_ptr<TermOrder> _weight;
@@ -211,40 +212,11 @@ public:
 		std::unique_ptr<TermOrder>&& weight,
 		std::function<Status(Trs::Rank const&)> status,
 		int verb
-	) : _weight(std::move(weight)), _verbosity(verb) {
-		size_t sigsize = sig.size();
-		auto& sol = solver();
-		auto const& sort = sol.logic().base_sort();
-		for( auto const&[f,rank] : sig ) {
-			_SymInfo info;
-			info.prec = sol.declare_fresh(sort);
-			if( auto post_arity = status(rank).post_arity() ) {
-				for( size_t i = 0; i < *post_arity; i++ ) {// i-th position after rearrangement
-					auto postmap = std::vector<Smt::PostExp>();
-					for( size_t j = 0; j < rank.arity; j++ ) {
-						postmap.push_back( sol.declare_fresh(Smt::BOOL) );
-						for( size_t k = 0; k < j; k++ ) {// i-th position cannot be shared
-							sol.ass( !postmap[k] || !postmap[j] );
-						}
-					}
-				}
-			}
-			_info.insert(f,info);
-		}
-		for( auto const& [n,rule] : rules ) {
-			auto const& l = rule.first;
-			auto const& r = rule.second;
-			_ord.insert(n,compare(l,r));
-		}
-	}
+	);
 	std::ostream& print_name( std::ostream& os ) override {
 		return _weight->print_name( os << "path-order " );
 	}
-	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override {
-		auto info = _info.find(f);
-		assert(info);
-		return _weight->print_sym_info( os << ":prec " << solver().get_value(info->prec), f );
-	}
+	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override;
 	Smt::Solver& solver() override {
 		return _weight->solver();
 	}

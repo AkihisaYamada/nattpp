@@ -26,7 +26,12 @@ public:
 	 * @brief Non-null reference can be considered nullable
 	 */
 	Ref( Ref<T,false> const& org ) requires _nullable : _ptr(org._ptr) {}
+	Ref( Ref&& org ) = default;
 	Ref( Ref const& org ) = default;
+	/** @brief Do not turn a constructed object into reference.
+	 * It would need a copy / move. Use Ref<T>::make( Args... ) instead.
+	 */
+	Ref(T) = delete;
 	operator bool() const requires _nullable {
 		return (bool)_ptr;
 	}
@@ -67,7 +72,7 @@ using OptRef = Ref<T,true>;
 
 template<typename T, bool n1, bool n2>
 bool operator==(Ref<T,n1> const& l, Ref<T,n2> const& r) {
-	return l._ptr == r._ptr;
+	return l._ptr == r._ptr || *l._ptr == *r._ptr;
 };
 
 /**

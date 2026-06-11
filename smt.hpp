@@ -53,9 +53,6 @@ public:
 		friend Smt;
 		Term<Fun> _term;
 		PostExp( Term<Fun> const& term ) : _term(term) {}
-		template<typename T>
-		PostExp( Opt<T> const& ) = delete;
-		PostExp( auto* p ) = delete;
 	public:
 		PostExp( PostExp const& ) = default;
 		PostExp( PostExp && ) = default;
@@ -63,7 +60,6 @@ public:
 		PostExp( bool b ) : _term( b ? TRUE_F : FALSE_F ) {}
 		PostExp( int i ) : _term(i) {}
 		PostExp( unsigned int i ) : _term((int)i) {}
-		PostExp( char const* str ) : _term(str) {}
 		operator Term<Fun> const&() const& {
 			return _term;
 		}
@@ -96,8 +92,6 @@ public:
 			return {};
 		}
 		Opt<std::tuple<PostExp,PostExp,PostExp>> is_ite() const &;
-private:
-		Opt<int&> is_int() & { return _term.fun().ref<int>(); }
 public:
 		PostExp conj( PostExp const& y ) const &;
 		PostExp disj( PostExp const& y ) const &;

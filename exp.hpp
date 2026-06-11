@@ -26,49 +26,53 @@ class Term {
 	 * @brief Application. The pair of the function and the vector of arguments.
 	 */
 	typedef std::pair<Fun,std::vector<Term>> App;
-	Mem<App> _mem;
+	Ref<App> _ref;
 public:
 	/** @brief copy constructor */
 	Term( Term const& other ) = default;
 	/** @brief move constructor */
-	Term( Term && other ) : _mem(std::move(other._mem)) {}
+	Term( Term && other ) : _ref(std::move(other._ref)) {}
 	template<typename S> requires std::is_constructible_v<F,S>
 	Term( std::in_place_t const&, S&& fun, std::vector<Term>&& args ) :
-		_mem(App(std::forward<S>(fun),std::move(args))) {}
+		_ref(Ref<App>::make(std::forward<S>(fun),std::move(args))) {}
 	template<typename S> requires std::is_constructible_v<F,S>
 	Term( std::in_place_t const&, S&& fun, std::vector<Term>const& args ) :
-		_mem(App(std::forward<S>(fun),args)) {}
+		_ref(Ref<App>::make(std::forward<S>(fun),args)) {}
 	/** @brief Application */
 	template<typename S, typename... Args> requires (
 		std::is_constructible_v<F,S> &&
 		(std::is_constructible_v<Term,Args> && ...)
 	)
 	Term( S const& fun, Args&&... args ) :
-		_mem(App(fun,std::vector<Term>{Term(std::forward<Args>(args))...})) {}
+		_ref(Ref<App>::make(fun,std::vector<Term>{Term(std::forward<Args>(args))...})) {}
 	/**
 	 * @brief accesses the function
 	 */
-	F& fun() & {
-		return _mem->first;
+	F fun() && {
+		return std::move(_ref->first);
 	}
 	/**
 	 * @brief accesses the function
 	 */
 	F const& fun() const & {
-		return _mem->first;
+		return _ref->first;
 	}
 	/**
 	 * @brief accesses the arguments
 	 */
 	std::vector<Term> args() && {
-		return std::move(_mem->second);
-	};
+		return std::move(_ref->second);
+	}
 	/**
 	 * @brief accesses the arguments
 	 */
 	std::vector<Term> const& args() const & {
-		return _mem->second;
-	};
+		return _ref->second;
+	}
+	/** @brief as the pair of function and arguments */
+	std::pair<Fun,std::vector<Term>> const& operator*() const& {
+		return *_ref;
+	}
 	Term arg( size_t i ) && {
 		assert( i < args().size() );
 		return std::move(args()[i]);
@@ -80,22 +84,22 @@ public:
 	template<typename G>
 	Term<G> map( std::function<G(F const&)> f ) const {
 		Term<G> ret = f(fun());
-		for( auto& arg : _mem->second ) {
-			ret._mem->second.push_back(arg.map(f));
+		for( auto& arg : _ref->second ) {
+			ret._ref->second.push_back(arg.map(f));
 		}
 		return ret;
 	}
 	Term const& at( Pos const& pos ) const&;
 	Term& operator=( Term && other ) & {
-		_mem = std::move(other._mem);
+		_ref = std::move(other._ref);
 		return *this;
 	}
 	Term& operator=( Term const& other ) & {
-		_mem = other._mem;
+		_ref = other._ref;
 		return *this;
 	}
 	bool operator==( Term const& other ) const {
-		return _mem == other._mem;
+		return _ref == other._ref;
 	}
 	Opt<F const&> unapplied() const& {
 		if( args().empty() ) return {fun()};

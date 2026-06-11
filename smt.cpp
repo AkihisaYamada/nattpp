@@ -363,8 +363,7 @@ Smt::PostExp& Smt::PostExp::operator+=( PostExp const& arg ) & {
 			return *this = arg;
 		}
 		if( auto num2 = arg.is_int() ) {
-			*num += *num2;
-			return *this;
+			return *this = *num + *num2;
 		}
 	} else if( auto num2 = arg.is_int() ) {
 		if( *num2 == 0 ) {
@@ -382,8 +381,7 @@ Smt::PostExp& Smt::PostExp::mul_eq( Smt::PostExp const& y, bool linear ) & {
 			return *this = y;
 		}
 		if( auto num2 = y.is_int() ) {
-			*num *= *num2;
-			return *this;
+			return *this = *num * *num2;
 		}
 	} else if( auto num2 = y.is_int() ) {
 		if( *num2 == 0 ) {

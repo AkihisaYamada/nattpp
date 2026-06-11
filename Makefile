@@ -3,8 +3,11 @@ MAIN_SRC=main.cpp
 TEST_SRC=test.cpp
 TGT=natt++
 
-CPP=clang++ -O3 -std=c++20 -Wfatal-errors -Wno-switch
-DEBUG_CPP=clang++ -O0 -ggdb3 -std=c++20 -Wfatal-errors -Wno-switch
+CLANGPP=clang++ -ftemplate-backtrace-limit=0 -Wno-switch
+GPP=gpp
+
+CPP=${CLANGPP} -O3 -std=c++20 -Wfatal-errors
+DEBUG_CPP=${CLANGPP} -O3 -ggdb3 -std=c++20 -Wfatal-errors -fsanitize=alignment
 
 DEPEND=_depend
 BUILD=_build

@@ -55,8 +55,8 @@ Problem::Problem( istream& is ) {
 					}
 					arity = *num;
 				}
-				if( auto prev = sig.insert(fun,Trs::Rank{arity,false}) ) {
-					throw Error{"#duplicate-fun",fun,to_string(prev->arity),to_string(arity)};
+				if( auto [prev,suc] = sig.emplace(fun,Trs::Rank{arity,false}); !suc ) {
+					throw Error{"#duplicate-fun",fun,to_string(prev.arity),to_string(arity)};
 				}
 			} else if( eis.reads_sym("rule") ) {
 				auto l = tis.read(), r = tis.read();
@@ -78,7 +78,7 @@ Problem::Problem( istream& is ) {
 				if( auto rank = sig.find(l.fun()) ) {
 					rank->defined = true;
 				}
-				systems[ index ? *index-1 : 0 ].insert( rule_no, Trs::Rule(l, r, weight ? *weight : 1) );
+				systems[ index ? *index-1 : 0 ].emplace( rule_no, Trs::Rule(l, r, weight ? *weight : 1) );
 				rule_no++;
 			} else {
 				throw Error{"#unknown-command",eis.read_exp()};

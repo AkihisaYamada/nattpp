@@ -16,38 +16,35 @@ PathOrder::PathOrder(
 	auto& sol = solver();
 	auto const& sort = sol.logic().base_sort();
 	for( auto const&[f,rank] : sig ) {
-		if( verb & LOG ) cerr << "; for " << f << ' ' << rank << endl;
-		_SymInfo info;
+		if( verb & LOG ) cerr << "; fun " << f << ' ' << rank << endl;
+		auto [info,suc] = _info.emplace(f,_SymInfo{});
+		assert(suc);
 		info.prec = sol.declare_fresh(sort);
+		if( verb & LOG ) cerr << ";  prec: " << info.prec << endl;
 		if( auto post_arity = status(rank).post_arity() ) {
 			info.post_arity = *post_arity;
 			for( size_t i = 0; i < rank.arity; i++ ) {
-				info.mapped.push_back( sol.declare_fresh(Smt::BOOL) );
-			}
-			if( verb & LOG ) print_list( cerr << ";   mapped: ", info.mapped.begin(), info.mapped.end() );
-			for( size_t i = 0; i < info.post_arity; i++ ) {// i-th position after rearrangement
 				auto& map = info.map.emplace_back();
-				for( size_t j = 0; j < rank.arity; j++ ) {
-					auto const& ij = sol.declare_fresh(Smt::BOOL);
-					map.push_back(ij);
-					sol.ass( ij.imp(info.mapped[j]) );// j-th argument is marked mapped
-					for( size_t k = 0; k < j; k++ ) {// i-th position cannot be shared
-						sol.ass( !map[k] || !map[j] );
+				for( size_t k = 0; k < info.post_arity; k++ ) {// k-th place after mapping
+					auto const& ik = map.emplace_back(sol.declare_fresh(Smt::BOOL));
+					for( size_t j = 0; j < i; j++ ) {// k-th place cannot be shared
+						sol.ass( !info.map[i][k] || !info.map[j][k] );
 					}
 				}
-				if( verb & LOG ) print_list( cerr << ";   map[" << i << "] = ", info.map[i].begin(), info.map[i].end() );
+				// mapped[i] means i-th argument survives mapping
+				info.mapped.emplace_back( sol.let(Smt::BOOL,Smt::disj(map)) );
+				if( verb & LOG ) cerr << ";  map[" << i << "] = " << print_list(map) << std::endl;
 			}
 		} else {
 			for( size_t i = 0; i < rank.arity; i++ ) {// every argument survives
 				info.mapped.push_back(true);
 			}
 		}
-		_info.insert(f,info);
 	}
 	for( auto const& [n,rule] : rules ) {
 		auto const& l = rule.first;
 		auto const& r = rule.second;
-		_ord.insert(n,compare(l,r));
+		_ord.emplace(n,compare(l,r));
 	}
 }
 
@@ -59,7 +56,7 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 		if( verbosity() & PAIR ) {
 			cerr << "; " << l << " <=> " << r << " = " << comp << endl;
 		}
-		_table.insert(pair{l,r},comp);
+		_table.emplace(pair{l,r},comp);
 		return comp;
 	};
 	auto const& [lf,largs] = *l;
@@ -72,7 +69,7 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 	}
 	auto const& [rf,rargs] = *r;
 	auto const& rinfo = _info.find(rf);
-	auto gt_all_arg = (bool)rinfo || Smt::conj( 0, rargs.size(),[&]( size_t j ){
+	auto gt_all_arg = !rinfo || Smt::conj( 0, rargs.size(),[&]( size_t j ){
 		return rinfo->mapped[j].imp( compare(l,rargs[j]).gt );// if r_j survives, then l > r_j
 	});
 	if( !linfo ) {// lhs is a variable
@@ -87,7 +84,7 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 	gt_all_arg = solver().let(Smt::BOOL,gt_all_arg);
 	auto const& [args_ge,args_gt] = mapped_lex_compare(
 		[&]( auto const& x, auto const& y ){ return compare(x,y); },
-		linfo->map, rinfo->map, l.args(), r.args()
+		linfo->post_arity, rinfo->post_arity, linfo->map, rinfo->map, largs, rargs
 	);
 	auto const& [pge,pgt] = Smt::compare(linfo->prec,rinfo->prec);
 	auto const& gt = solver().let( Smt::BOOL, some_arg_ge || ( gt_all_arg && ( pgt || ( pge && args_gt ) ) ) );
@@ -95,34 +92,35 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 	return memo({ge,gt});
 }
 
-std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& f ) {
-	auto info = _info.find(f);
+std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sym ) {
+	auto info = _info.find(sym);
+	auto ar = info->map.size();
 	assert(info);
 	os << "(prec " << solver().get_value(info->prec) << ')';
 	if( info->post_arity > 0 ) {
 		os << " (map ";
-		auto f = [&]( size_t i ){
-			size_t j = 0, n = info->map[i].size();
+		auto f = [&]( size_t k ){
+			size_t i = 0;
 			for(;;){
-				if( j == n ) {
+				if( i == ar ) {
 					os << '-';
 					break;
 				}
-				if( solver().get_value(info->map[i][j]) == Smt::TRUE ) {
-					os << j;
+				if( solver().get_value(info->map[i][k]) == Smt::TRUE ) {
+					os << i;
 					break;
 				}
-				j++;
+				i++;
 			}
 		};
 		f(0);
-		for( size_t i = 1; i < info->post_arity; i++ ) {
+		for( size_t k = 1; k < info->post_arity; k++ ) {
 			os << ' ';
-			f(i);
+			f(k);
 		}
 		os << ')';
 	}
-	return _weight->print_sym_info( os, f );
+	return _weight->print_sym_info( os, sym );
 }
 
 
@@ -259,7 +257,7 @@ void TermOrder::test() {
 
 	Trs::Sig sig = {{"+",{2}}};
 	Trs::Rules trs;
-	trs.insert(0,Trs::Rule{{"+","x","y"},{"x"}});
+	trs.emplace(0,Trs::Rule{{"+","x","y"},{"x"}});
 
 	auto lpo = PathOrder(sig,trs,std::make_unique<TrivOrder>
 		(Smt::Z3(Smt::LIA)),[&](Trs::Rank const&){ return PathOrder::Status::Mapped(2); },TermOrder::RULE);

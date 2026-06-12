@@ -3,22 +3,30 @@ MAIN_SRC=main.cpp
 TEST_SRC=test.cpp
 TGT=natt++
 
-CLANGPP=clang++ -ftemplate-backtrace-limit=0 -Wno-switch
-GPP=gpp
+CLANGPP=clang++ -std=c++20 -Wfatal-errors -ftemplate-backtrace-limit=0 -Wno-switch
+GPP=gpp -std=c++20 -Wfatal-errors
 
-CPP=${CLANGPP} -O3 -std=c++20 -Wfatal-errors -fsanitize=address,alignment,undefined
-DEBUG_CPP=${CLANGPP} -O1 -ggdb3 -std=c++20 -Wfatal-errors -fsanitize=address,alignment,undefined
+CPP=${CLANGPP} -O3
+SANITIZE_CPP=${CLANGPP} -O1 -fsanitize=address,alignment,undefined -fno-omit-frame-pointer
+DEBUG_CPP=${CLANGPP} -O0 -ggdb3
 
 DEPEND=_depend
 BUILD=_build
+SANITIZE=_sanitize
 DEBUG=_debug
 
 ALL_SRCS=${SRCS} ${MAIN_SRC} ${TEST_SRC}
 
 DEPS=$(ALL_SRCS:%.cpp=$(DEPEND)/%.d)
+
 OBJS=$(SRCS:%.cpp=$(BUILD)/%.o)
 MAIN=$(MAIN_SRC:%.cpp=$(BUILD)/%.o)
 TEST=$(TEST_SRC:%.cpp=$(BUILD)/%.o)
+
+SANITIZE_OBJS=$(SRCS:%.cpp=$(SANITIZE)/%.o)
+SANITIZE_MAIN=$(MAIN_SRC:%.cpp=$(SANITIZE)/%.o)
+SANITIZE_TEST=$(TEST_SRC:%.cpp=$(SANITIZE)/%.o)
+
 DEBUG_OBJS=$(SRCS:%.cpp=$(DEBUG)/%.o)
 DEBUG_MAIN=$(MAIN_SRC:%.cpp=$(DEBUG)/%.o)
 DEBUG_TEST=$(TEST_SRC:%.cpp=$(DEBUG)/%.o)
@@ -26,14 +34,14 @@ DEBUG_TEST=$(TEST_SRC:%.cpp=$(DEBUG)/%.o)
 ${TGT}: ${OBJS} ${MAIN}
 	${CPP} $^ -o $@
 
-run: ${TGT}
-	./${TGT} samples/add.ari
+sanitize: ${OBJS} ${MAIN}
+	${SANITIZE_CPP} $^ -o $@
 
 debug: ${DEBUG_OBJS} ${DEBUG_MAIN}
 	${DEBUG_CPP} $^ -o $@
 
 tester: ${DEBUG_OBJS} ${DEBUG_TEST}
-	${CPP} $^ -o $@
+	${SANITIZE_CPP} $^ -o $@
 
 test: tester
 	./tester
@@ -51,6 +59,10 @@ $(BUILD)/%.o: %.cpp
 	@mkdir -p $(@D)
 	${CPP} -c $< -o $@
 
+$(SANITIZE)/%.o: %.cpp
+	@mkdir -p $(@D)
+	${SANITIZE_CPP} -c $< -o $@
+
 $(DEBUG)/%.o: %.cpp
 	@mkdir -p $(@D)
 	${DEBUG_CPP} -c $< -o $@
@@ -58,6 +70,6 @@ $(DEBUG)/%.o: %.cpp
 .PHONY: clean test
 
 clean:
-	rm -rf $(DEPEND) $(BUILD) $(DEBUG)
+	rm -rf $(DEPEND) $(BUILD) $(SANITIZE) $(DEBUG)
 
 -include ${DEPS}

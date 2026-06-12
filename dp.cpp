@@ -8,7 +8,7 @@ static void collect_dps(
 ) {
 	if( auto rank = sig.find(r.fun()) )
 		if( rank->defined ) {
-			dps.insert(dp_ind,Dp{l,r,org,rpos});
+			dps.emplace(dp_ind,Dp{l,r,org,rpos});
 			dp_ind++;
 		}
 	rpos.emplace_back(0);

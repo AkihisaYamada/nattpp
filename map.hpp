@@ -12,15 +12,12 @@ public:
 	using M::M, M::begin, M::end, M::size, M::empty, M::erase;
 	/**
 	 * @brief emplaces a key-value pair.
-	 * @return a reference to existing value if the key already exists
 	 */
 	template<typename... Ts>
-	Opt<T&> insert( Ts&&... args ) {
+		requires std::is_constructible_v<value_type,Ts&&...>
+	std::pair<T&,bool> emplace( Ts&&... args ) {
 		auto [it,f] = M::emplace(std::forward<Ts>(args)...);
-		if( f ) {
-			return {};
-		}
-		return it->second;
+		return {it->second,f};
 	}
 	template<typename L>
 	Opt<T&> find( L const& k ) & {

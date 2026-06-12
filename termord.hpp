@@ -117,7 +117,7 @@ public:
 			auto [ge,gt] = _term_order.compare(rule.first,rule.second);
 			auto gev = sol.let(Smt::BOOL,ge);
 			auto gtv = sol.let(Smt::BOOL,gt);
-			_ords.insert(i,Smt::Compare{gev,gtv});
+			_ords.emplace(i,Smt::Compare{gev,gtv});
 		}
 	}
 	Smt::Solver& solver() override { return _term_order.solver(); }
@@ -153,7 +153,7 @@ public:
 		int const& verb = NONE
 	) : _term_order(sig,temp,std::move(solver),verb) {
 		for( auto [n,rule] : rules ) {
-			_arules.insert(n,std::pair{_term_order.intp.annotate(rule.first),_term_order.intp.annotate(rule.second)});
+			_arules.emplace(n,std::pair{_term_order.intp.annotate(rule.first),_term_order.intp.annotate(rule.second)});
 		}
 	}
 	Smt::Solver& solver() override { return _term_order.solver(); }
@@ -181,8 +181,8 @@ private:
 	struct _SymInfo {
 		Smt::PostExp prec;
 		int post_arity;// arity after argument rearrangement
+		std::vector<std::vector<Smt::PostExp>> map;// map[i][j] i-th argument is mapped to j-th position
 		std::vector<Smt::PostExp> mapped;// flags if the corresponding argument is mapped
-		std::vector<std::vector<Smt::PostExp>> map;// map[i][j] means i-th position is taken by j-th argument
 	};
 	std::unique_ptr<TermOrder> _weight;
 	Map<std::string,_SymInfo> _info;
@@ -254,34 +254,34 @@ Smt::Compare lex_compare( F const& comp, std::vector<T> const& ls, std::vector<T
 template<typename F, typename T>
 Smt::Compare mapped_lex_compare(
 	F const& comp,
+	size_t lpar,// post arity
+	size_t rpar,
 	std::vector<std::vector<Smt::PostExp>> const& lmap,
 	std::vector<std::vector<Smt::PostExp>> const& rmap,
 	std::vector<T> const& ls,
 	std::vector<T> const& rs
 ) {
 	auto all_ge = Smt::TRUE, gt = Smt::FALSE;
-	auto ln = lmap.size();
-	auto rn = rmap.size();
 	auto lin = ls.size();
 	auto rin = rs.size();
-	for( size_t i = 0;; i++ ) {
-		if( i == ln ) {
-			if( i == rn ) {
+	for( size_t k = 0;; k++ ) {
+		if( k == lpar ) {
+			if( k == rpar ) {
 				return { gt || all_ge, gt };
 			} else {
 				return { gt, gt };
 			}
-		} else if( i == rn ) {
+		} else if( k == rpar ) {
 			return { gt || all_ge, gt || all_ge };
 		}
-		auto ige = Smt::disj( 0, lin, [&]( size_t const& j ){
-			return lmap[i][j] && Smt::disj( 0, rin, [&]( size_t const& k ){
-				return rmap[i][k] && comp(ls[j],rs[k]).ge;
+		auto ige = Smt::disj( 0, lin, [&]( size_t const& i ){
+			return lmap[i][k] && Smt::disj( 0, rin, [&]( size_t const& j ){
+				return rmap[j][k] && comp(ls[i],rs[j]).ge;
 			} );
 		} );
-		auto igt = Smt::disj( 0, lin, [&]( size_t const& j ){
-			return lmap[i][j] && Smt::disj( 0, rin, [&]( size_t const& k ){
-				return rmap[i][k] && comp(ls[j],rs[k]).gt;
+		auto igt = Smt::disj( 0, lin, [&]( size_t const& i ){
+			return lmap[i][k] && Smt::disj( 0, rin, [&]( size_t const& j ){
+				return rmap[j][k] && comp(ls[i],rs[j]).gt;
 			} );
 		} );
 		gt = gt || (all_ge && igt);

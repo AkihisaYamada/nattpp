@@ -43,7 +43,7 @@ ostream& operator<<( ostream& os, Poly const& p ) {
 Poly Poly::operator+( Poly const& p2 ) const & {
 	Poly ret;
 	iter2(_map,p2._map,[&]( auto& it1, auto& it2 ){
-		ret._map.insert( it1->first, it1->second + it2->second );
+		ret._map.emplace( it1->first, it1->second + it2->second );
 	},[&]( auto& it1 ){
 		ret._map.insert(*it1);
 	},[&]( auto& it2 ){
@@ -64,18 +64,18 @@ Poly& Poly::operator+=( Poly const& p2 ) & {
 Poly Poly::ite( Smt::PreExp const& i, Poly const& p1, Poly const& p2 ) {
 	Poly ret;
 	iter2(p1._map,p2._map,[&]( auto& it1, auto& it2 ){
-		ret._map.insert( it1->first, Smt::ite(i,it1->second,it2->second) );
+		ret._map.emplace( it1->first, Smt::ite(i,it1->second,it2->second) );
 	},[&]( auto& it1 ){
-		ret._map.insert( it1->first, Smt::ite(i,it1->second,0) );
+		ret._map.emplace( it1->first, Smt::ite(i,it1->second,0) );
 	},[&]( auto& it2 ){
-		ret._map.insert( it2->first, Smt::ite(i,0,it2->second) );
+		ret._map.emplace( it2->first, Smt::ite(i,0,it2->second) );
 	});
 	return std::move(ret);
 }
 Poly Poly::monom_mult( Smt::PreExp const& c, Vars const& vs ) const {
 	Poly ret;
 	for( auto& [vs1,c1] : _map ) {
-		ret._map.insert(vs1 * vs, c * c1);
+		ret._map.emplace(vs1 * vs, c * c1);
 	}
 	return std::move(ret);
 }
@@ -139,7 +139,7 @@ Poly Poly::eval_coeffs( Smt::Solver& solver ) const {
 	for( auto& [vars,coeff] : _map ) {
 		auto post = coeff.post();
 		assert(post);
-		ret._map.insert(vars,solver.get_value(*post));
+		ret._map.emplace(vars,solver.get_value(*post));
 	}
 	return ret;
 }
@@ -303,9 +303,9 @@ int Poly::test() {
 	cout << "Poly: " << p << " >= " << q << endl;
 	cout << "Smt: " << z3.expand(p.ge(q)) << endl;
 	Trs::Sig sig;
-	sig.insert("f",2);
-	sig.insert("g",1);
-	sig.insert("a",0);
+	sig.emplace("f",2);
+	sig.emplace("g",1);
+	sig.emplace("a",0);
 	auto der = Template::SUM.deriver(sig,z3);
 	auto der_intp = expand(der.derive(z3poly),z3);
 	e = Exp{"f",Exp{"g","x"},"a"};

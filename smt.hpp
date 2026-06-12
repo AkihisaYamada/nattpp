@@ -121,6 +121,11 @@ public:
 	static PostExp disj( C const& xs, auto const& f ) {
 		return disj( xs.begin(), xs.end(), [&]( typename C::const_iterator const& i ){ return f(*i); } );
 	}
+	template<typename C>
+	static PostExp disj( C const& xs ) {
+		return disj( xs, []( auto const& x ){ return x; } );
+	}
+
 	static PostExp conj( auto i, auto const& end, auto const& f ) {
 		std::vector<Term<Fun>> cs;
 		for( ; i != end; i++ ) {

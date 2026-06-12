@@ -1,10 +1,10 @@
 #ifndef _UTIL_HPP
 #define _UTIL_HPP
 
-#include<map>
 #include<set>
 #include<functional>
 #include<string>
+#include<iostream>
 #include"opt.hpp"
 
 #define DEB(a) do { std::cerr << __FILE__ << ':' << __LINE__ << ' ' << a << std::endl; } while(0)
@@ -97,5 +97,44 @@ std::function<bool(Args...)> operator||(std::function<bool(Args...)>const& f, st
 	return [&](Args... xs) {
 		return f(xs...) || g(xs...);
 	};
+}
+
+struct Printable {
+	std::function<std::ostream&(std::ostream&)> const print;
+	Printable( std::function<std::ostream&(std::ostream&)>&& f ) : print(std::move(f)) {}
+	Printable( Printable&& ) = default;
+	Printable( Printable const& ) = delete;
+	Printable& operator=( Printable&& ) & = delete;
+	Printable& operator=( Printable const& ) & = delete;
+};
+
+inline std::ostream& operator<<( std::ostream& os, Printable const& p ) {
+	return p.print(os);
+}
+
+template<typename I, typename E, typename F>
+Printable print_list( I&& begin, E&& end, F && f ) {
+	return {[
+		begin = std::forward<I>(begin),
+		end = std::forward<E>(end),
+		f = std::forward<F>(f)
+	]( std::ostream& os ) -> std::ostream& {
+		auto it = std::move(begin);
+		if( it == end ) return os;
+		for(;;) {
+			os << f(*it);
+			it++;
+			if( it == end ) return os;
+			os << ' ';
+		}
+	}};
+}
+template<typename I, typename E>
+Printable print_list( I&& it, E&& end ) {
+	return print_list( std::forward<I>(it), std::forward<E>(end), []( auto const& x ){ return x; } );
+}
+template<typename C>
+Printable print_list( C const& c ) {
+	return print_list( c.begin(), c.end() );
 }
 #endif

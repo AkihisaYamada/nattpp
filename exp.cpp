@@ -1,11 +1,12 @@
 #include <cassert>
 #include <sstream>
+#include "util.hpp"
 #include "exp.hpp"
 
 using namespace std;
 
 ostream& operator<<( ostream& os, Pos const& pos ) {
-	return print_list( os << '(', pos.begin(), pos.end(), []( auto c ){ return (unsigned int)c+1; } ) << ')';
+	return os << '(' << print_list( pos.begin(), pos.end(), []( auto c ){ return (unsigned int)c+1; } ) << ')';
 }
 
 Opt<unsigned int> nat_of( string_view const& str ) {

@@ -324,19 +324,4 @@ std::ostream& operator<<( std::ostream& os, Term<F> const& e ) {
 	return os << ')';
 }
 
-template<typename I, typename E, typename F>
-std::ostream& print_list( std::ostream& os, I it, E const& end, F const& f ) {
-	if( it == end ) return os;
-	for(;;){
-		os << f(*it);
-		it++;
-		if( it == end ) return os;
-		os << ' ';
-	}
-}
-template<typename I, typename E>
-std::ostream& print_list( std::ostream& os, I const& it, E const& end ) {
-	return print_list( os, it, end, []( auto const& x ){ return x; } );
-}
-
 #endif

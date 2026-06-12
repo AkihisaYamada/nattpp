@@ -10,6 +10,9 @@ std::vector<size_t> order_some_dp( TrsOrder& order, Trs::Rules const& rules, Dps
 	solver.push();
 	for( auto const& [i,rule] : rules ) {
 		auto const& [ge,gt] = order.order_rule(i);
+		if( order.verbosity() & TermOrder::RULE ) {
+			std::cerr << "; " << rule << std::endl;
+		}
 		solver.ass(ge);
 	}
 	for( auto const& [i,dp] : dps ) {

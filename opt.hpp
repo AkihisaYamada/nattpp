@@ -4,6 +4,7 @@
 #include<optional>
 #include<functional>
 #include<cassert>
+#include <type_traits>
 
 /**
  * @brief A wrapper for std::optional.
@@ -105,10 +106,12 @@ public:
 		return Opt<U&>( _opt ? &*_opt : nullptr );
 	}
 	template<class... Args>
+		requires std::is_constructible_v<T,Args...>
 	static Opt make( Args&&... args ) {
 		return Opt(std::in_place,std::forward<Args>(args)...);
 	}
 	template<class... Args>
+		requires std::is_constructible_v<T,Args...>
 	T& emplace( Args&&... args ) & {
 		return _opt.emplace(std::forward<Args>(args)...);
 	}

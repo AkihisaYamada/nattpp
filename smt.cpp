@@ -144,14 +144,12 @@ Smt::PostExp Smt::PostExp::disj( Smt::PostExp const& y ) const& {
 }
 
 Smt::PostExp Smt::PostExp::imp( Smt::PostExp const& y ) const {
+	if( *this == FALSE ) return TRUE;
+	if( *this == TRUE ) return y;
+	if( y == FALSE ) return !*this;
 	if( _term.fun() == NOT ) {
-		return *this || y;
-	}
-	if( *this == TRUE || y == FALSE ) {
-		return y;
-	}
-	if( *this == FALSE ) {
-		return TRUE;
+		assert( _term.args().size() == 1 );
+		return _term.arg(0) || y;
 	}
 	auto& yfun = y._term.fun();
 	auto yargs = y._term.args();

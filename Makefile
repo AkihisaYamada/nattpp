@@ -34,7 +34,7 @@ DEBUG_TEST=$(TEST_SRC:%.cpp=$(DEBUG)/%.o)
 ${TGT}: ${OBJS} ${MAIN}
 	${CPP} $^ -o $@
 
-sanitize: ${OBJS} ${MAIN}
+sanitize: ${SANITIZE_OBJS} ${SANITIZE_MAIN}
 	${SANITIZE_CPP} $^ -o $@
 
 debug: ${DEBUG_OBJS} ${DEBUG_MAIN}

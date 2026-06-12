@@ -6,26 +6,38 @@
 
 using namespace std;
 
+enum class Ans { YES, NO, MAYBE };
+
 int main( int argc, char* argv[] ) try {
 	Opt<ifstream> ois;
-	ostream* pprf = nullptr;
+	Opt<ofstream> oprf;
 	bool exit_on_error = false;
+	enum { UNSET, SN, SOME } mode = UNSET;
 	Opt<Exp> default_smt_spec;
 	vector<char*> rule_remover_specs;
 	vector<char*> dp_remover_specs;
 	for( int i = 1; i < argc; i++ ) {
 		if( argv[i][0] == '-' ) {
 			string_view opt = argv[i];
-			i++;
-			if( i == argc ) throw Error("#missing-arg",opt);
-			if( opt == "-proof" ) {
-				if( pprf != nullptr ) throw Error("#duplicate-option",opt);
-				pprf = new ofstream(argv[i]);
+			auto require_arg = [&]{
+				i++;
+				if( i == argc ) throw Error("#missing-arg",opt);
+			};
+			if( opt == "-some" ) {
+				if( mode != UNSET ) throw Error("#duplicate-mode",opt);
+				mode = SOME;
+			} else if( opt == "-proof" ) {
+				if( oprf ) throw Error("#duplicate-option",opt);
+				require_arg();
+				oprf.emplace(argv[i]);
 			} else if( opt == "-smt" ) {
+				require_arg();
 				default_smt_spec = {Exp::of(argv[i])};
 			} else if( opt == "-r" ) {// rule remover
+				require_arg();
 				rule_remover_specs.push_back(argv[i]);
 			} else if( opt == "-d" ) {// dp remover
+				require_arg();
 				dp_remover_specs.push_back(argv[i]);
 			} else {
 				throw Error("#unknown-option",argv[i]);
@@ -50,15 +62,26 @@ int main( int argc, char* argv[] ) try {
 	cout << p << endl;
 	auto const& sig = p.sig;
 	auto const& trs = p.systems[0];
-
+	bool mono;
+	bool use_dp;
+	switch( mode ) {
+	case UNSET: case SN:
+		mono = true;
+		use_dp = !dp_remover_specs.empty();
+		break;
+	case SOME:
+		mono = false;
+		use_dp = false;
+		break;
+	}
 	vector<unique_ptr<TrsOrder>> rule_removers;
 	for( auto x : rule_remover_specs ) {
-		rule_removers.push_back(TrsOrder::of(Exp::of(x),sig,trs,true,default_smt,Smt::INT));
+		rule_removers.push_back(TrsOrder::of(Exp::of(x),sig,trs,mono,default_smt,Smt::INT));
 	}
 
 	// rule removal loop
 	do {
-		if( p.systems[0].empty() ) throw true;
+		if( p.systems[0].empty() ) throw Ans::YES;
 	} while( [&](){
 		for( auto& proc : rule_removers ) {
 			proc->print_name(cerr << "; trying ") << "... " << endl;
@@ -78,6 +101,8 @@ int main( int argc, char* argv[] ) try {
 		return false;
 	}() );
 
+	if( !use_dp ) throw Ans::MAYBE;
+
 	Dps dps = make_dps(p.sig,p.systems[0]);
 	cout << dps << endl;
 
@@ -87,7 +112,7 @@ int main( int argc, char* argv[] ) try {
 	}
 	// DP removal loop
 	do {
-		if( dps.empty() ) throw true;
+		if( dps.empty() ) throw Ans::YES;
 	} while( [&]{
 		for( auto& proc : dp_removers ) {
 			proc->print_name( cerr << "; trying " ) << "... " << endl;
@@ -106,15 +131,19 @@ int main( int argc, char* argv[] ) try {
 		}
 		return false;
 	}() );
-	cout << "failed" << endl;
-	exit(-1);
-} catch( bool b ) {
-	if( b ) {
-		cout << "terminating" << endl;
+	throw Ans::MAYBE;
+} catch( Ans a ) {
+	switch( a ) {
+	case Ans::YES:
+		cout << "YES" << endl;
 		exit(0);
+	case Ans::NO:
+		cout << "NO" << endl;
+		exit(1);
+	case Ans::MAYBE:
+		cout << "MAYBE" << endl;
+		exit(2);
 	}
-	cout << "nonterminating" << endl;
-	exit(1);
 } catch( Error const& e ) {
 	cerr << e << endl;
 	exit(-1);

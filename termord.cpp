@@ -69,7 +69,7 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 	}
 	auto const& [rf,rargs] = *r;
 	auto const& rinfo = _info.find(rf);
-	auto gt_all_arg = !rinfo || Smt::conj( 0, rargs.size(),[&]( size_t j ){
+	auto gt_all_arg = !rinfo || Smt::conj( 0, rargs.size(), [&]( size_t j ){
 		return rinfo->mapped[j].imp( compare(l,rargs[j]).gt );// if r_j survives, then l > r_j
 	});
 	if( !linfo ) {// lhs is a variable
@@ -86,6 +86,9 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 		[&]( auto const& x, auto const& y ){ return compare(x,y); },
 		linfo->post_arity, rinfo->post_arity, linfo->map, rinfo->map, largs, rargs
 	);
+	if( _verbosity & LOG ) {
+		cerr << "; [" << print_list(largs) << "] <=> [" << print_list(rargs) << "] = {" << args_ge << ", " << args_gt << '}' << endl;
+	}
 	auto const& [pge,pgt] = Smt::compare(linfo->prec,rinfo->prec);
 	auto const& gt = solver().let( Smt::BOOL, some_arg_ge || ( gt_all_arg && ( pgt || ( pge && args_gt ) ) ) );
 	auto const& ge = solver().let( Smt::BOOL, gt || ( gt_all_arg && pge && args_ge ) );

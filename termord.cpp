@@ -20,6 +20,7 @@ PathOrder::PathOrder(
 		auto [info,suc] = _info.emplace(f,_SymInfo{});
 		assert(suc);
 		info.prec = sol.declare_fresh(sort);
+		sol.ass( Smt::ge(info.prec,0) );
 		if( verb & LOG ) cerr << ";  prec: " << info.prec << endl;
 		if( auto post_arity = status(rank).post_arity() ) {
 			info.post_arity = *post_arity;

@@ -14,6 +14,7 @@ int main( int argc, char* argv[] ) try {
 	bool exit_on_error = false;
 	enum { UNSET, SN, SOME } mode = UNSET;
 	Opt<Exp> default_smt_spec;
+	Opt<Smt::BaseSort> default_sort;
 	vector<Exp> rulerem_specs;
 	vector<Exp> dprem_specs;
 	for( int i = 1; i < argc; i++ ) {
@@ -26,8 +27,12 @@ int main( int argc, char* argv[] ) try {
 			if( opt == "-some" ) {
 				if( mode != UNSET ) throw Error("#duplicate-mode",opt);
 				mode = SOME;
+			} else if( opt == "-sort" ) {
+				if( default_sort ) throw Error("#duplicate-sort");
+				require_arg();
+				default_sort.emplace( Smt::BaseSort::of(argv[i]) );
 			} else if( opt == "-proof" ) {
-				if( oprf ) throw Error("#duplicate-option",opt);
+				if( oprf ) throw Error("#duplicate-proof");
 				require_arg();
 				oprf.emplace(argv[i]);
 			} else if( opt == "-smt" ) {
@@ -51,11 +56,14 @@ int main( int argc, char* argv[] ) try {
 			exit_on_error = true;
 		}
 	}
+	if( !default_sort ) {
+		default_sort = {Smt::INT};
+	}
 	auto default_smt = [&]()->Smt::Solver{
 		if( default_smt_spec ) {
 			return Smt::Solver::of(*default_smt_spec);
 		} else {
-			return Smt::Z3(Smt::QF_LIA);
+			return Smt::Z3( *default_sort == Smt::REAL ? Smt::QF_LRA : Smt::QF_LIA );
 		}
 	};
 	auto p = Problem( ois ? *ois : cin );

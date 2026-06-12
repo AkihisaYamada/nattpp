@@ -19,6 +19,7 @@ public:
 		std::string const& name() const& { return _name; }
 		static BaseSort of( Exp const& );
 		friend Smt;
+		bool operator==( Smt::BaseSort const& y ) const& = default;
 	};
 	class Sort {
 		struct _Cons;

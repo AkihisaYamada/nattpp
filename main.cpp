@@ -14,8 +14,8 @@ int main( int argc, char* argv[] ) try {
 	bool exit_on_error = false;
 	enum { UNSET, SN, SOME } mode = UNSET;
 	Opt<Exp> default_smt_spec;
-	vector<char*> rule_remover_specs;
-	vector<char*> dp_remover_specs;
+	vector<Exp> rulerem_specs;
+	vector<Exp> dprem_specs;
 	for( int i = 1; i < argc; i++ ) {
 		if( argv[i][0] == '-' ) {
 			string_view opt = argv[i];
@@ -35,10 +35,10 @@ int main( int argc, char* argv[] ) try {
 				default_smt_spec = {Exp::of(argv[i])};
 			} else if( opt == "-r" ) {// rule remover
 				require_arg();
-				rule_remover_specs.push_back(argv[i]);
+				rulerem_specs.push_back(Exp::of(argv[i]));
 			} else if( opt == "-d" ) {// dp remover
 				require_arg();
-				dp_remover_specs.push_back(argv[i]);
+				dprem_specs.push_back(Exp::of(argv[i]));
 			} else {
 				throw Error("#unknown-option",argv[i]);
 			}
@@ -67,7 +67,18 @@ int main( int argc, char* argv[] ) try {
 	switch( mode ) {
 	case UNSET: case SN:
 		mono = true;
-		use_dp = !dp_remover_specs.empty();
+		if( dprem_specs.empty() ) {
+			if( rulerem_specs.empty() ) {// default strategy
+				rulerem_specs.emplace_back(SUM_SPEC);
+				dprem_specs.emplace_back(SUM_SPEC);
+				dprem_specs.emplace_back(LPO3_SPEC);
+				use_dp = true;
+			} else {
+				use_dp = false;
+			}
+		} else {
+			use_dp = true;
+		}
 		break;
 	case SOME:
 		mono = false;
@@ -75,8 +86,8 @@ int main( int argc, char* argv[] ) try {
 		break;
 	}
 	vector<unique_ptr<TrsOrder>> rule_removers;
-	for( auto x : rule_remover_specs ) {
-		rule_removers.push_back(TrsOrder::of(Exp::of(x),sig,trs,mono,default_smt,Smt::INT));
+	for( auto x : rulerem_specs ) {
+		rule_removers.push_back(TrsOrder::of(x,sig,trs,mono,default_smt,Smt::INT));
 	}
 
 	// rule removal loop
@@ -107,8 +118,8 @@ int main( int argc, char* argv[] ) try {
 	cout << dps << endl;
 
 	vector<unique_ptr<TrsOrder>> dp_removers;
-	for( auto x : dp_remover_specs ) {
-		dp_removers.push_back(TrsOrder::of(Exp::of(x),sig,trs,false,default_smt,Smt::INT));
+	for( auto x : dprem_specs ) {
+		dp_removers.push_back(TrsOrder::of(x,sig,trs,false,default_smt,Smt::INT));
 	}
 	// DP removal loop
 	do {

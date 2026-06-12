@@ -229,6 +229,7 @@ public:
 	int verbosity() override { return _verbosity; }
 };
 
+extern Exp const SUM_SPEC, MONO_LPO_SPEC, LPO3_SPEC;
 
 template<typename F, typename T>
 Smt::Compare lex_compare( F const& comp, std::vector<T> const& ls, std::vector<T> const& rs ) {

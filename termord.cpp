@@ -163,18 +163,14 @@ std::function<PathOrder::Status(Trs::Rank const&)> PathOrder::Status::of( Exp co
 	}
 	if( x.fun() == "map" ) {
 		if( mono ) throw Error("#path-order","\"Monotone path-order with argument mapping is not supported.\"");
-		int num = -1;
-		x.process_keys( n, [&]( auto const& key, Exp const& val ){
-			if( key == "num" ) {
-				num = (
-					val.unapplied() >>= []( auto sym ){ return is_int(sym); }
-				).value_or_throw( Error("#malformed-numer",val) );
-				return true;
-			}
-			return false;
-		} );
+		int num;
+		if( auto const& arg = x.gets_arg(n) ) {
+			num = std::stoi(arg->unapplied().value_or_throw(Error("#malformed-number",*arg)));
+		} else {
+			num = -1;
+		}
 		return [num]( Trs::Rank const& rank ){
-			return Mapped( num == -1 ? rank.arity : num );
+			return Mapped( num == -1 ? rank.arity : rank.arity ? num : 0 );
 		};
 	}
 	throw Error("#malformed-status",x);
@@ -248,6 +244,9 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 		throw Error("#unknown-order",x);
 	}
 }
+
+Exp const SUM_SPEC = Exp{"sum"};
+Exp const LPO3_SPEC = Exp{"path-order", ":status",Exp{"map","3"}};
 
 void TermOrder::test() {
 	cout << "=== TermOrder ===" << endl;

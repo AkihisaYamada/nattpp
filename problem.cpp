@@ -91,7 +91,7 @@ Problem::Problem( istream& is ) {
 	}
 }
 
-ostream& Problem::print( ostream& os ) const {
+ostream& Problem::print( ostream& os ) const& {
 	os << "(problem";
 	switch( mode ) {
 		case SN: os << " termination"; break;
@@ -104,18 +104,14 @@ ostream& Problem::print( ostream& os ) const {
 		os << "\n  (fun " << f << ' ' << rank << ')' << flush;
 	}
 	for( auto const& [n,rule] : systems[0] ) {
-		os << "\n  (rule ";
-		rule.print_contents(os);
-		os << " :number " << n << ')' << flush;
+		os << "\n  (rule " << rule.content() << " :number " << n << ')' << flush;
 	}
 	int sysno = 1;
 	while( sysno < systems.size() ) {
 		auto const& rules = systems[sysno];
 		sysno++;
 		for( auto const& [n,rule] : rules ) {
-			os << "\n  (rule ";
-			rule.print_contents(os);
-			os << " :number" << n << " :index " << sysno << ')' << flush;
+			os << "\n  (rule " << rule.content() << " :number" << n << " :index " << sysno << ')' << flush;
 		}
 	}
 	return os << ')';

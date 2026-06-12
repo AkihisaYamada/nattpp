@@ -22,7 +22,7 @@ private:
 	Problem() = delete;
 public:
 	Problem( std::istream& is );
-	std::ostream& print( std::ostream& os ) const;
+	std::ostream& print( std::ostream& os ) const &;
 	static bool test();
 };
 

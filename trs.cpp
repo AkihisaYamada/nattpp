@@ -2,7 +2,7 @@
 
 using namespace std;
 
-ostream& Trs::Rule::print_contents( ostream& os ) const {
+std::ostream& Trs::Rule::print_content( std::ostream& os ) const& {
 	os << first << ' ' << second;
 	if( weight != 1 ) {
 		os << " :cost " << weight;

@@ -54,6 +54,7 @@ $(DEPEND)/%.d: %.cpp
 	${CPP} -MM $< > $@.base
 	(echo -n $(BUILD)/; cat $@.base) > $@
 	(echo -n $(DEBUG)/; cat $@.base) >> $@
+	(echo -n $(SANITIZE)/; cat $@.base) >> $@
 
 $(BUILD)/%.o: %.cpp
 	@mkdir -p $(@D)

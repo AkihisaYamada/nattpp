@@ -8,7 +8,11 @@ struct Dp {
 	Exp second;
 	size_t org;
 	Pos rpos;
-	std::ostream& print_content( std::ostream& os ) const&;
+private:
+	Printable _content;
+public:
+	Dp( Exp const& f, Exp const& s, size_t o, Pos p );
+	Printable const& content() const& { return _content; }
 };
 
 using Dps = Map<size_t,Dp>;
@@ -16,7 +20,7 @@ using Dps = Map<size_t,Dp>;
 Dps make_dps( Trs::Sig const& sig, Trs::Rules const& rules );
 
 inline std::ostream& operator<<( std::ostream& os, Dp const& dp ) {
-	return dp.print_content( os << '(' ) << ')';
+	return os << '(' << dp.content() << ')';
 }
 
 std::ostream& operator<<( std::ostream& os, Dps const& dps );

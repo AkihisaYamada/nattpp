@@ -1,6 +1,6 @@
 #ifndef TRS_HPP_
 #define TRS_HPP_
-#include<istream>
+#include"util.hpp"
 #include"map.hpp"
 #include"exp.hpp"
 
@@ -19,18 +19,22 @@ public:
 	};
 	using Sig = Map<std::string,Rank>;
 	class Reader;
-	struct Rule : std::pair<Term,Term> {
-		using std::pair<Term,Term>::pair;
+	struct Rule {
+		Term first, second;
 		int weight;
-		Rule( Term const& l, Term const& r, int weight ) : std::pair<Term,Term>(l,r), weight(weight) {}
-		std::ostream& print_contents( std::ostream& os ) const;
+	public:
+		Rule( Term const& l, Term const& r, int w = 1 ) : first(l), second(r), weight(w) {}
+		std::ostream& print_content( std::ostream& ) const&;
+		Printable content() const& {
+			return Printable([this]( std::ostream& os )->std::ostream&{ return print_content(os); });
+		}
 	};
 	struct Rules : Map<size_t,Rule> {
 	};
 };
 
 inline std::ostream& operator<<( std::ostream& os, Trs::Rule const& rule ) {
-	return rule.print_contents( os << "(rule " ) << ')';
+	return os << "(rule " << rule.content() << ')';
 }
 inline std::ostream& operator<<( std::ostream& os, Trs::Rules const& rules ) {
 	for( auto const& [n,rule] : rules ) {

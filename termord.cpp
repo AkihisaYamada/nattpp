@@ -135,7 +135,7 @@ std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules ) 
 		solver.pop();
 	}
 	solver.push();
-	for( auto [i,rule] : rules ) {
+	for( auto const& [i,rule] : rules ) {
 		if( order.verbosity() & TermOrder::RULE ) {
 			cerr << "; " << rule << endl;
 		}
@@ -260,7 +260,7 @@ void TermOrder::test() {
 
 	Trs::Sig sig = {{"+",{2}}};
 	Trs::Rules trs;
-	trs.emplace(0,Trs::Rule{{"+","x","y"},{"x"}});
+	trs.emplace(0,Trs::Rule({"+","x","y"},{"x"}));
 
 	auto lpo = PathOrder(sig,trs,std::make_unique<TrivOrder>
 		(Smt::Z3(Smt::LIA)),[&](Trs::Rank const&){ return PathOrder::Status::Mapped(2); },TermOrder::RULE);

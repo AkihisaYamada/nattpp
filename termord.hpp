@@ -152,7 +152,7 @@ public:
 		Smt::Solver&& solver,
 		int const& verb = NONE
 	) : _term_order(sig,temp,std::move(solver),verb) {
-		for( auto [n,rule] : rules ) {
+		for( auto const& [n,rule] : rules ) {
 			_arules.emplace(n,std::pair{_term_order.intp.annotate(rule.first),_term_order.intp.annotate(rule.second)});
 		}
 	}

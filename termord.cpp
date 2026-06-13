@@ -9,19 +9,19 @@ PathOrder::PathOrder(
 	Trs::Rules const& rules,
 	std::unique_ptr<TermOrder>&& weight,
 	std::function<Status(Trs::Rank const&)> status,
-	int verb
-) : _weight(std::move(weight)), _verbosity(verb) {
-	if( verb & LOG ) cerr << "; initializing path order" << endl;
+	int log
+) : _weight(std::move(weight)), _log(log) {
+	if( log & DEBUG ) cerr << "; initializing path order" << endl;
 	size_t sigsize = sig.size();
 	auto& sol = solver();
 	auto const& sort = sol.logic().base_sort();
 	for( auto const&[f,rank] : sig ) {
-		if( verb & LOG ) cerr << "; fun " << f << ' ' << rank << endl;
+		if( log & DEBUG ) cerr << "; fun " << f << ' ' << rank << endl;
 		auto [info,suc] = _info.emplace(f,_SymInfo{});
 		assert(suc);
 		info.prec = sol.declare_fresh(sort);
 		sol.ass( Smt::ge(info.prec,0) );
-		if( verb & LOG ) cerr << ";  prec: " << info.prec << endl;
+		if( log & DEBUG ) cerr << ";  prec: " << info.prec << endl;
 		if( auto post_arity = status(rank).post_arity() ) {
 			info.post_arity = *post_arity;
 			for( size_t i = 0; i < rank.arity; i++ ) {
@@ -34,7 +34,7 @@ PathOrder::PathOrder(
 				}
 				// mapped[i] means i-th argument survives mapping
 				info.mapped.emplace_back( sol.let(Smt::BOOL,Smt::disj(map)) );
-				if( verb & LOG ) cerr << ";  map[" << i << "] = " << print_list(map) << std::endl;
+				if( log & DEBUG ) cerr << ";  map[" << i << "] = " << print_list(map) << std::endl;
 			}
 		} else {
 			for( size_t i = 0; i < rank.arity; i++ ) {// every argument survives
@@ -54,7 +54,7 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 		return *opt;
 	}
 	auto memo = [&]( Smt::Compare const& comp ){
-		if( verbosity() & PAIR ) {
+		if( log() & PAIR ) {
 			cerr << "; " << l << " <=> " << r << " = " << comp << endl;
 		}
 		_table.emplace(pair{l,r},comp);
@@ -87,7 +87,7 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 		[&]( auto const& x, auto const& y ){ return compare(x,y); },
 		linfo->post_arity, rinfo->post_arity, linfo->map, rinfo->map, largs, rargs
 	);
-	if( _verbosity & LOG ) {
+	if( _log & DEBUG ) {
 		cerr << "; [" << print_list(largs) << "] <=> [" << print_list(rargs) << "] = {" << args_ge << ", " << args_gt << '}' << endl;
 	}
 	auto const& [pge,pgt] = Smt::compare(linfo->prec,rinfo->prec);
@@ -136,7 +136,7 @@ std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules ) 
 	}
 	solver.push();
 	for( auto const& [i,rule] : rules ) {
-		if( order.verbosity() & TermOrder::RULE ) {
+		if( order.log() & TermOrder::RULE ) {
 			cerr << "; " << rule << endl;
 		}
 		auto const& [ge,gt] = order.order_rule(i);
@@ -189,17 +189,17 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 	size_t n = 0;
 	Opt<Exp> smt;
 	auto mk_smt = [&]{ return smt ? Smt::Solver::of(*smt) : default_smt(); };
-	int verb = NONE;
-	Exp::KeyValProc verb_key = [&]( string_view const& key, Exp const& val ){
-		if( key == "verbosity" ) {
+	int log = NONE;
+	Exp::KeyValProc log_key = [&]( string_view const& key, Exp const& val ){
+		if( key == "log" ) {
 			if( val == "rule" ) {
-				verb = RULE;
+				log = RULE;
 			} else if( val == "pair" ) {
-				verb = RULE | PAIR;
-			} else if( val == "log" ) {
-				verb = RULE | PAIR | LOG;
+				log = RULE | PAIR;
+			} else if( val == "debug" ) {
+				log = RULE | PAIR | DEBUG;
 			} else {
-				throw Error("#unknown-verbosity",val);
+				throw Error("#unknown-log",val);
 			}
 			return true;
 		}
@@ -216,13 +216,13 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 		x.process_keys(n,solver_key);
 		return std::make_unique<TrivOrder>(mk_smt()); 
 	} else if( f == "sum" ) {
-		x.process_keys( n, solver_key );
+		x.process_keys( n, solver_key || log_key );
 		return std::make_unique<DerivedTrsPosOrder<Poly>>
-			( sig, trs, mono ? Poly::Template::MONO_SUM : Poly::Template::SUM, mk_smt(), verb );
+			( sig, trs, mono ? Poly::Template::MONO_SUM : Poly::Template::SUM, mk_smt(), log );
 	} else if( f == "template" ) {
 		Poly::Template t = x.get_arg(n);
-		x.process_keys( n, solver_key );
-		return std::make_unique<DerivedTrsPosOrder<Poly>>(sig,trs,t,mk_smt(),verb);
+		x.process_keys( n, solver_key || log_key );
+		return std::make_unique<DerivedTrsPosOrder<Poly>>(sig,trs,t,mk_smt(),log);
 	} else if( f == "path-order" ) {
 		auto w = x.gets_arg(n);
 		Opt<std::function<PathOrder::Status(Trs::Rank const&)>> status;
@@ -233,13 +233,13 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 			}
 			return false;
 		};
-		x.process_keys( n, status_key || verb_key || (w ? [](auto,auto){ return false; } : solver_key) );
+		x.process_keys( n, status_key || log_key || (w ? [](auto,auto){ return false; } : solver_key) );
 		x.get_end(n);
 		return std::make_unique<PathOrder>(
 			sig, trs,
 			w ? of(*w,sig,trs,mono,default_smt,default_sort) : std::make_unique<TrivOrder>(mk_smt()),
 			status ? *status : []( Trs::Rank const& rank ){ return PathOrder::Status::Straight(); },
-			verb
+			log
 		);
 	} else {
 		throw Error("#unknown-order",x);

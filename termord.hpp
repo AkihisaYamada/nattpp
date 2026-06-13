@@ -6,8 +6,8 @@
 
 struct TermOrder {
     virtual ~TermOrder() = default;// to be able to make pointer of TermOrder 
-	enum { NONE = 0, RULE = 1 << 1, PAIR = 1 << 2, LOG = 1 << 3 };
-	virtual int verbosity() { return NONE; };
+	enum { NONE = 0, RULE = 1 << 1, PAIR = 1 << 2, DEBUG = 1 << 3 };
+	virtual int log() { return NONE; };
 	virtual Smt::Solver& solver() = 0;
 	virtual std::ostream& print_name( std::ostream& os ) = 0;
 	Printable print_name() & {
@@ -80,7 +80,7 @@ template<typename A>
 struct DerivedTermOrder : TermOrder {
 private:
 	Smt::Solver _solver;
-	int _verbosity;
+	int _log;
 public:
 	Algebra::Deriver<std::string, typename A::Sig> const deriver;
 	Algebra::Intp<std::string,A> const intp;
@@ -88,9 +88,9 @@ public:
 		Trs::Sig const& sig,
 		A::Template const& temp,
 		Smt::Solver&& sol_,
-		int verb = NONE
+		int log_ = NONE
 	) : _solver(std::move(sol_)),
-		_verbosity(verb),
+		_log(log_),
 		deriver(temp.deriver(sig,_solver)),
 		intp(A::expand(deriver.derive(A::algebra(_solver)),_solver)) {
 	}
@@ -106,8 +106,8 @@ public:
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override {
 		return os << ":intp " << A::instantiate(solver(),deriver(f));
 	}
-	int verbosity() override {
-		return _verbosity;
+	int log() override {
+		return _log;
 	}
 };
 
@@ -125,8 +125,8 @@ public:
 		A::Template const& temp,
 		Smt::Solver&& sol_,
 		Smt::Sort const& sort,
-		int const& verb = NONE
-	) : _term_order(sig,temp,std::move(sol_),sort,verb) {
+		int const& log_ = NONE
+	) : _term_order(sig,temp,std::move(sol_),sort,log_) {
 		auto& sol = solver();
 		for( auto const& [i,rule] : rules ) {
 			auto [ge,gt] = _term_order.compare(rule.first,rule.second);
@@ -150,7 +150,7 @@ public:
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override {
 		return _term_order.print_sym_info(os,f);
 	}
-	int verbosity() override { return _term_order.verbosity(); }
+	int log() override { return _term_order.log(); }
 };
 
 template<typename A>
@@ -165,8 +165,8 @@ public:
 		Trs::Rules const& rules,
 		A::Template const& temp,
 		Smt::Solver&& solver,
-		int const& verb = NONE
-	) : _term_order(sig,temp,std::move(solver),verb) {
+		int const& log_ = NONE
+	) : _term_order(sig,temp,std::move(solver),log_) {
 		for( auto const& [n,rule] : rules ) {
 			_arules.emplace(n,std::pair{_term_order.intp.annotate(rule.first),_term_order.intp.annotate(rule.second)});
 		}
@@ -188,7 +188,7 @@ public:
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override {
 		return _term_order.print_sym_info(os,f);
 	}
-	int verbosity() override { return _term_order.verbosity(); }
+	int log() override { return _term_order.log(); }
 };
 
 struct PathOrder : TrsOrder {
@@ -203,7 +203,7 @@ private:
 	Map<std::string,_SymInfo> _info;
 	Map<size_t,Smt::Compare> _ord;
 	Map<std::pair<Term<std::string>,Term<std::string>>,Smt::Compare> _table;
-	int _verbosity;
+	int _log;
 public:
 	struct Status {
 		struct Straight {};
@@ -226,7 +226,7 @@ public:
 		Trs::Rules const& rules,
 		std::unique_ptr<TermOrder>&& weight,
 		std::function<Status(Trs::Rank const&)> status,
-		int verb
+		int log_
 	);
 	std::ostream& print_name( std::ostream& os ) override {
 		return os << "path-order " << _weight->print_name();
@@ -241,7 +241,7 @@ public:
 		assert( opt );
 		return *opt;
 	}
-	int verbosity() override { return _verbosity; }
+	int log() override { return _log; }
 };
 
 extern Exp const SUM_SPEC, MONO_LPO_SPEC, LPO3_SPEC;

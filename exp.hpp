@@ -147,7 +147,6 @@ struct Error : std::exception, Term<std::string> {
 	using Term<std::string>::Term;
 };
 
-
 struct Exp : Term<std::string> {
 	using Term<std::string>::Term;
 	Exp( Term<std::string> const& other ) : Term<std::string>(other) {}
@@ -176,15 +175,13 @@ struct Exp : Term<std::string> {
 	static void test();
 };
 
-template<typename F>
-Term<F> const& Term<F>::at( Pos const& pos ) const& {
-	Term const* ptr = this;
-	for( unsigned char i : pos ) {
-		if( ptr->args().size() <= i ) throw Error("#bad-term-position");
-		ptr = &ptr->args()[i];
-	}
-	return *ptr;
-}
+struct Answer : Exp {
+private:
+	Answer() = delete;
+	Answer( Exp const& other ) : Exp(other) {}
+public:
+	static Answer const YES, NO, MAYBE;
+};
 
 class Reader {
 	std::istream& _is;
@@ -212,7 +209,7 @@ public:
 	Reader( std::istream& is ) : _is(is), _fetched(None()) {}
 	template<typename... Args>
 	Error error( Args const&... msg ) const& {
-		return Error(msg...,":line",std::to_string(_line),":column",std::to_string(_column),":encount",_string_fetched());
+		return Error(msg...,":line",std::to_string(_line),":column",std::to_string(_column),":next",_string_fetched());
 	}
 	bool opens() {
 		_fetch();
@@ -309,6 +306,16 @@ public:
 		return _fetched.ref<None>();
 	}
 };
+
+template<typename F>
+Term<F> const& Term<F>::at( Pos const& pos ) const& {
+	Term const* ptr = this;
+	for( unsigned char i : pos ) {
+		if( ptr->args().size() <= i ) throw Error("#bad-term-position");
+		ptr = &ptr->args()[i];
+	}
+	return *ptr;
+}
 
 template<typename F>
 std::ostream& operator<<( std::ostream& os, Term<F> const& e ) {

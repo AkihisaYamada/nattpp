@@ -25,8 +25,8 @@ public:
 	public:
 		Rule( Term const& l, Term const& r, int w = 1 ) : first(l), second(r), weight(w) {}
 		std::ostream& print_content( std::ostream& ) const&;
-		Printable content() const& {
-			return Printable([this]( std::ostream& os )->std::ostream&{ return print_content(os); });
+		Printable print_content() const& {
+			return Printable([this]( auto& os )->auto&{ return print_content(os); });
 		}
 	};
 	struct Rules : Map<size_t,Rule> {
@@ -34,7 +34,7 @@ public:
 };
 
 inline std::ostream& operator<<( std::ostream& os, Trs::Rule const& rule ) {
-	return os << "(rule " << rule.content() << ')';
+	return os << "(rule " << rule.print_content() << ')';
 }
 inline std::ostream& operator<<( std::ostream& os, Trs::Rules const& rules ) {
 	for( auto const& [n,rule] : rules ) {
@@ -60,9 +60,9 @@ public:
 		using ::Error::Error;
 	};
 	Reader( ::Reader& reader, Sig const& sig ) : _reader(reader), _sig(sig) {}
-	Opt<Term> reads();
-	Term read() {
-		auto t = reads();
+	Opt<Term> reads( std::function<void(std::string const&)> const& var = [](auto){} );
+	Term read( std::function<void(std::string const&)> const& var = [](auto){} ) {
+		auto t = reads(var);
 		if( !t ) {
 			throw Error("#missing-term");
 		}

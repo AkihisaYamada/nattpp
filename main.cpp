@@ -6,8 +6,6 @@
 
 using namespace std;
 
-enum class Ans { YES, NO, MAYBE };
-
 int main( int argc, char* argv[] ) try {
 	Opt<ifstream> ois;
 	Opt<ofstream> oprf;
@@ -67,7 +65,7 @@ int main( int argc, char* argv[] ) try {
 		}
 	};
 	auto p = Problem( ois ? *ois : cin );
-	cout << p << endl;
+	cerr << p << endl;
 	auto const& sig = p.sig;
 	auto const& trs = p.systems[0];
 	bool mono;
@@ -100,30 +98,35 @@ int main( int argc, char* argv[] ) try {
 
 	// rule removal loop
 	do {
-		if( p.systems[0].empty() ) throw Ans::YES;
+		if( p.systems[0].empty() ) throw Answer::YES;
 	} while( [&](){
 		for( auto& proc : rule_removers ) {
-			proc->print_name(cerr << "; trying ") << "... " << endl;
+			cerr << "; trying " << proc->print_name() << "... " << endl;
 			auto const& rem = order_some_rule(*proc,p.systems[0]);
 			if( rem.empty() ) {
 				continue;
 			}
-			cout << "(remove-rule\n  ";
-			proc->print( cout, p.sig ) << "\n ";
+			cerr << "(remove-rule\n  " << proc->print(p.sig) << "\n ";
 			for( size_t i : rem ) {
-				cout << ' ' << i;
+				cerr << ' ' << i;
 				p.systems[0].erase(i);
 			}
-			cout << ")" << endl;
+			cerr << ")" << endl;
 			return true;
 		}
 		return false;
 	}() );
 
-	if( !use_dp ) throw Ans::MAYBE;
+	if( !use_dp ) throw Answer::MAYBE;
+
+	if( auto it = p.extra_var.begin(); it != p.extra_var.end() ) {
+		auto const& [no,var] = *it;
+		cerr << "(extra-var " << var << " :rule " << no << ')' << endl;
+		throw Answer::NO;
+	}
 
 	Dps dps = make_dps(p.sig,p.systems[0]);
-	cout << dps << endl;
+	cerr << dps << endl;
 
 	vector<unique_ptr<TrsOrder>> dp_removers;
 	for( auto x : dprem_specs ) {
@@ -131,37 +134,37 @@ int main( int argc, char* argv[] ) try {
 	}
 	// DP removal loop
 	do {
-		if( dps.empty() ) throw Ans::YES;
+		if( dps.empty() ) throw Answer::YES;
 	} while( [&]{
 		for( auto& proc : dp_removers ) {
-			proc->print_name( cerr << "; trying " ) << "... " << endl;
+			cerr << "; trying " << proc->print_name() << "... " << endl;
 			auto const& rem = order_some_dp(*proc,p.systems[0],dps);
 			if( rem.empty() ) {
 				continue;
 			}
-			cout << "(remove-dp\n  ";
-			proc->print( cout, p.sig ) << "\n ";
+			cerr << "(remove-dp\n  " << proc->print(p.sig) << "\n ";
 			for( size_t i : rem ) {
-				cout << ' ' << i;
+				cerr << ' ' << i;
 				dps.erase(i);
 			}
-			cout << ')' << endl;
+			cerr << ')' << endl;
 			return true;
 		}
 		return false;
 	}() );
-	throw Ans::MAYBE;
-} catch( Ans a ) {
-	switch( a ) {
-	case Ans::YES:
+	throw Answer::MAYBE;
+} catch( Answer a ) {
+	if( a == Answer::YES ) {
 		cout << "YES" << endl;
 		exit(0);
-	case Ans::NO:
+	} else if( a == Answer::NO ) {
 		cout << "NO" << endl;
 		exit(1);
-	case Ans::MAYBE:
+	} else if( a == Answer::MAYBE ) {
 		cout << "MAYBE" << endl;
 		exit(2);
+	} else {
+		assert(false);
 	}
 } catch( Error const& e ) {
 	cerr << e << endl;

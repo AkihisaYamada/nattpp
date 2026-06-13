@@ -8,6 +8,9 @@ public:
 	struct Error : ::Error {
 		using ::Error::Error;
 	};
+	enum class Answer {
+		YES, NO, MAYBE
+	};
 	enum {
 		TRS,
 		SRS,
@@ -18,6 +21,7 @@ public:
 		SN,// termination
 		DP,// DP problem
 	} mode;
+	std::set<std::pair<size_t,std::string>> extra_var;
 private:
 	Problem() = delete;
 public:

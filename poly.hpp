@@ -142,8 +142,7 @@ public:
 			Trs::Sig const& sig,
 			Smt::Solver& solver
 		) const;
-		static Template const SUM;
-		static Template const MONO_SUM;
+		static Template const SUM, MONO_SUM, MONO_POLY2;
 	private:
 		static Term<Sum<Sig,Algebra::Arg>> _deriver_inner(
 			std::string const& f,

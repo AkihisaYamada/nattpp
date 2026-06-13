@@ -10,13 +10,28 @@ struct TermOrder {
 	virtual int verbosity() { return NONE; };
 	virtual Smt::Solver& solver() = 0;
 	virtual std::ostream& print_name( std::ostream& os ) = 0;
+	Printable print_name() & {
+		return Printable([&]( std::ostream& os )->std::ostream&{
+			return print_name(os);
+		});
+	}
 	virtual std::ostream& print_sym_info( std::ostream& os, std::string const& f ) = 0;
+	Printable print_sym_info( std::string const& f ) {
+		return Printable([&]( std::ostream& os )->std::ostream&{
+			return print_sym_info(os,f);
+		});
+	}
 	virtual std::ostream& print( std::ostream& os, Trs::Sig const& sig ) {
-		print_name( os << '(' );
+		os << '(' << print_name();
 		for( auto [f,arity] : sig ) {
-			print_sym_info( os << "\n    (" << f << ' ', f ) << ')';
+			os << "\n    (" << f << ' ' << print_sym_info(f) << ')';
 		}
 		return os << ')';
+	}
+	Printable print( Trs::Sig const& sig ) & {
+		return Printable([&]( std::ostream& os )->std::ostream&{
+			return print(os,sig);
+		});
 	}
 	virtual Smt::Compare compare( Exp const& l, Exp const& r ) = 0;
 	static void test();
@@ -214,7 +229,7 @@ public:
 		int verb
 	);
 	std::ostream& print_name( std::ostream& os ) override {
-		return _weight->print_name( os << "path-order " );
+		return os << "path-order " << _weight->print_name();
 	}
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override;
 	Smt::Solver& solver() override {

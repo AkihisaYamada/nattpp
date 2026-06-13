@@ -23,20 +23,24 @@ Dps make_dps( Trs::Sig const& sig, Trs::Rules const& rules ) {
 	Pos pos;
 	size_t dp_ind = 0;
 	for( auto const& [org,rule] : rules ) {
-		collect_dps(sig,org,rule.first,rule.second,ret,pos,0,dp_ind);
+		auto const& l = rule.first;
+		if( l.unapplied() && [&]( string const& v ){ return !sig.find(v); } ) {
+			cerr << "(var-lhs " << org << ')' << endl;
+			throw Answer::NO;
+		}
+		collect_dps(sig,org,l,rule.second,ret,pos,0,dp_ind);
 	}
 	return std::move(ret);
 }
 
-Dp::Dp( Exp const& f, Exp const& s, size_t o, Pos p ) : first(f), second(s), org(o), rpos(p),
-	_content([this]( ostream& os )->ostream&{
-		return os << first << ' ' << second << " :origin " << org << " :r-pos " << rpos;
-	}) {}
+std::ostream& Dp::print_content( ostream& os ) const & {
+	return os << first << ' ' << second << " :origin " << org << " :r-pos " << rpos;
+}
 
 ostream& operator<<( ostream& os, Dps const& dps ) {
 	os << "(make-dps";
 	for( auto const& [i,dp] : dps ) {
-		os << "\n  (dp " << dp.content() << " :number " << i << ')' << flush;
+		os << "\n  (dp-n " << i << ' ' << dp.print_content() << ')' << flush;
 	}
 	return os << ')';
 }

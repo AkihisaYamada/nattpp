@@ -67,9 +67,7 @@ private:
 	Proc( Proc const& other ) = delete;
 	Proc& operator=( Proc const& other ) = delete;
 public:
-	~Proc() {
-		std::cerr << "~Proc: pid=" << _pid << std::endl;
-	}
+	~Proc() {}
 	Proc( char const* cmd, std::vector<char const*> const& args, Opt<OStream>&& tee = {} ) :
 		Proc(_Maker(cmd,args),std::move(tee)) {}
 	void finish() {

@@ -124,7 +124,7 @@ std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sy
 		}
 		os << ')';
 	}
-	return _weight->print_sym_info( os, sym );
+	return os << _weight->print_sym_info(sym);
 }
 
 

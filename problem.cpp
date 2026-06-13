@@ -59,7 +59,15 @@ Problem::Problem( istream& is ) {
 					throw Error{"#duplicate-fun",fun,to_string(prev.arity),to_string(arity)};
 				}
 			} else if( eis.reads_sym("rule") ) {
-				auto l = tis.read(), r = tis.read();
+				std::set<std::string> vars;
+				auto l = tis.read([&]( auto const& var ){
+					vars.emplace(var);
+				});
+				auto r = tis.read([&]( auto const& var ){
+					if( !vars.contains(var) ) {
+						extra_var.emplace(rule_no,var);
+					}
+				});
 				Opt<int> weight;
 				Opt<int> index;
 				while( auto key = eis.reads_key() ) {
@@ -104,14 +112,14 @@ ostream& Problem::print( ostream& os ) const& {
 		os << "\n  (fun " << f << ' ' << rank << ')' << flush;
 	}
 	for( auto const& [n,rule] : systems[0] ) {
-		os << "\n  (rule " << rule.content() << " :number " << n << ')' << flush;
+		os << "\n  (rule-n " << n << ' ' << rule.print_content() << ')' << flush;
 	}
 	int sysno = 1;
 	while( sysno < systems.size() ) {
 		auto const& rules = systems[sysno];
 		sysno++;
 		for( auto const& [n,rule] : rules ) {
-			os << "\n  (rule " << rule.content() << " :number" << n << " :index " << sysno << ')' << flush;
+			os << "\n  (rule-n " << rule.print_content() << " :index " << sysno << ')' << flush;
 		}
 	}
 	return os << ')';

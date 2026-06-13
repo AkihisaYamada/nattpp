@@ -125,6 +125,10 @@ Algebra::Deriver<string,Poly::Sig> Poly::Template::deriver( Trs::Sig const& sig,
 }
 
 Poly::Template const Poly::Template::MONO_SUM = Exp{
+	Exp{"+",Exp{"args","+","arg"},Exp{"var",":constrain",Exp{">=","_","0"}}}
+};
+
+Poly::Template const Poly::Template::MONO_POLY2 = Exp{
 	"arity",
 	Exp{"0",Exp{"var",":constrain",Exp{">=","_","0"}}},
 	Exp{"1",

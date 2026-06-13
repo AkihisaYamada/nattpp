@@ -95,7 +95,11 @@ public:
 		intp(A::expand(deriver.derive(A::algebra(_solver)),_solver)) {
 	}
 	Smt::Compare compare( Exp const& l, Exp const& r ) override {
-		return A::compare(intp.eval(l),intp.eval(r),_solver);
+		auto const& ord = A::compare(intp.eval(l),intp.eval(r),_solver);
+		if( log() & PAIR ) {
+			std::cerr << "; " << l << " <=> " << r << " = " << ord << std::endl;
+		}
+		return ord;
 	}
 	std::ostream& print_name( std::ostream& os ) override {
 		return os << "derived-order";
@@ -125,7 +129,7 @@ public:
 		A::Template const& temp,
 		Smt::Solver&& sol_,
 		Smt::Sort const& sort,
-		int const& log_ = NONE
+		int const& log_
 	) : _term_order(sig,temp,std::move(sol_),sort,log_) {
 		auto& sol = solver();
 		for( auto const& [i,rule] : rules ) {
@@ -168,7 +172,12 @@ public:
 		int const& log_ = NONE
 	) : _term_order(sig,temp,std::move(solver),log_) {
 		for( auto const& [n,rule] : rules ) {
-			_arules.emplace(n,std::pair{_term_order.intp.annotate(rule.first),_term_order.intp.annotate(rule.second)});
+			auto const& la = _term_order.intp.annotate(rule.first);
+			auto const& ra = _term_order.intp.annotate(rule.second);
+			if( log() & DEBUG ) {
+				std::cerr << "; intp rule-n " << n << ": " << la.fun().second << " >=? " << ra.fun().second << std::endl;
+			}
+			_arules.emplace(n,std::pair{la,ra});
 		}
 	}
 	Smt::Solver& solver() override { return _term_order.solver(); }

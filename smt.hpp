@@ -48,7 +48,7 @@ public:
 	};
 	static Logic const QF_LIA, QF_LRA, LIA, LRA, QF_NIA, QF_NRA, NIA, NRA;
 	using Fun = Sum<int,std::string>;
-	static Fun const TRUE_F, FALSE_F, AND, OR, NOT, IMP, ITE, ADD, MUL, EQ, GE, GT, CONS, CAR, CDR, LIST, NTH;
+	static Fun const TRUE_F, FALSE_F, AND, OR, NOT, IMP, ITE, ADD, MUL, EQ, GE, LE, GT, CONS, CAR, CDR, LIST, NTH;
 	class PostExp {
 		friend Smt;
 		Term<Fun> _term;
@@ -222,6 +222,10 @@ public:
 	static PostExp eq( PostExp const& x, PostExp const& y );
 	static PreExp eq( PreExp const& x, PreExp const& y ) {
 		return PreExp(EQ,{x,y});
+	}
+	static PostExp le( PostExp const& x, PostExp const& y );
+	static PreExp le( PreExp const& x, PreExp const& y ) {
+		return PreExp(LE,{x,y});
 	}
 	static PostExp ge( PostExp const& x, PostExp const& y );
 	static PreExp ge( PreExp const& x, PreExp const& y ) {

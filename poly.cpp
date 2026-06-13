@@ -98,17 +98,21 @@ static Smt::PreExp order_sub( Poly const& p1, Poly const& p2 ) {
 			case Poly::NEG: ge = ge && Smt::ge(e2,e1); return;
 			case Poly::FULL: ge = ge && Smt::eq(e1,e2); return;
 		}
-	},[&]( auto it1 ){
+	},[&]( auto it1 ){// e1 * xyz... >= 0
 		auto const& e1 = it1->second;
 		switch( it1->first.range() ) {
-			case Poly::NEG: case Poly::FULL:
-			ge = ge && Smt::eq(e1,Smt::PreExp(0));
+			case Poly::NONE: assert(false);
+			case Poly::POS: ge = ge && Smt::ge(e1,Smt::PostExp(0)); return;
+			case Poly::FULL:
+			case Poly::NEG: ge = ge && Smt::eq(e1,Smt::PostExp(0)); return;
 		}
-	},[&]( auto it2 ){
+	},[&]( auto it2 ){// 0 >= e2 * xyz...
 		auto const& e2 = it2->second;
 		switch( it2->first.range() ) {
-			case Poly::NEG: case Poly::FULL:
-			ge = ge && Smt::eq(e2,Smt::PreExp(0));
+			case Poly::NONE: assert(false);
+			case Poly::FULL:
+			case Poly::POS: ge = ge && Smt::eq(Smt::PostExp(0),e2); return;
+			case Poly::NEG: ge = ge && Smt::le(Smt::PostExp(0),e2); return;
 		}
 	});
 	return ge;

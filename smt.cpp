@@ -29,6 +29,7 @@ Smt::Fun const
 	Smt::MUL = "*",
 	Smt::EQ = "=",
 	Smt::GE = ">=",
+	Smt::LE = "<=",
 	Smt::GT = ">",
 	Smt::CONS = "cons",
 	Smt::CAR = "car",
@@ -176,11 +177,20 @@ Smt::PostExp Smt::ge( PostExp const& x, PostExp const& y ) {
 	return Term<Fun>(GE,x,y);
 }
 
+Smt::PostExp Smt::le( PostExp const& x, PostExp const& y ) {
+	if( auto xi = x.is_int() )
+		if( auto yi = y.is_int() ) {
+			return *xi <= *yi;
+		}
+	return Term<Fun>(LE,x,y);
+}
+
 Smt::PostExp Smt::gt( PostExp const& x, PostExp const& y ) {
 	if( auto xi = x.is_int() )
 		if( auto yi = y.is_int() ) {
 			return *xi > *yi;
 		}
+	if( x == y ) return FALSE;
 	return Term<Fun>(GT,x,y);
 }
 
@@ -456,6 +466,9 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 		} else if( fun == GE ) {
 			assert( args.size() == 2 );
 			return ge(expand(args[0]),expand(args[1]));
+		} else if( fun == LE ) {
+			assert( args.size() == 2 );
+			return le(expand(args[0]),expand(args[1]));
 		} else if( fun == GT ) {
 			assert( args.size() == 2 );
 			return gt(expand(args[0]),expand(args[1]));

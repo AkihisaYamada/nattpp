@@ -1,3 +1,6 @@
 _build/*
-a.exe
-*.stackdump
+_debug/*
+_sanitize/*
+natt++
+sanitize
+debug

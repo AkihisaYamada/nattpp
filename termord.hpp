@@ -35,6 +35,7 @@ struct TermOrder {
 	}
 	virtual Smt::Compare compare( Exp const& l, Exp const& r ) = 0;
 	static void test();
+	static int log_of( Exp const& exp );
 };
 
 struct TrsOrder : TermOrder {
@@ -45,7 +46,8 @@ struct TrsOrder : TermOrder {
 		Trs::Rules const& trs,
 		bool mono,
 		std::function<Smt::Solver()> const& default_smt,
-		Smt::Sort const& default_sort
+		Smt::Sort const& default_sort,
+		int default_log
 	);
 };
 

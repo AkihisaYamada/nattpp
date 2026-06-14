@@ -4,41 +4,46 @@ using namespace std;
 
 ostream& operator<<( ostream& os, Poly::Range const& r ) {
 	switch( r ) {
-		case Poly::POS: return os << "[0~]";
-		case Poly::NEG: return os << "[~0]";
-		case Poly::FULL: return os << "[~]";
+		case Poly::POS: return os << " :range >=0";
+		case Poly::NEG: return os << " :range <=0";
+		case Poly::FULL: return os;
+		default: assert(false);
 	}
-	return os;
 }
 
 ostream& operator<<( ostream& os, Poly::Var const& v ) {
-	return os << (string)v << v.range;
+	return os << "(var " << (string)v << v.range << ')';
 }
 
 ostream& operator<<( ostream& os, Poly::Vars const& vs ) {
+	os << "(vars"; 
 	for( auto const& var : vs.vars() ) {
-		os << (string)var << " ";
+		os << ' ' << (string)var;
 	}
-	return os << vs.range();
+	return os << vs.range() << ')';
 }
 
 static ostream& put_monom( ostream& os, pair<Poly::Vars,Smt::PreExp> const& m ) {
-	return os << m.second << " " << m.first;
+	auto const& [vs,c] = m;
+	if( vs.range() == Poly::NONE ) return os << c;
+	if( c == 1 ) {
+		return os << m.first;
+	}
+	return os << "(* " << c << ' ' << m.first << ')';
 }
 
 ostream& operator<<( ostream& os, Poly const& p ) {
 	auto const& map = p.map();
-	auto it = map.begin(), end = map.end();
-	if( it == end ) {
-		return os << '0';
-	}
-	put_monom(os,*it);
-	it++;
+	auto const& n = map.size();
+	if( n == 0 ) return os << '0';
+	auto it = map.begin();
+	if( n == 1 ) return put_monom(os,*it);
+	auto const& end = map.end();
+	os << "(+";
 	for( ; it != end; it++ ) {
-		os << " + ";
-		put_monom(os,*it);
+		put_monom( os << ' ', *it );
 	}
-	return os;
+	return os << ')';
 }
 Poly Poly::operator+( Poly const& p2 ) const & {
 	Poly ret;
@@ -98,21 +103,21 @@ static Smt::PreExp order_sub( Poly const& p1, Poly const& p2 ) {
 			case Poly::NEG: ge = ge && Smt::ge(e2,e1); return;
 			case Poly::FULL: ge = ge && Smt::eq(e1,e2); return;
 		}
-	},[&]( auto it1 ){// e1 * xyz... >= 0
+	},[&]( auto it1 ){// e1 * vars >= 0
 		auto const& e1 = it1->second;
 		switch( it1->first.range() ) {
-			case Poly::NONE: assert(false);
+			case Poly::NONE:
 			case Poly::POS: ge = ge && Smt::ge(e1,Smt::PostExp(0)); return;
 			case Poly::FULL:
 			case Poly::NEG: ge = ge && Smt::eq(e1,Smt::PostExp(0)); return;
 		}
-	},[&]( auto it2 ){// 0 >= e2 * xyz...
+	},[&]( auto it2 ){// 0 >= e2 * vars
 		auto const& e2 = it2->second;
 		switch( it2->first.range() ) {
-			case Poly::NONE: assert(false);
+			case Poly::NONE:
+			case Poly::NEG: ge = ge && Smt::le(Smt::PostExp(0),e2); return;
 			case Poly::FULL:
 			case Poly::POS: ge = ge && Smt::eq(Smt::PostExp(0),e2); return;
-			case Poly::NEG: ge = ge && Smt::le(Smt::PostExp(0),e2); return;
 		}
 	});
 	return ge;
@@ -159,7 +164,7 @@ ostream& operator<<( ostream& os, Poly::Sig const& f ) {
 		return os << *var;
 	}
 	if( auto cond = f.ref<Poly::Cond>() ) {
-		return os << "(ite " << cond->exp << " ?)";
+		return os << "(#ite " << cond->exp << ')';
 	}
 	if( auto e = f.ref<Smt::PreExp>() ) {
 		return os << *e;

@@ -13,6 +13,7 @@ int main( int argc, char* argv[] ) try {
 	enum { UNSET, SN, SOME } mode = UNSET;
 	Opt<Exp> default_smt_spec;
 	Opt<Smt::BaseSort> default_sort;
+	int default_log = -1;
 	vector<Exp> rulerem_specs;
 	vector<Exp> dprem_specs;
 	for( int i = 1; i < argc; i++ ) {
@@ -36,6 +37,10 @@ int main( int argc, char* argv[] ) try {
 			} else if( opt == "-smt" ) {
 				require_arg();
 				default_smt_spec = {Exp::of(argv[i])};
+			} else if( opt == "-log" ) {
+				if( default_log != -1 ) throw Error("#duplicate-log");
+				require_arg();
+				default_log = TermOrder::log_of(argv[i]);
 			} else if( opt == "-r" ) {// rule remover
 				require_arg();
 				rulerem_specs.push_back(Exp::of(argv[i]));
@@ -93,7 +98,7 @@ int main( int argc, char* argv[] ) try {
 	}
 	vector<unique_ptr<TrsOrder>> rule_removers;
 	for( auto x : rulerem_specs ) {
-		rule_removers.push_back(TrsOrder::of(x,sig,trs,mono,default_smt,Smt::INT));
+		rule_removers.push_back(TrsOrder::of(x,sig,trs,mono,default_smt,Smt::INT,default_log));
 	}
 
 	// rule removal loop
@@ -130,7 +135,7 @@ int main( int argc, char* argv[] ) try {
 
 	vector<unique_ptr<TrsOrder>> dp_removers;
 	for( auto x : dprem_specs ) {
-		dp_removers.push_back(TrsOrder::of(x,sig,trs,false,default_smt,Smt::INT));
+		dp_removers.push_back(TrsOrder::of(x,sig,trs,false,default_smt,Smt::INT,default_log));
 	}
 	// DP removal loop
 	do {

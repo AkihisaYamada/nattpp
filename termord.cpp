@@ -176,6 +176,17 @@ std::function<PathOrder::Status(Trs::Rank const&)> PathOrder::Status::of( Exp co
 	}
 	throw Error("#malformed-status",x);
 }
+int TermOrder::log_of( Exp const& x ) {
+	if( x == "rule" ) {
+		return RULE;
+	} else if( x == "pair" ) {
+		return RULE | PAIR;
+	} else if( x == "debug" ) {
+		return RULE | PAIR | DEBUG;
+	} else {
+		throw Error("#unknown-log",x);
+	}
+}
 
 std::unique_ptr<TrsOrder> TrsOrder::of(
 	Exp const& x,
@@ -183,24 +194,19 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 	Trs::Rules const& trs,
 	bool mono,
 	std::function<Smt::Solver()> const& default_smt,
-	Smt::Sort const& default_sort
+	Smt::Sort const& default_sort,
+	int default_log
 ) {
 	auto const& f = x.fun();
 	size_t n = 0;
 	Opt<Exp> smt;
 	auto mk_smt = [&]{ return smt ? Smt::Solver::of(*smt) : default_smt(); };
-	int log = NONE;
+	int log = -1;
+	auto set_log = [&]{ if( log == -1 ) log = default_log; };
 	Exp::KeyValProc log_key = [&]( string_view const& key, Exp const& val ){
 		if( key == "log" ) {
-			if( val == "rule" ) {
-				log = RULE;
-			} else if( val == "pair" ) {
-				log = RULE | PAIR;
-			} else if( val == "debug" ) {
-				log = RULE | PAIR | DEBUG;
-			} else {
-				throw Error("#unknown-log",val);
-			}
+			if( log != -1 ) throw Error("#duplicate-log");
+			log = log_of(val);
 			return true;
 		}
 		return false;
@@ -217,11 +223,13 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 		return std::make_unique<TrivOrder>(mk_smt()); 
 	} else if( f == "sum" ) {
 		x.process_keys( n, solver_key || log_key );
+		set_log();
 		return std::make_unique<DerivedTrsPosOrder<Poly>>
 			( sig, trs, mono ? Poly::Template::MONO_SUM : Poly::Template::SUM, mk_smt(), log );
 	} else if( f == "template" ) {
 		Poly::Template t = x.get_arg(n);
 		x.process_keys( n, solver_key || log_key );
+		set_log();
 		return std::make_unique<DerivedTrsPosOrder<Poly>>(sig,trs,t,mk_smt(),log);
 	} else if( f == "path-order" ) {
 		auto w = x.gets_arg(n);
@@ -235,9 +243,10 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 		};
 		x.process_keys( n, status_key || log_key || (w ? [](auto,auto){ return false; } : solver_key) );
 		x.get_end(n);
+		set_log();
 		return std::make_unique<PathOrder>(
 			sig, trs,
-			w ? of(*w,sig,trs,mono,default_smt,default_sort) : std::make_unique<TrivOrder>(mk_smt()),
+			w ? of(*w,sig,trs,mono,default_smt,default_sort,log) : std::make_unique<TrivOrder>(mk_smt()),
 			status ? *status : []( Trs::Rank const& rank ){ return PathOrder::Status::Straight(); },
 			log
 		);

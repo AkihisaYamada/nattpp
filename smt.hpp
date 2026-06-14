@@ -212,6 +212,18 @@ public:
 		PreExp cons( PreExp const& y ) const {
 			return PreExp(CONS,{*this,y});
 		}
+		friend inline bool operator==( Smt::PreExp const& x, Smt::PostExp const& y ) {
+			if( auto const& o = x._un.ref<PostExp>() ) {
+				return *o == y;
+			}
+			return false;
+		}
+		friend inline bool operator==( Smt::PostExp const& x, Smt::PreExp const& y ) {
+			if( auto const& o = y._un.ref<PostExp>() ) {
+				return x == *o;
+			}
+			return false;
+		}
 	};
 	static PreExp car( PreExp const& arg ) {
 		return PreExp{CAR,{arg}};

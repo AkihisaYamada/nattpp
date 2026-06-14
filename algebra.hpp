@@ -56,9 +56,6 @@ public:
 		Arg( int pos ) : _pos(pos) {}
 		int pos() const { return _pos; }
 	};
-	/** @brief For Deriver: Expression with argument placeholders */
-	template<typename G>
-	using Template = Term<Sum<G,Arg>>;
 
 	template<typename F, typename G>
 	struct Deriver : std::function<Term<Sum<G,Arg>>(F const&)> {

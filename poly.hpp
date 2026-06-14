@@ -4,15 +4,14 @@
 #include"smt.hpp"
 #include"trs.hpp"
 
-class Poly {
-public:
+struct Poly {
 	struct Error : ::Error {
 		using ::Error::Error;
 	};
 	enum Range { NONE, POS, NEG, FULL };
-	class Add {};
+	struct Add {};
 	static Add constexpr ADD = {};
-	class Mul {};
+	struct Mul {};
 	static Mul constexpr MUL = {};
 	struct Cond { Smt::PreExp exp; };
 	struct Var : std::string {
@@ -41,7 +40,7 @@ public:
 			return FULL;
 		}
 	}
-	class Vars {
+	struct Vars {
 		std::multiset<Var> _vars;
 		Range _range;
 		Vars( std::multiset<Var>&& org, Range range ) : _vars(std::move(org)), _range(range) {}
@@ -135,28 +134,42 @@ public:
 
 	static Algebra::Intp<Sig,Poly> algebra( Smt::Solver& solver );
 
-	class Template : public Exp {
-	public:
-		using Exp::Exp;
-		Algebra::Deriver<std::string,Sig> deriver(
-			Trs::Sig const& sig,
-			Smt::Solver& solver
-		) const;
-		static Template const SUM, MONO_SUM, MONO_POLY2;
-	private:
-		static Term<Sum<Sig,Algebra::Arg>> _deriver_inner(
-			std::string const& f,
-			Trs::Rank const& rank,
-			Smt::Solver& solver,
-			Exp const& exp,
-			int pos
-		);
-	};
-	/** instantiate coefficients via get-value */
-	static Algebra::Template<Sig> instantiate(
-		Smt::Solver& solver,
-		Algebra::Template<Sig> const& org
+	/** create deriver from expression */
+	static Algebra::Deriver<std::string,Sig> deriver(
+		Exp const& e,
+		Trs::Sig const& sig,
+		Smt::Solver& solver
 	);
+	static Exp const SUM, MONO_SUM, MONO_POLY2;
+
+	/** instantiate coefficients via get-value */
+	static Term<Sum<Sig,Algebra::Arg>> instantiate(
+		Smt::Solver& solver,
+		Term<Sum<Sig,Algebra::Arg>> const& org
+	);
+private:
+	static Term<Sum<Sig,Algebra::Arg>> _deriver_inner(
+		std::string const& f,
+		Trs::Rank const& rank,
+		Smt::Solver& solver,
+		Exp const& exp,
+		int pos
+	);
+};
+
+struct MPoly {
+private:
+	std::vector<Poly> _set;
+public:
+	MPoly& join( MPoly const& y ) & {
+		for( auto const& yc : y._set ) {
+			_set.emplace_back(yc);
+		}
+		return *this;
+	}
+	friend MPoly operator+( MPoly const& x, MPoly const& y );
+	friend MPoly operator*( MPoly const& x, MPoly const& y );
+	friend Smt::Compare compare( MPoly const& x, MPoly const& y, Smt::Solver& solver );
 };
 
 std::ostream& operator<<( std::ostream& os, Poly::Sig const& f );

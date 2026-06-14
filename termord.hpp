@@ -88,12 +88,12 @@ public:
 	Algebra::Intp<std::string,A> const intp;
 	DerivedTermOrder(
 		Trs::Sig const& sig,
-		A::Template const& temp,
+		Exp const& temp,
 		Smt::Solver&& sol_,
 		int log_ = NONE
 	) : _solver(std::move(sol_)),
 		_log(log_),
-		deriver(temp.deriver(sig,_solver)),
+		deriver(A::deriver(temp,sig,_solver)),
 		intp(A::expand(deriver.derive(A::algebra(_solver)),_solver)) {
 	}
 	Smt::Compare compare( Exp const& l, Exp const& r ) override {
@@ -128,7 +128,7 @@ public:
 	DerivedTrsOrder(
 		Trs::Sig const& sig,
 		Trs::Rules& rules,
-		A::Template const& temp,
+		Exp const& temp,
 		Smt::Solver&& sol_,
 		Smt::Sort const& sort,
 		int const& log_
@@ -169,7 +169,7 @@ public:
 	DerivedTrsPosOrder(
 		Trs::Sig const& sig,
 		Trs::Rules const& rules,
-		A::Template const& temp,
+		Exp const& temp,
 		Smt::Solver&& solver,
 		int const& log_ = NONE
 	) : _term_order(sig,temp,std::move(solver),log_) {

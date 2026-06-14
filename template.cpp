@@ -20,7 +20,7 @@ static Opt<Poly::Sig> poly_fun( string const& str ) {
 	return {};
 }
 
-Term<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
+Term<Sum<Poly::Sig,Algebra::Arg>> Poly::_deriver_inner(
 	string const& f,
 	Trs::Rank const& rank,
 	Smt::Solver& solver,
@@ -62,7 +62,7 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 			if( auto pfun = poly_fun(*aggfun) ) {
 				auto args = vector<Term<Sum<Sig,Algebra::Arg>>>();
 				for( int i = 0; i < rank.arity; i++ ) {
-					args.push_back(_deriver_inner(f,rank,solver,argexp,i));
+					args.emplace_back(_deriver_inner(f,rank,solver,argexp,i));
 				}
 				return app(*pfun,std::move(args));
 			}
@@ -99,7 +99,7 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 	if( auto pfun = poly_fun(fun) ) {
 		auto args = vector<Term<Sum<Sig,Algebra::Arg>>>();
 		while( auto const& arg = exp.gets_arg(n) ) {
-			args.push_back(_deriver_inner(f,rank,solver,*arg,pos));
+			args.emplace_back(_deriver_inner(f,rank,solver,*arg,pos));
 		}
 		exp.get_end(n);
 		return app(*pfun,std::move(args));
@@ -111,10 +111,10 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::Template::_deriver_inner(
 	throw Error{"#template-format",exp};
 }
 
-Algebra::Deriver<string,Poly::Sig> Poly::Template::deriver( Trs::Sig const& sig, Smt::Solver& solver ) const {
+Algebra::Deriver<string,Poly::Sig> Poly::deriver( Exp const& e, Trs::Sig const& sig, Smt::Solver& solver ) {
 	Map<string,Term<Sum<Sig,Algebra::Arg>>> map;
 	for( auto [f,rank] : sig ) {
-		map.emplace(f,_deriver_inner(f,rank,solver,*this,0));
+		map.emplace(f,_deriver_inner(f,rank,solver,e,0));
 	}
 	return [map = std::move(map)]( string const& f )->Term<Sum<Sig,Algebra::Arg>> {
 		if( auto val = map.find(f) ) {
@@ -124,11 +124,11 @@ Algebra::Deriver<string,Poly::Sig> Poly::Template::deriver( Trs::Sig const& sig,
 	};
 }
 
-Poly::Template const Poly::Template::MONO_SUM = Exp{
+Exp const Poly::MONO_SUM = Exp{
 	Exp{"+",Exp{"args","+","arg"},Exp{"var",":constrain",Exp{">=","_","0"}}}
 };
 
-Poly::Template const Poly::Template::MONO_POLY2 = Exp{
+Exp const Poly::MONO_POLY2 = Exp{
 	"arity",
 	Exp{"0",Exp{"var",":constrain",Exp{">=","_","0"}}},
 	Exp{"1",
@@ -147,7 +147,7 @@ Poly::Template const Poly::Template::MONO_POLY2 = Exp{
 	}
 };
 
-Poly::Template const Poly::Template::SUM = Exp{
+Exp const Poly::SUM = Exp{
 	"arity",
 	Exp{"0",Exp{"var",":constrain",Exp{">=","_","0"}}},
 	Exp{"1",

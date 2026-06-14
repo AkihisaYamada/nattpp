@@ -45,16 +45,15 @@ Proc::Proc( _Maker const& maker, Opt<OStream>&& tee ) :
 
 OStream OStream::of( Exp const& x ) {
 	auto const& f = x.fun();
-	size_t n = x.args().size();
+	size_t i = 0;
 	if( f == "cout" ) {
-		if( n == 0 ) return cout;
+		x.get_end(i);
+		return cout;
 	} else if( f == "cerr" ) {
-		if( n == 0 ) return cerr;
-	} else if( f == "file" ) {
-		if( n == 1 )
-		if( auto const& path = x.arg(0).unapplied() ) {
-			return ofstream(*path);
-		}
+		x.get_end(i);
+		return cerr;
+	} else if( auto const& path = is_str(x) ) {
+		return ofstream(std::string(*path));
 	}
 	throw Error("#malformed-out",x);
 };

@@ -81,6 +81,21 @@ public:
 		assert( i < args().size() );
 		return args()[i];
 	}
+	/** Returns i-th argument and increment i. */
+	Opt<Term const&> gets_arg( size_t& i ) const& {
+		if( i < args().size() ) {
+			auto const& a = arg(i);
+			if( !is_key(a) ) {
+				i++;
+				return {a};
+			}
+		}
+		return {};
+	}
+	/** Returns i-th argument and increment i. */
+	Term const& get_arg( size_t& i ) const&;
+	/** Asserts i is the number of arguments. */
+	void get_end( size_t i ) const&;
 	template<typename G>
 	Term<G> map( std::function<G(F const&)> f ) const {
 		Term<G> ret = f(fun());
@@ -124,6 +139,18 @@ static Term<F> app( S&& fun, std::vector<Term<F>>const& args ) {
 	return Term(std::in_place,std::forward<S>(fun),args);
 }
 
+struct Error : std::exception, Term<std::string> {
+	using Term<std::string>::Term;
+};
+template<typename F>
+Term<F> const& Term<F>::get_arg( size_t& i ) const& {
+	return gets_arg(i).value_or_throw(Error("#too-few-args",*this));
+}
+template<typename F>
+void Term<F>::get_end( size_t i ) const& {
+	if( i != args().size() ) throw Error("#expected-rparen",arg(i));
+}
+
 /** deleted for inefficiency */
 Opt<std::string_view> is_key( std::string && ) = delete;
 Opt<std::string_view> is_key( Term<std::string> && ) = delete;
@@ -136,39 +163,18 @@ inline Opt<std::string_view> is_key( Term<std::string> const& x ) {
 }
 Opt<std::string_view> is_str( std::string && ) = delete;
 inline Opt<std::string_view> is_str( std::string const& str ) {
-	if( str.starts_with('"') ) return std::string_view(str).substr(1,str.size()-1);
+	if( str.starts_with('"') ) return std::string_view(str).substr(1,str.size()-2);
 	return {};
 }
 inline Opt<std::string_view> is_str( Term<std::string> const& x ) {
 	return x.unapplied() >>= []( auto const& val ){ return is_str(val); };
 }
 
-struct Error : std::exception, Term<std::string> {
-	using Term<std::string>::Term;
-};
-
 struct Exp : Term<std::string> {
 	using Term<std::string>::Term;
 	Exp( Term<std::string> const& other ) : Term<std::string>(other) {}
 	Exp( Term<std::string> && other ) : Term<std::string>(std::move(other)) {}
 	static Exp of( std::string const& );
-	/** Returns i-th argument and increment i. */
-	Opt<Exp> gets_arg( size_t& i ) const& {
-		if( i < args().size() ) {
-			auto const& a = arg(i);
-			if( !is_key(a) ) {
-				i++;
-				return {a};
-			}
-		}
-		return {};
-	}
-	Exp get_arg( size_t& i ) const& {
-		return gets_arg(i).value_or_throw(Error("#too-few-args",*this));
-	}
-	void get_end( size_t i ) const& {
-		if( i != args().size() ) throw Error("#expected-rparen",arg(i));
-	}
 	using KeyValProc = std::function<bool(std::string_view const&,Exp const&)>;
 	/** Processes key-value pairs from the ith argument. */
 	void process_keys( size_t& i, KeyValProc const& f ) const&;
@@ -242,9 +248,9 @@ public:
 	}
 	Opt<std::string> reads_str() {
 		_fetch();
-		return _fetched.ref<Key>() >>= [&]( Key key )->Opt<std::string>{
+		return _fetched.ref<Str>() >>= [&]( Str str )->Opt<std::string>{
 			_fetched = None();
-			return {std::move(key.str)};
+			return {std::move(str.str)};
 		};
 	}
 	Opt<std::string> reads_sym() {

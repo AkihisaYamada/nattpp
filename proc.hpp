@@ -2,24 +2,22 @@
 #define _PROC_HPP
 
 #include<unistd.h>
-#include<string>
 #include<vector>
 #include<iostream>
 #include<ext/stdio_filebuf.h>
-#include"util.hpp"
 #include"exp.hpp"
 
 /** either existing ostream pointer or an ostream */
 class OStream {
-	std::ostream* const _ptr;
 	std::ofstream _ofs;
+	std::ostream* const _ptr;
 public:
 	OStream( std::ofstream&& ofs ) : _ofs(std::move(ofs)), _ptr(&_ofs) {}
 	OStream( std::ostream& other ) : _ptr(&other) {}
 	OStream( OStream&& other ) :
+		_ofs(std::move(other._ofs)),
 		// tricky! If other is holding ofstream, then this _ptr should point to this _ofs.
-		_ptr( other._ptr == &other._ofs ? &_ofs : other._ptr ),
-		_ofs(std::move(other._ofs))
+		_ptr( other._ptr == &other._ofs ? &_ofs : other._ptr )
 	{}
 	operator std::ostream*() & { return _ptr; }
 	std::ostream* operator->() & { return _ptr; }

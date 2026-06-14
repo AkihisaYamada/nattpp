@@ -69,6 +69,9 @@ int main( int argc, char* argv[] ) try {
 			return Smt::Z3( *default_sort == Smt::REAL ? Smt::QF_LRA : Smt::QF_LIA );
 		}
 	};
+	if( default_log == -1 ) {
+		default_log = TermOrder::NONE;
+	}
 	auto p = Problem( ois ? *ois : cin );
 	cerr << p << endl;
 	auto const& sig = p.sig;

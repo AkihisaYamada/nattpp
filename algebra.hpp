@@ -65,6 +65,9 @@ template<typename F, typename G>
 struct Deriver {
 private:
 	std::function<Term<Sum<G,Arg>>(F const&)> _fun;
+	Algebra<F,Term<F>> _alg = [&]( F const& f, std::vector<Term<F>>&& args ){
+		return _intp_inner(TERM<F>,_fun(f),std::move(args));
+	};
 public:
 	template<typename... Args>
 		requires std::is_constructible_v<std::function<Term<Sum<G,Arg>>(F const&)>,Args&&...>
@@ -84,6 +87,7 @@ public:
 		};
 	}
 	Term<G> operator()( Term<F> const& t ) const& {
+		return _alg(t);
 	}
 private:
 	template<typename T>

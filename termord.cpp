@@ -1,6 +1,6 @@
+#include "poly.hpp"
 #include "termord.hpp"
 #include "exp.hpp"
-#include "poly.hpp"
 
 using namespace std;
 
@@ -90,7 +90,7 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 	if( _log & DEBUG ) {
 		cerr << "; [" << print_list(largs) << "] <=> [" << print_list(rargs) << "] = {" << args_ge << ", " << args_gt << '}' << endl;
 	}
-	auto const& [pge,pgt] = Smt::compare(linfo->prec,rinfo->prec);
+	auto const& [pge,pgt] = order(linfo->prec,rinfo->prec);
 	auto const& gt = solver().let( Smt::BOOL, some_arg_ge || ( gt_all_arg && ( pgt || ( pge && args_gt ) ) ) );
 	auto const& ge = solver().let( Smt::BOOL, gt || ( gt_all_arg && pge && args_ge ) );
 	return memo({ge,gt});
@@ -264,8 +264,8 @@ void TermOrder::test() {
 	auto x = z3.declare_const("x",Smt::INT);
 	auto y = z3.declare_const("y",Smt::INT);
 	auto z = z3.declare_const("z",Smt::INT);
-	cout << lex_compare(Smt::compare,vector{x,y},{x,z}).ge << endl;
-	cout << lex_compare(Smt::compare,vector{x},{x,z}).ge << endl;
+	cout << lex_compare(order,vector{x,y},{x,z}).ge << endl;
+	cout << lex_compare(order,vector{x},{x,z}).ge << endl;
 
 	Trs::Sig sig = {{"+",{2}}};
 	Trs::Rules trs;

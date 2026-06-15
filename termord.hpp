@@ -84,8 +84,8 @@ private:
 	Smt::Solver _solver;
 	int _log;
 public:
-	Algebra::Deriver<std::string, typename A::Sig> const deriver;
-	Algebra::Intp<std::string,A> const intp;
+	Deriver<std::string, typename A::Sig> const deriver;
+	Algebra<std::string,A> const intp;
 	DerivedTermOrder(
 		Trs::Sig const& sig,
 		Exp const& temp,
@@ -97,7 +97,7 @@ public:
 		intp(A::expand(deriver.derive(A::algebra(_solver)),_solver)) {
 	}
 	Smt::Compare compare( Exp const& l, Exp const& r ) override {
-		auto const& ord = A::compare(intp.eval(l),intp.eval(r),_solver);
+		auto const& ord = order(intp.eval(l),intp.eval(r),_solver);
 		if( log() & PAIR ) {
 			std::cerr << "; " << l << " <=> " << r << " = " << ord << std::endl;
 		}
@@ -188,7 +188,7 @@ public:
 		assert(arule);
 		auto lv = arule->first.at(lpos).fun().second;
 		auto rv = arule->second.at(rpos).fun().second;
-		return A::compare(lv,rv,solver());
+		return order(lv,rv,solver());
 	}
 	Smt::Compare compare( Exp const& l, Exp const& r ) override {
 		return _term_order.compare(l,r);

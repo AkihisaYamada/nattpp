@@ -2,14 +2,6 @@
 
 using namespace std;
 
-
-static void arity_check( bool test, Exp const& exp ) {
-	if( !test ) {
-		throw Algebra::Error{"#arity-mismatch",exp};
-	}
-}
-
-
 static Opt<Poly::Sig> poly_fun( string const& str ) {
 	if( str == "+" ) {
 		return Poly::Sig(in_place_type<Poly::Add>);
@@ -20,7 +12,7 @@ static Opt<Poly::Sig> poly_fun( string const& str ) {
 	return {};
 }
 
-Term<Sum<Poly::Sig,Algebra::Arg>> Poly::_deriver_inner(
+Term<Sum<Poly::Sig,Arg>> Poly::_deriver_inner(
 	string const& f,
 	Trs::Rank const& rank,
 	Smt::Solver& solver,
@@ -31,7 +23,7 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::_deriver_inner(
 	size_t n = 0;
 	if( fun == "arg" ) {
 		exp.get_end(n);
-		return Algebra::Arg(pos);
+		return Arg(pos);
 	}
 	if( fun == "var" ) {
 		Opt<Smt::BaseSort> sort;
@@ -49,8 +41,8 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::_deriver_inner(
 		});
 		auto const& ret = solver.declare_fresh( sort ? *sort : solver.logic().base_sort() );
 		if( constrain ) {
-			Subst<string> subst = {{"_",ret.exp()}};
-			solver.ass(Smt::ALGEBRA.eval(subst.eval(*constrain)));
+			auto subst = Subst<string>{{"_",ret.exp()}};
+			solver.ass(Smt::ALGEBRA.eval(subst(*constrain)));
 		}
 		return ret;
 	}
@@ -60,7 +52,7 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::_deriver_inner(
 		exp.get_end(n);
 		if( auto aggfun = agg.unapplied() )
 			if( auto pfun = poly_fun(*aggfun) ) {
-				auto args = vector<Term<Sum<Sig,Algebra::Arg>>>();
+				auto args = vector<Term<Sum<Sig,Arg>>>();
 				for( int i = 0; i < rank.arity; i++ ) {
 					args.emplace_back(_deriver_inner(f,rank,solver,argexp,i));
 				}
@@ -88,7 +80,7 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::_deriver_inner(
 		auto i = _deriver_inner(f,rank,solver,iexp,pos);
 		if( auto ifun = i.fun().ref<Sig>() )
 			if( auto ie = ifun->ref<Smt::PreExp>() ) {
-				return Term<Sum<Sig,Algebra::Arg>>(
+				return Term<Sum<Sig,Arg>>(
 					Cond{*ie},
 					_deriver_inner(f,rank,solver,texp,pos),
 					_deriver_inner(f,rank,solver,eexp,pos)
@@ -97,7 +89,7 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::_deriver_inner(
 		throw Error{"#template-format",exp};
 	}
 	if( auto pfun = poly_fun(fun) ) {
-		auto args = vector<Term<Sum<Sig,Algebra::Arg>>>();
+		auto args = vector<Term<Sum<Sig,Arg>>>();
 		while( auto const& arg = exp.gets_arg(n) ) {
 			args.emplace_back(_deriver_inner(f,rank,solver,*arg,pos));
 		}
@@ -111,12 +103,12 @@ Term<Sum<Poly::Sig,Algebra::Arg>> Poly::_deriver_inner(
 	throw Error{"#template-format",exp};
 }
 
-Algebra::Deriver<string,Poly::Sig> Poly::deriver( Exp const& e, Trs::Sig const& sig, Smt::Solver& solver ) {
-	Map<string,Term<Sum<Sig,Algebra::Arg>>> map;
+Deriver<string,Poly::Sig> Poly::deriver( Exp const& e, Trs::Sig const& sig, Smt::Solver& solver ) {
+	Map<string,Term<Sum<Sig,Arg>>> map;
 	for( auto [f,rank] : sig ) {
 		map.emplace(f,_deriver_inner(f,rank,solver,e,0));
 	}
-	return [map = std::move(map)]( string const& f )->Term<Sum<Sig,Algebra::Arg>> {
+	return [map = std::move(map)]( string const& f )->Term<Sum<Sig,Arg>> {
 		if( auto val = map.find(f) ) {
 			return *val;
 		}

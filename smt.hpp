@@ -247,10 +247,6 @@ public:
 	static PreExp gt( PreExp const& x, PreExp const& y ) {
 		return PreExp(GT,{x,y});
 	}
-	static Compare compare( PostExp const& x, PostExp const& y ) {
-		if( x == y ) return { TRUE, FALSE };
-		return {ge(x,y),gt(x,y)};
-	}
 	static PostExp ite( PostExp const& i, PostExp const& t, PostExp const& e );
 	static PreExp ite( PreExp const& i, PreExp const& t, PreExp const& e ) {
 		return PreExp(ITE,{i,t,e});
@@ -294,7 +290,7 @@ public:
 			return PreExp(sort,val,body);
 		}
 	};
-	static Algebra::Intp<std::string,Smt::PreExp> const ALGEBRA;
+	static Algebra<std::string,Smt::PreExp> const ALGEBRA;
 	class Reader : public ::Reader {
 	public:
 		using ::Reader::Reader;
@@ -382,7 +378,10 @@ inline Smt::Sort::Sort( Sort const& x, Sort const& y ) : _un(Ref<_Cons>::make(x,
 inline OptRef<Smt::Sort::_Cons> Smt::Sort::cons() const & {
 	return _un.ref<Ref<_Cons>>() >>= [](auto ref)->OptRef<_Cons>{ return {ref}; };
 }
-
+inline Smt::Compare order( Smt::PostExp const& x, Smt::PostExp const& y ) {
+	if( x == y ) return { true, false };
+	return {Smt::ge(x,y),Smt::gt(x,y)};
+}
 struct Smt::PreExp::App {
 	Fun fun;
 	std::vector<PreExp> args;

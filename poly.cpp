@@ -126,7 +126,7 @@ static Smt::PreExp order_sub( Poly const& p1, Poly const& p2 ) {
 Smt::PreExp Poly::ge( Poly const& p2 ) const {
 	return order_sub(*this,p2) && Smt::ge((*this)[{}],p2[{}]);
 }
-Smt::Compare Poly::compare( Poly const& p1, Poly const& p2, Smt::Solver& solver ) {
+Smt::Compare order( Poly const& p1, Poly const& p2, Smt::Solver& solver ) {
 	auto const& val = solver.let(Smt::BOOL,order_sub(p1,p2));
 	auto const& c1 = solver.expand(p1[{}]);
 	auto const& c2 = solver.expand(p2[{}]);
@@ -172,7 +172,7 @@ ostream& operator<<( ostream& os, Poly::Sig const& f ) {
 	assert(false);
 }
 
-Algebra::Intp<Poly::Sig,Poly> Poly::algebra( Smt::Solver& solver ) {
+Algebra<Poly::Sig,Poly> Poly::algebra( Smt::Solver& solver ) {
 	return [&solver]( Poly::Sig const& f, std::vector<Poly> const& args )->Poly{
 		if( f.ref<Add>() ) {
 			return sum(args);
@@ -199,17 +199,17 @@ ostream& operator<<( ostream& os, pair<T1,T2> const& pair ) {
 	return os << "〈" << pair.first << ", " << pair.second << "〉";
 }
 
-Term<Sum<Poly::Sig,Algebra::Arg>> Poly::instantiate(
+Term<Sum<Poly::Sig,Arg>> Poly::instantiate(
 	Smt::Solver& solver,
-	Term<Sum<Sig,Algebra::Arg>> const& org
+	Term<Sum<Sig,Arg>> const& org
 ) {
 	auto const& sym = org.fun();
-	auto args = vector<Term<Sum<Sig,Algebra::Arg>>>();
+	auto args = vector<Term<Sum<Sig,Arg>>>();
 	for( auto const& a : org.args() ) {
 		args.push_back(instantiate(solver,a));
 	}
 	if( auto const& f = sym.ref<Poly::Sig>() ) {
-		auto rargs = vector<Term<Sum<Sig,Algebra::Arg>>>();
+		auto rargs = vector<Term<Sum<Sig,Arg>>>();
 		if( auto pre = f->ref<Smt::PreExp>() ) {
 			auto post = pre->post();
 			assert( post );
@@ -293,12 +293,12 @@ MPoly operator*( MPoly const& x, MPoly const& y ) {
 	return std::move(ret);
 }
 
-Smt::Compare compare( MPoly const& x, MPoly const& y, Smt::Solver& solver ) {
+Smt::Compare order( MPoly const& x, MPoly const& y, Smt::Solver& solver ) {
 	Smt::PostExp ge_all = true, gt_all = true;
 	for( auto const& yp : y._set ){
 		Smt::PostExp some_ge, some_gt;
 		for( auto const& xp : x._set ){
-			auto [ge,gt] = Poly::compare(xp,yp,solver);
+			auto [ge,gt] = order(xp,yp,solver);
 			some_ge = some_ge || ge;
 			some_gt = some_gt || gt;
 		}
@@ -310,33 +310,33 @@ Smt::Compare compare( MPoly const& x, MPoly const& y, Smt::Solver& solver ) {
 
 int Poly::test() {
 	cout << "=== Poly test ===" << endl;
-	Subst<string> subst = {{"x",Exp{"g","y"}}};
-	cout << subst.eval(Exp{"f","x"}) << endl;
-	Subst<string> subst2 = {{"x",Exp{"g","x"}}};
-	cout << subst2.eval(Exp{"f","x","x"}) << endl;
+	auto subst = Subst<string>{{"x",Exp{"g","y"}}};
+	cout << subst(Exp{"f","x"}) << endl;
+	auto subst2 = Subst<string>{{"x",Exp{"g","x"}}};
+	cout << subst2(Exp{"f","x","x"}) << endl;
 	auto z3 = Smt::Z3(Smt::QF_LIA);
 	auto c1 = z3.declare_const("c1",Smt::INT);
 	auto c2 = z3.declare_const("c2",Smt::INT);
 	auto wa = z3.declare_const("wa",Smt::INT);
 	auto wb = z3.declare_const("wb",Smt::INT);
-	Algebra::Deriver<string,Sig> hsubst = [&]( string const& f ){
+	auto hsubst = Deriver<string,Sig>( [&]( string const& f ){
 		if( f == "f" ) {
-			return Term<Sum<Sig,Algebra::Arg>>{
+			return Term<Sum<Sig,Arg>>{
 				ADD,
-				Term<Sum<Sig,Algebra::Arg>>{MUL,c1,Algebra::Arg(0)},
-				Term<Sum<Sig,Algebra::Arg>>{MUL,c2,Algebra::Arg(1)}
+				Term<Sum<Sig,Arg>>{MUL,c1,Arg(0)},
+				Term<Sum<Sig,Arg>>{MUL,c2,Arg(1)}
 			};
 		}
 		if( f == "a" ) {
-			return Term<Sum<Sig,Algebra::Arg>>{ADD,Algebra::Arg(0),wa};
+			return Term<Sum<Sig,Arg>>{ADD,Arg(0),wa};
 		}
 		if( f == "b" ) {
-			return Term<Sum<Sig,Algebra::Arg>>{ADD,Algebra::Arg(0),wb};
+			return Term<Sum<Sig,Arg>>{ADD,Arg(0),wb};
 		}
-		return Term<Sum<Sig,Algebra::Arg>>(Poly::Var(f,POS));
-	};
+		return Term<Sum<Sig,Arg>>(Poly::Var(f,POS));
+	} );
 	auto e = Exp{"f",Exp{"a","x"},Exp{"b","x"}};
-	cout << "⟦" << e << "⟧ = " << hsubst.derive(Algebra::TERM<Sig>).eval(e) << endl;
+	cout << "⟦" << e << "⟧ = " << hsubst.derive(TERM<Sig>).eval(e) << endl;
 	auto z3poly = Poly::algebra(z3);
 	cout << hsubst.derive(z3poly).eval(e) << endl;
 	Poly x = Poly::Var("x",Poly::POS);
@@ -356,7 +356,7 @@ int Poly::test() {
 	for( auto p : sig ) {
 		cout << "der(" << p.first << ") = " << der(p.first) << endl;
 	}
-	auto der_term = der.derive(Algebra::TERM<Sig>);
+	auto der_term = der.derive(TERM<Sig>);
 	cout << "der⟦" << "(g x)" << "⟧ = " << der_term.eval(Exp{"g","x"}) << endl;
 	cout << "der⟦a⟧ = " << der_term.eval("a") << endl;
 	cout << "der⟦" << e << "⟧ = " << der_term.eval(e) << endl;

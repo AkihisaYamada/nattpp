@@ -19,7 +19,7 @@ struct Poly {
 		Var( std::string_view const& str, Range range ) : std::string(str), range(range) {}
 	};
 	using Sig = Sum<Add,Mul,Cond,Smt::PreExp,Var>;
-	static Algebra::Intp<Sig,Smt::PreExp> const ALGEBRA;
+	static Algebra<Sig,Smt::PreExp> const ALGEBRA;
 	static Range range_mult( Range r1, Range r2 ) {
 		switch(r1) {
 		case NONE:
@@ -96,20 +96,20 @@ public:
 	Poly& operator+=( Poly const& p2 ) &;
 	Poly monom_mult( Smt::PreExp const& c, Vars const& vs ) const;
 	Poly operator*( Poly const& p2 ) const;
-	Poly operator*=( Poly const& p2 ) & {
+	Poly& operator*=( Poly const& p2 ) & {
 		return *this = *this * p2;
 	}
 	Smt::PreExp ge( Poly const& p2 ) const;
 	static Poly ite( Smt::PreExp const& c, Poly const& p1, Poly const& p2 );
-	static Smt::Compare compare( Poly const& p1, Poly const& p2, Smt::Solver& solver );
-	static Poly sum( std::vector<Poly> const& args ) {
+	friend Smt::Compare order( Poly const& p1, Poly const& p2, Smt::Solver& solver );
+	friend Poly sum( std::vector<Poly> const& args ) {
 		Poly ret;
 		for( auto const& arg : args ) {
 			ret += arg;
 		}
 		return std::move(ret);
 	}
-	static Poly prod( std::vector<Poly> const& args ) {
+	friend Poly prod( std::vector<Poly> const& args ) {
 		Poly ret = 1;
 		for( auto const& arg : args ) {
 			ret *= arg;
@@ -119,23 +119,23 @@ public:
 	static int test();
 
 	template<typename F>
-	static Algebra::Intp<F,Poly> expand( Algebra::Intp<F,Poly> && intp, Smt::Solver& solver ) {
+	static Algebra<F,Poly> expand( Algebra<F,Poly> && intp, Smt::Solver& solver ) {
 		return [intp=std::move(intp),&solver]( F const& f, std::vector<Poly> && args ) {
 			return intp(f,std::move(args)).expand(solver);
 		};
 	}
 
 	template<typename F>
-	static Algebra::Intp<F,Poly> expand( Algebra::Intp<F,Poly> const& intp, Smt::Solver& solver ) {
+	static Algebra<F,Poly> expand( Algebra<F,Poly> const& intp, Smt::Solver& solver ) {
 		return [&intp,&solver]( F const& f, std::vector<Poly> && args ) {
 			return intp(f,std::move(args)).expand(solver);
 		};
 	}
 
-	static Algebra::Intp<Sig,Poly> algebra( Smt::Solver& solver );
+	static Algebra<Sig,Poly> algebra( Smt::Solver& solver );
 
 	/** create deriver from expression */
-	static Algebra::Deriver<std::string,Sig> deriver(
+	static Deriver<std::string,Sig> deriver(
 		Exp const& e,
 		Trs::Sig const& sig,
 		Smt::Solver& solver
@@ -143,12 +143,12 @@ public:
 	static Exp const SUM, MONO_SUM, MONO_POLY2;
 
 	/** instantiate coefficients via get-value */
-	static Term<Sum<Sig,Algebra::Arg>> instantiate(
+	static Term<Sum<Sig,Arg>> instantiate(
 		Smt::Solver& solver,
-		Term<Sum<Sig,Algebra::Arg>> const& org
+		Term<Sum<Sig,Arg>> const& org
 	);
 private:
-	static Term<Sum<Sig,Algebra::Arg>> _deriver_inner(
+	static Term<Sum<Sig,Arg>> _deriver_inner(
 		std::string const& f,
 		Trs::Rank const& rank,
 		Smt::Solver& solver,
@@ -156,7 +156,6 @@ private:
 		int pos
 	);
 };
-
 struct MPoly {
 private:
 	std::vector<Poly> _set;
@@ -169,7 +168,7 @@ public:
 	}
 	friend MPoly operator+( MPoly const& x, MPoly const& y );
 	friend MPoly operator*( MPoly const& x, MPoly const& y );
-	friend Smt::Compare compare( MPoly const& x, MPoly const& y, Smt::Solver& solver );
+	friend Smt::Compare order( MPoly const& x, MPoly const& y, Smt::Solver& solver );
 };
 
 std::ostream& operator<<( std::ostream& os, Poly::Sig const& f );

@@ -4,124 +4,131 @@
 #include"map.hpp"
 #include"exp.hpp"
 
-class Algebra {
-	Algebra() = delete;
+/** @brief For Deriver: Placeholder for argument position. */
+class Arg {
+	int _pos;
 public:
-	struct Error : ::Error {
-		using ::Error::Error;
-	};
-	/**
-	 * @brief Interpretation
-	 * 
-	 * @tparam F signature
-	 * @tparam T carrier
-	 */
-	template<typename F, typename T>
-	struct Intp : public std::function<T(F const&,std::vector<T>&&)> {
-		using std::function<T(F const&,std::vector<T>&&)>::function;
-		T eval( Term<F> const& e ) const {
-			std::vector<T> vargs;
-			for( auto const& arg : e.args() ) {
-				vargs.push_back(eval(arg));
-			}
-			return (*this)(e.fun(),std::move(vargs));
-		}
-		using ASig = std::pair<F,T>;
-		using ATerm = Term<ASig>;
-		/**
-		 * @brief Annotates a term with its evaluation
-		 */
-		ATerm annotate( Term<F> const& e ) const& {
-			std::vector<ATerm> aargs;
-			std::vector<T> vargs;
-			for( auto& arg : e.args() ) {
-				ATerm aarg = annotate(arg);
-				vargs.push_back(aarg.fun().second);
-				aargs.push_back(std::move(aarg));
-			}
-			T v = (*this)( e.fun(), std::move(vargs) );
-			return ATerm(std::in_place,ASig(e.fun(),std::move(v)),std::move(aargs));
-		}
-	};
-
-	/** @brief The term algebra */
-	template<typename F>
-	static Intp<F,Term<F>> const TERM;
-
-	/** @brief For Deriver: Placeholder for argument position. */
-	class Arg {
-		friend Algebra;
-		int _pos;
-	public:
-		Arg( int pos ) : _pos(pos) {}
-		int pos() const { return _pos; }
-	};
-
-	template<typename F, typename G>
-	struct Deriver : std::function<Term<Sum<G,Arg>>(F const&)> {
-		using std::function<Term<Sum<G,Arg>>(F const&)>::function;
-		template<typename T>
-		Intp<F,T> derive( auto ) && = delete;
-		template<typename T>
-		Intp<F,T> derive( Intp<G,T> && intp ) const & {
-			return [intp=std::move(intp),this]( F const& f, std::vector<T>&& args ){
-				return _intp_inner(intp,(*this)(f),std::move(args));
-			};
-		}
-		template<typename T>
-		Intp<F,T> derive( Intp<G,T> const& intp ) const & {
-			return [&]( F const& f, std::vector<T>&& args ){
-				return _intp_inner(intp,(*this)(f),std::move(args));
-			};
-		}
-	private:
-		template<typename T>
-		static T _intp_inner( Intp<G,T> const& intp, Term<Sum<G,Arg>> const& e, std::vector<T> const& vs ) {
-			Sum<G,Arg> const& ifun = e.fun();
-			auto const& args = e.args();
-			if( auto i = ifun.template ref<1>() ) {// placeholder for applied variable arguments
-				assert( args.empty() );
-				assert( i->_pos < vs.size() );
-				return vs[i->_pos];
-			}
-			if( auto fun = ifun.template ref<0>() ) {
-				std::vector<T> vargs;
-				for( auto const& arg : args ) {
-					vargs.push_back(_intp_inner(intp,arg,vs));
-				}
-				return intp(*fun,std::move(vargs));
-			}
-			assert(false);
-		};
-	};
-
-	static int test();
+	Arg( int pos ) : _pos(pos) {}
+	int pos() const { return _pos; }
 };
 
+/**
+ * @brief Algebra
+ * 
+ * @tparam F signature
+ * @tparam T carrier
+ */
+template<typename F, typename T>
+struct Algebra {
+private:
+	std::function<T(F const&,std::vector<T>&&)> _fun;
+public:
+	template<typename... Args>
+		requires std::is_constructible_v<std::function<T(F const&,std::vector<T>&&)>,Args&&...>
+	Algebra( Args&&... args ) : _fun(std::forward<Args>(args)...) {}
+	T operator()( F const& f, std::vector<T>&& args ) const {
+		return _fun(f,std::move(args));
+	}
+	T eval( Term<F> const& e ) const {
+		std::vector<T> vargs;
+		for( auto const& arg : e.args() ) {
+			vargs.push_back(eval(arg));
+		}
+		return _fun(e.fun(),std::move(vargs));
+	}
+	using ASig = std::pair<F,T>;
+	using ATerm = Term<ASig>;
+	/**
+	 * @brief Annotates a term with its evaluation
+	 */
+	ATerm annotate( Term<F> const& e ) const& {
+		std::vector<ATerm> aargs;
+		std::vector<T> vargs;
+		for( auto& arg : e.args() ) {
+			ATerm aarg = annotate(arg);
+			vargs.push_back(aarg.fun().second);
+			aargs.push_back(std::move(aarg));
+		}
+		T v = _fun( e.fun(), std::move(vargs) );
+		return ATerm(std::in_place,ASig(e.fun(),std::move(v)),std::move(aargs));
+	}
+};
+
+template<typename F, typename G>
+struct Deriver {
+private:
+	std::function<Term<Sum<G,Arg>>(F const&)> _fun;
+public:
+	template<typename... Args>
+		requires std::is_constructible_v<std::function<Term<Sum<G,Arg>>(F const&)>,Args&&...>
+	Deriver( Args&&... args ) : _fun(std::forward<Args>(args)...) {}
+	Term<Sum<G,Arg>> operator()( F const& f ) const& { return _fun(f); }
+	auto derive( auto ) && = delete;
+	template<typename T>
+	Algebra<F,T> derive( Algebra<G,T>&& org ) const & {
+		return [org=std::move(org),this]( F const& f, std::vector<T>&& args ){
+			return _intp_inner(org,_fun(f),std::move(args));
+		};
+	}
+	template<typename T>
+	Algebra<F,T> derive( Algebra<G,T> const& org ) const & {
+		return [&]( F const& f, std::vector<T>&& args ){
+			return _intp_inner(org,_fun(f),std::move(args));
+		};
+	}
+private:
+	template<typename T>
+	static T _intp_inner( Algebra<G,T> const& org, Term<Sum<G,Arg>> const& e, std::vector<T> const& vs ) {
+		auto const& [ifun,args] = *e;
+		if( auto i = ifun.template ref<1>() ) {// placeholder for applied variable arguments
+			assert( args.empty() );
+			assert( i->pos() < vs.size() );
+			return vs[i->pos()];
+		}
+		if( auto fun = ifun.template ref<0>() ) {
+			std::vector<T> vargs;
+			for( auto const& arg : args ) {
+				vargs.push_back(_intp_inner(org,arg,vs));
+			}
+			return org(*fun,std::move(vargs));
+		}
+		assert(false);
+	};
+};
+
+
+/** @brief The term algebra */
 template<typename F>
-Algebra::Intp<F,Term<F>> const Algebra::TERM = []( F const& f, std::vector<Term<F>>&& args ){
+Algebra<F,Term<F>> const TERM = []( F const& f, std::vector<Term<F>>&& args ){
 	return app(f,std::move(args));
 };
 
 template<typename F>
-struct Subst : Map<F,Term<F>>, Algebra::Intp<F,Term<F>> {
+struct Subst {
+private:
+	Map<F,Term<F>> _map;
+	Algebra<F,Term<F>> _alg = [&]( F const& f, std::vector<Term<F>>&& args ){
+		if( auto const& t = _map.find(f) ) {
+			return *t;
+		}
+		return app(f,std::move(args));
+	};
+public:
+	template<typename... Args>
+	Subst( Args&&... args ) : _map(std::forward<Args>(args)...) {}
 	Subst( std::initializer_list<typename Map<F,Term<F>>::value_type> list ) :
-		Map<F,Term<F>>(list),
-		Algebra::Intp<F,Term<F>>([&]( F const& f, std::vector<Term<F>>&& args ){
-			if( auto const& t = Map<F,Term<F>>::find(f) ) {
-				return *t;
-			}
-			return app(f,std::move(args));
-		})
-	{}
+		_map(list) {}
+	Term<F> operator()( Term<F> const& s ) const& {
+		return _alg.eval(s);
+	}
 };
 
 template<typename F>
-std::ostream& operator<<( std::ostream& os, Sum<F,Algebra::Arg> const& df ) {
-	if( auto f = df.template ref<F>() ) {
+std::ostream& operator<<( std::ostream& os, Sum<F,Arg> const& df ) {
+	if( auto const& f = df.template ref<F>() ) {
 		return os << *f;
 	}
-	if( auto a = df.template ref<Algebra::Arg>() ) {
+	if( auto const& a = df.template ref<Arg>() ) {
 		return os << "(arg " << a->pos()+1 << ')';
 	}
 	assert(false);

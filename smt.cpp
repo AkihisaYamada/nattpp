@@ -223,7 +223,7 @@ Smt::BaseSort Smt::BaseSort::of( Exp const& exp ) {
 	throw Error("#unknown-base-sort",exp);
 }
 
-Algebra::Intp<string,Smt::PreExp> const Smt::ALGEBRA = []( string const& fun, vector<Smt::PreExp>&& args ){
+Algebra<string,Smt::PreExp> const Smt::ALGEBRA = []( string const& fun, vector<Smt::PreExp>&& args ){
 	return Smt::PreExp(fun,std::move(args));
 };
 

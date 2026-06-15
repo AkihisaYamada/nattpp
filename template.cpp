@@ -42,7 +42,7 @@ Term<Sum<Poly::Sig,Arg>> Poly::_deriver_inner(
 		auto const& ret = solver.declare_fresh( sort ? *sort : solver.logic().base_sort() );
 		if( constrain ) {
 			auto subst = Subst<string>{{"_",ret.exp()}};
-			solver.ass(Smt::ALGEBRA.eval(subst(*constrain)));
+			solver.ass(Smt::ALGEBRA(subst(*constrain)));
 		}
 		return ret;
 	}

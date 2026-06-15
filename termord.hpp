@@ -97,7 +97,7 @@ public:
 		intp(A::expand(deriver.derive(A::algebra(_solver)),_solver)) {
 	}
 	Smt::Compare compare( Exp const& l, Exp const& r ) override {
-		auto const& ord = order(intp.eval(l),intp.eval(r),_solver);
+		auto const& ord = order(intp(l),intp(r),_solver);
 		if( log() & PAIR ) {
 			std::cerr << "; " << l << " <=> " << r << " = " << ord << std::endl;
 		}

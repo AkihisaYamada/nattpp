@@ -336,9 +336,9 @@ int Poly::test() {
 		return Term<Sum<Sig,Arg>>(Poly::Var(f,POS));
 	} );
 	auto e = Exp{"f",Exp{"a","x"},Exp{"b","x"}};
-	cout << "⟦" << e << "⟧ = " << hsubst.derive(TERM<Sig>).eval(e) << endl;
+	cout << "⟦" << e << "⟧ = " << hsubst.derive(TERM<Sig>)(e) << endl;
 	auto z3poly = Poly::algebra(z3);
-	cout << hsubst.derive(z3poly).eval(e) << endl;
+	cout << hsubst.derive(z3poly)(e) << endl;
 	Poly x = Poly::Var("x",Poly::POS);
 	Poly y = Poly::Var("y",Poly::NEG);
 	auto c = z3.declare_const("c",Smt::INT);
@@ -357,10 +357,10 @@ int Poly::test() {
 		cout << "der(" << p.first << ") = " << der(p.first) << endl;
 	}
 	auto der_term = der.derive(TERM<Sig>);
-	cout << "der⟦" << "(g x)" << "⟧ = " << der_term.eval(Exp{"g","x"}) << endl;
-	cout << "der⟦a⟧ = " << der_term.eval("a") << endl;
-	cout << "der⟦" << e << "⟧ = " << der_term.eval(e) << endl;
-	cout << "Poly: " << der_intp.eval(e) << endl;
+	cout << "der⟦" << "(g x)" << "⟧ = " << der_term(Exp{"g","x"}) << endl;
+	cout << "der⟦a⟧ = " << der_term("a") << endl;
+	cout << "der⟦" << e << "⟧ = " << der_term(e) << endl;
+	cout << "Poly: " << der_intp(e) << endl;
 	cout << "Annotate: " << der_intp.annotate(e) << endl;
 	return 0;
 }

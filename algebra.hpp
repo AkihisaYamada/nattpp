@@ -30,10 +30,10 @@ public:
 	T operator()( F const& f, std::vector<T>&& args ) const {
 		return _intp(f,std::move(args));
 	}
-	T eval( Term<F> const& e ) const {
+	T operator()( Term<F> const& e ) const {
 		std::vector<T> vargs;
 		for( auto const& arg : e.args() ) {
-			vargs.push_back(eval(arg));
+			vargs.push_back(operator()(arg));
 		}
 		return _intp(e.fun(),std::move(vargs));
 	}
@@ -65,31 +65,6 @@ template<typename F, typename G>
 struct Deriver {
 private:
 	std::function<Term<Sum<G,Arg>>(F const&)> _fun;
-	Algebra<F,Term<F>> _alg = [&]( F const& f, std::vector<Term<F>>&& args ){
-		return _intp_inner(TERM<F>,_fun(f),std::move(args));
-	};
-public:
-	template<typename... Args>
-		requires std::is_constructible_v<std::function<Term<Sum<G,Arg>>(F const&)>,Args&&...>
-	Deriver( Args&&... args ) : _fun(std::forward<Args>(args)...) {}
-	Term<Sum<G,Arg>> operator()( F const& f ) const& { return _fun(f); }
-	auto derive( auto ) && = delete;
-	template<typename T>
-	Algebra<F,T> derive( Algebra<G,T>&& org ) const & {
-		return [org=std::move(org),this]( F const& f, std::vector<T>&& args ){
-			return _intp_inner(org,_fun(f),std::move(args));
-		};
-	}
-	template<typename T>
-	Algebra<F,T> derive( Algebra<G,T> const& org ) const & {
-		return [&]( F const& f, std::vector<T>&& args ){
-			return _intp_inner(org,_fun(f),std::move(args));
-		};
-	}
-	Term<G> operator()( Term<F> const& t ) const& {
-		return _alg(t);
-	}
-private:
 	template<typename T>
 	static T _intp_inner( Algebra<G,T> const& org, Term<Sum<G,Arg>> const& e, std::vector<T> const& vs ) {
 		auto const& [ifun,args] = *e;
@@ -107,6 +82,31 @@ private:
 		}
 		assert(false);
 	};
+	Algebra<F,Term<G>> _alg = [&]( F const& f, std::vector<Term<G>>&& args ){
+		return _intp_inner(TERM<G>,_fun(f),std::move(args));
+	};
+public:
+	template<typename... Args>
+		requires std::is_constructible_v<std::function<Term<Sum<G,Arg>>(F const&)>,Args&&...>
+	Deriver( Args&&... args ) : _fun(std::forward<Args>(args)...) {}
+	Term<Sum<G,Arg>> operator()( F const& f ) const& { return _fun(f); }
+	/** general substitution */
+	Term<G> operator()( Term<F> const& t ) const& {
+		return _alg(t);
+	}
+	auto derive( auto ) && = delete;
+	template<typename T>
+	Algebra<F,T> derive( Algebra<G,T>&& org ) const & {
+		return [org=std::move(org),this]( F const& f, std::vector<T>&& args ){
+			return _intp_inner(org,_fun(f),std::move(args));
+		};
+	}
+	template<typename T>
+	Algebra<F,T> derive( Algebra<G,T> const& org ) const & {
+		return [&]( F const& f, std::vector<T>&& args ){
+			return _intp_inner(org,_fun(f),std::move(args));
+		};
+	}
 };
 
 
@@ -126,7 +126,7 @@ public:
 	Subst( std::initializer_list<typename Map<F,Term<F>>::value_type> list ) :
 		_map(list) {}
 	Term<F> operator()( Term<F> const& s ) const& {
-		return _alg.eval(s);
+		return _alg(s);
 	}
 };
 

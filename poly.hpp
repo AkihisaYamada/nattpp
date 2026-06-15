@@ -102,20 +102,6 @@ public:
 	Smt::PreExp ge( Poly const& p2 ) const;
 	static Poly ite( Smt::PreExp const& c, Poly const& p1, Poly const& p2 );
 	friend Smt::Compare order( Poly const& p1, Poly const& p2, Smt::Solver& solver );
-	friend Poly sum( std::vector<Poly> const& args ) {
-		Poly ret;
-		for( auto const& arg : args ) {
-			ret += arg;
-		}
-		return std::move(ret);
-	}
-	friend Poly prod( std::vector<Poly> const& args ) {
-		Poly ret = 1;
-		for( auto const& arg : args ) {
-			ret *= arg;
-		}
-		return std::move(ret);
-	}
 	static int test();
 
 	template<typename F>
@@ -156,6 +142,7 @@ private:
 		int pos
 	);
 };
+
 struct MPoly {
 private:
 	std::vector<Poly> _set;

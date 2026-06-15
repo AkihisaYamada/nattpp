@@ -11,6 +11,23 @@
 #define DEBval(a) ([&]{ auto const& _r = a; DEB(_r); return _r; }())
 #define return_DEB(in,ret) DEB(in << ret); return ret;
 
+template<typename T>
+T sum( std::vector<T> const& args ) {
+	T ret = 0;
+	for( auto const& arg : args ) {
+		ret += arg;
+	}
+	return std::move(ret);
+}
+template<typename T>
+T prod( std::vector<T> const& args ) {
+	T ret = 1;
+	for( auto const& arg : args ) {
+		ret *= arg;
+	}
+	return std::move(ret);
+}
+
 static Opt<int> is_int( std::string const& str ) try {
 	return std::stoi(str);
 } catch( std::exception const& err ) {

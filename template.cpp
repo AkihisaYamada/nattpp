@@ -2,7 +2,7 @@
 
 using namespace std;
 
-static Opt<Poly::Sig> poly_fun( string const& str ) {
+static Opt<Poly::Sig> is_poly_fun( string const& str ) {
 	if( str == "+" ) {
 		return Poly::Sig(in_place_type<Poly::Add>);
 	}
@@ -50,8 +50,8 @@ Term<Sum<Poly::Sig,Arg>> Poly::_deriver_inner(
 		auto const& agg = exp.get_arg(n);
 		auto const& argexp = exp.get_arg(n);
 		exp.get_end(n);
-		if( auto aggfun = agg.unapplied() )
-			if( auto pfun = poly_fun(*aggfun) ) {
+		if( auto const& aggfun = agg.unapplied() )
+			if( auto const& pfun = is_poly_fun(*aggfun) ) {
 				auto args = vector<Term<Sum<Sig,Arg>>>();
 				for( int i = 0; i < rank.arity; i++ ) {
 					args.emplace_back(_deriver_inner(f,rank,solver,argexp,i));
@@ -73,13 +73,13 @@ Term<Sum<Poly::Sig,Arg>> Poly::_deriver_inner(
 		throw Error{"#no-matching-arity",f};
 	}
 	if( fun == "ite" ) {
-		auto iexp = exp.get_arg(n);
-		auto texp = exp.get_arg(n);
-		auto eexp = exp.get_arg(n);
+		auto const& iexp = exp.get_arg(n);
+		auto const& texp = exp.get_arg(n);
+		auto const& eexp = exp.get_arg(n);
 		exp.get_end(n);
 		auto i = _deriver_inner(f,rank,solver,iexp,pos);
-		if( auto ifun = i.fun().ref<Sig>() )
-			if( auto ie = ifun->ref<Smt::PreExp>() ) {
+		if( auto const& ifun = i.fun().ref<Sig>() )
+			if( auto const& ie = ifun->ref<Smt::PreExp>() ) {
 				return Term<Sum<Sig,Arg>>(
 					Cond{*ie},
 					_deriver_inner(f,rank,solver,texp,pos),
@@ -88,7 +88,7 @@ Term<Sum<Poly::Sig,Arg>> Poly::_deriver_inner(
 			}
 		throw Error{"#template-format",exp};
 	}
-	if( auto pfun = poly_fun(fun) ) {
+	if( auto const& pfun = is_poly_fun(fun) ) {
 		auto args = vector<Term<Sum<Sig,Arg>>>();
 		while( auto const& arg = exp.gets_arg(n) ) {
 			args.emplace_back(_deriver_inner(f,rank,solver,*arg,pos));
@@ -96,7 +96,7 @@ Term<Sum<Poly::Sig,Arg>> Poly::_deriver_inner(
 		exp.get_end(n);
 		return app(*pfun,std::move(args));
 	}
-	if( auto i = is_int(fun) ) {
+	if( auto const& i = is_int(fun) ) {
 		exp.get_end(n);
 		return Smt::PostExp(*i);
 	}

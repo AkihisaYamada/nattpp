@@ -180,14 +180,14 @@ Algebra<Poly::Sig,Poly> Poly::algebra( Smt::Solver& solver ) {
 		if( f.ref<Mul>() ) {
 			return prod(args);
 		}
-		if( auto i = f.ref<Cond>() ) {
+		if( auto const& i = f.ref<Cond>() ) {
 			return ite(i->exp,args[0],args[1]);
 		}
 		assert( args.size() == 0 );
-		if( auto var = f.ref<Var>() ) {
+		if( auto const& var = f.ref<Var>() ) {
 			return Var(*var,Poly::POS);
 		}
-		if( auto c = f.ref<Smt::PreExp>() ) {
+		if( auto const& c = f.ref<Smt::PreExp>() ) {
 			return *c;
 		}
 		assert(false);

@@ -20,21 +20,22 @@ public:
  */
 template<typename F, typename T>
 struct Algebra {
+	using Intp = std::function<T(F const&,std::vector<T>&&)>;
 private:
-	std::function<T(F const&,std::vector<T>&&)> _fun;
+	Intp _intp;
 public:
 	template<typename... Args>
-		requires std::is_constructible_v<std::function<T(F const&,std::vector<T>&&)>,Args&&...>
-	Algebra( Args&&... args ) : _fun(std::forward<Args>(args)...) {}
+		requires std::is_constructible_v<Intp,Args&&...>
+	Algebra( Args&&... args ) : _intp(std::forward<Args>(args)...) {}
 	T operator()( F const& f, std::vector<T>&& args ) const {
-		return _fun(f,std::move(args));
+		return _intp(f,std::move(args));
 	}
 	T eval( Term<F> const& e ) const {
 		std::vector<T> vargs;
 		for( auto const& arg : e.args() ) {
 			vargs.push_back(eval(arg));
 		}
-		return _fun(e.fun(),std::move(vargs));
+		return _intp(e.fun(),std::move(vargs));
 	}
 	using ASig = std::pair<F,T>;
 	using ATerm = Term<ASig>;
@@ -49,9 +50,15 @@ public:
 			vargs.push_back(aarg.fun().second);
 			aargs.push_back(std::move(aarg));
 		}
-		T v = _fun( e.fun(), std::move(vargs) );
+		T v = _intp( e.fun(), std::move(vargs) );
 		return ATerm(std::in_place,ASig(e.fun(),std::move(v)),std::move(aargs));
 	}
+};
+
+/** @brief The term algebra */
+template<typename F>
+Algebra<F,Term<F>> const TERM = []( F const& f, std::vector<Term<F>>&& args ){
+	return app(f,std::move(args));
 };
 
 template<typename F, typename G>
@@ -76,6 +83,8 @@ public:
 			return _intp_inner(org,_fun(f),std::move(args));
 		};
 	}
+	Term<G> operator()( Term<F> const& t ) const& {
+	}
 private:
 	template<typename T>
 	static T _intp_inner( Algebra<G,T> const& org, Term<Sum<G,Arg>> const& e, std::vector<T> const& vs ) {
@@ -96,12 +105,6 @@ private:
 	};
 };
 
-
-/** @brief The term algebra */
-template<typename F>
-Algebra<F,Term<F>> const TERM = []( F const& f, std::vector<Term<F>>&& args ){
-	return app(f,std::move(args));
-};
 
 template<typename F>
 struct Subst {

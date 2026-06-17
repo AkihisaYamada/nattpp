@@ -70,7 +70,7 @@ private:
 public:
 	Poly() {}
 	template<typename T> requires std::is_constructible_v<Smt::PreExp,T>
-	Poly( T const& c ) : _map{{{},Smt::PreExp(c)}} {}
+	Poly( T&& c ) : _map{{{},Smt::PreExp(std::forward<T>(c))}} {}
 	Poly( Var const& v ) : _map{{v,Smt::PreExp(1)}} {}
 	Map<Vars,Smt::PreExp> const& map() const & {
 		return _map;
@@ -121,6 +121,7 @@ public:
 	friend MPoly& operator*=( MPoly& x, MPoly const& y ) {
 		return x = x * y;
 	}
+	Smt::PreExp ge( MPoly const& p2 ) const;
 	friend Smt::Compare order( MPoly const& x, MPoly const& y, Smt::Solver& solver );
 };
 

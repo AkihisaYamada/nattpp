@@ -224,7 +224,7 @@ static Term<Sum<Template::Fun,Arg>> _deriver_of(
 }
 Deriver<std::string,Template::Fun>
 Template::deriver_of( Exp const& e, Trs::Sig const& sig, Smt::Solver& solver ) {
-	Map<string,::Term<Sum<Template::Fun,Arg>>> map;
+	Map<string,Term<Sum<Template::Fun,Arg>>> map;
 	for( auto [f,rank] : sig ) {
 		map.emplace(f,_deriver_of(e,solver,f,rank,0));
 	}

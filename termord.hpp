@@ -34,6 +34,7 @@ struct TermOrder {
 		});
 	}
 	virtual Smt::Compare compare( Exp const& l, Exp const& r ) = 0;
+	virtual Smt::PostExp simple( std::string const& f, size_t i ) = 0;
 	static void test();
 	static int log_of( Exp const& exp );
 };
@@ -76,12 +77,16 @@ struct TrivOrder : TrsOrder {
 	Smt::Compare order_rule( size_t i ) & override {
 		return {Smt::TRUE,Smt::FALSE};
 	}
+	Smt::PostExp simple( std::string const& f, size_t i ) override {
+		return Smt::TRUE;
+	}
 };
 
 template<typename A>
 struct DerivedTermOrder : TermOrder {
 private:
 	Smt::Solver _solver;
+	Map<std::string,std::vector<Smt::PostExp>> _simple;
 	int _log;
 public:
 	Deriver<std::string,Template::Fun> const deriver;
@@ -95,6 +100,17 @@ public:
 		_log(log_),
 		deriver(Template::deriver_of(temp,sig,_solver)),
 		intp(deriver.derive(A::ALGEBRA)) {
+		for( auto const& [f,rank] : sig ) {
+			auto [vec,flag] = _simple.emplace(f,std::vector<Smt::PostExp>());
+			std::vector<Term<std::string>> is;
+			for( size_t i = 0; i < rank.arity; i++ ) {
+				is.emplace_back( std::string("#") + std::to_string(i) );
+			}
+			auto l = deriver.subst(app(f,is));
+			for( size_t i = 0; i < rank.arity; i++ ) {
+				vec.emplace_back(_solver.expand(A::ALGEBRA(l).ge(A::ALGEBRA(is[i].fun()))));
+			}
+		}
 	}
 	Smt::Compare compare( Exp const& l, Exp const& r ) override {
 		auto const& ord = order(intp(l),intp(r),_solver);
@@ -114,6 +130,9 @@ public:
 	}
 	int log() override {
 		return _log;
+	}
+	Smt::PostExp simple( std::string const& f, size_t i ) override {
+		return (*_simple.find(f))[i];
 	}
 };
 
@@ -155,6 +174,9 @@ public:
 	}
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override {
 		return _term_order.print_sym_info(os,f);
+	}
+	Smt::PostExp simple( std::string const& f, size_t i ) override {
+		return _term_order.simple(f,i);
 	}
 	int log() override { return _term_order.log(); }
 };
@@ -198,6 +220,9 @@ public:
 	}
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override {
 		return _term_order.print_sym_info(os,f);
+	}
+	Smt::PostExp simple( std::string const& f, size_t i ) override {
+		return _term_order.simple(f,i);
 	}
 	int log() override { return _term_order.log(); }
 };
@@ -253,6 +278,9 @@ public:
 		return *opt;
 	}
 	int log() override { return _log; }
+	Smt::PostExp simple( std::string const& f, size_t i ) override {
+		return _weight->simple(f,i);
+	}
 };
 
 extern Exp const SUM_SPEC, MONO_LPO_SPEC, LPO3_SPEC;

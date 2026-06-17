@@ -218,6 +218,17 @@ MPoly ite( MPoly const& cm, MPoly const& tm, MPoly const& em ) {
 	}
 	return std::move(ret);
 }
+Smt::PreExp MPoly::ge( MPoly const& y ) const {
+	Smt::PreExp ge_all = Smt::PostExp(true);
+	for( auto const& yp : y._set ){
+		Smt::PreExp some_ge = Smt::PostExp(false);
+		for( auto const& xp : _set ){
+			some_ge = some_ge || xp.ge(yp);
+		}
+		ge_all = ge_all && some_ge;
+	}
+	return ge_all;
+}
 
 Smt::Compare order( MPoly const& x, MPoly const& y, Smt::Solver& solver ) {
 	Smt::PostExp ge_all = true, gt_all = true;

@@ -32,7 +32,9 @@ PathOrder::PathOrder(
 					}
 				}
 				// mapped[i] means i-th argument survives mapping
-				info.mapped.emplace_back( sol.let(Smt::BOOL,Smt::disj(map)) );
+				auto& mapped = info.mapped.emplace_back( sol.let(Smt::BOOL,Smt::disj(map)) );
+				// mapped[i] requires weak simplicity
+				sol.ass( mapped.imp(_weight->simple(f,i)) );
 				if( log & DEBUG ) cerr << ";  map[" << i << "] = " << print_list(map) << std::endl;
 			}
 		} else {
@@ -59,13 +61,20 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 		_table.emplace(pair{l,r},comp);
 		return comp;
 	};
+	auto const& [wge,wgt] = _weight->compare(l,r);
+	if( wgt == true ) {
+		return memo({true,true});
+	}
+	if( wge == false ) {
+		return memo({false,false});
+	}
 	auto const& [lf,largs] = *l;
 	auto const& linfo = _info.find(lf);
 	auto some_arg_ge = (bool)linfo && Smt::disj( 0, largs.size(), [&]( size_t i ){
 		return linfo->mapped[i] && compare(largs[i],r).ge;// l_i survives and l_i >= r
 	} );
-	if( some_arg_ge == Smt::TRUE ) {
-		return memo({Smt::TRUE,Smt::TRUE});
+	if( some_arg_ge == true ) {
+		return memo({true,true});
 	}
 	auto const& [rf,rargs] = *r;
 	auto const& rinfo = _info.find(rf);
@@ -73,12 +82,11 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 		return rinfo->mapped[j].imp( compare(l,rargs[j]).gt );// if r_j survives, then l > r_j
 	});
 	if( !linfo ) {// lhs is a variable
-		return memo({ solver().let( Smt::BOOL, gt_all_arg && lf == rf ), Smt::FALSE });
+		return memo({ solver().let( Smt::BOOL, gt_all_arg && lf == rf ), false });
 	}
 	some_arg_ge = solver().let(Smt::BOOL,some_arg_ge);
-	if( !rinfo || // rhs is a variable
-		gt_all_arg == Smt::FALSE
-	) {
+	if( gt_all_arg == false ) return memo({false,false});
+	if( !rinfo ) { // rhs is a variable
 		return memo({some_arg_ge,some_arg_ge});
 	}
 	gt_all_arg = solver().let(Smt::BOOL,gt_all_arg);
@@ -90,8 +98,12 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 		cerr << "; [" << print_list(largs) << "] <=> [" << print_list(rargs) << "] = {" << args_ge << ", " << args_gt << '}' << endl;
 	}
 	auto const& [pge,pgt] = order(linfo->prec,rinfo->prec);
-	auto const& gt = solver().let( Smt::BOOL, some_arg_ge || ( gt_all_arg && ( pgt || ( pge && args_gt ) ) ) );
-	auto const& ge = solver().let( Smt::BOOL, gt || ( gt_all_arg && pge && args_ge ) );
+	auto const& gt = solver().let(
+		Smt::BOOL, wgt || (wge && (some_arg_ge || ( gt_all_arg && ( pgt || ( pge && args_gt ) ) ) ) )
+	);
+	auto const& ge = solver().let(
+		Smt::BOOL, gt || (wge && gt_all_arg && pge && args_ge )
+	);
 	return memo({ge,gt});
 }
 

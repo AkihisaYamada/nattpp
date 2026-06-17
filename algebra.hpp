@@ -101,7 +101,7 @@ public:
 		return _map.find(f);
 	}
 	/** general substitution */
-	Term<G> subst( Term<F> const& t ) const& { return _alg(t); }
+	Term<G> subst( Term<F> const& t ) const& { return algebra(t); }
 	auto derive( auto ) && = delete;
 	template<typename T>
 	Algebra<F,T> derive( Algebra<G,T>&& org ) const & {

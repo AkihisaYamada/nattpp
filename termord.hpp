@@ -288,6 +288,10 @@ Smt::Compare mapped_lex_compare(
 	std::vector<T> const& ls,
 	std::vector<T> const& rs
 ) {
+	if( lmap.empty() ) {// special treatment for straight status
+		assert(rmap.empty());
+		return lex_compare(comp,ls,rs);
+	}
 	auto all_ge = Smt::TRUE, gt = Smt::FALSE;
 	auto lin = ls.size();
 	auto rin = rs.size();

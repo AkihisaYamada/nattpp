@@ -63,7 +63,7 @@ public:
 	public:
 		Val( int i ) : _sum(i) {}
 		Val( Rat r ) : _sum(r) {}
-		Opt<int> is_int() const& { return _sum.ref<int>(); }
+		Opt<int const&> is_int() const& { return _sum.ref<int>(); }
 		Opt<int&> is_int()& { return _sum.ref<int>(); }
 		Opt<Rat const&> is_rat() const& { return _sum.ref<Rat>(); }
 		Opt<Rat&> is_rat()& { return _sum.ref<Rat>(); }
@@ -190,8 +190,8 @@ public:
 		PostExp( PostExp const& ) = default;
 		PostExp( PostExp && ) = default;
 		PostExp( bool b ) : _term( b ? TRUE : FALSE ) {}
-		PostExp( int i ) : _term(i) {}
-		PostExp( unsigned int i ) : _term((int)i) {}
+		PostExp( int i ) : _term(Val(i)) {}
+		PostExp( unsigned int i ) : _term(Val(i)) {}
 		PostExp( Val v ) : _term(v) {}
 		operator Term<Fun> const&() const& {
 			return _term;

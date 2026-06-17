@@ -1,5 +1,6 @@
 #include<iostream>
 #include<cassert>
+#include"util.hpp"
 #include"smt.hpp"
 
 using namespace std;
@@ -683,7 +684,7 @@ int Smt::test() try {
 	cout << !!(PostExp(0) + []{ return PostExp("x"); }) << endl;
 	cout << ite(PostExp("p"), PostExp(3) * PostExp("x") * PostExp("y"), PostExp(0)) << endl;
 	cout << !(Smt::eq(PostExp("x"),PostExp("y")) && Smt::ge(PostExp("y"),3)) << endl;
-	auto z3 = Smt::Solver::of({"z3","QF_LIA"});
+	auto z3 = Smt::Solver::of({"z3","QF_LIA",":tee","cout"});
 	auto x = z3.declare_const("x","Int");
 	auto y = z3.define_fun("y",{},Smt::INT,5);
 	z3.ass( Smt::gt( x, y + 4 ) );

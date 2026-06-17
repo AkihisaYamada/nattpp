@@ -57,11 +57,10 @@ ArgTerm<Template::Fun>& operator*=( ArgTerm<Template::Fun>& x, ArgTerm<Template:
 					return x = *xe * *ye;
 				}
 			}
-		}
-		if( ys ) {
+		} else if( ys ) {
 			auto const& ye = ys->is_smt();
 			if( ye ) {
-				if( *ye == 0 ) return x = Smt::PreExp(0);
+				if( *ye == 0 ) return x = y;
 				if( *ye == 1 ) return x;
 			}
 			vector<ArgTerm<Template::Fun>> args;
@@ -271,4 +270,7 @@ void Template::test() {
 	cout << "der⟦" << e << "⟧ = " << der_term(e) << endl;
 	cout << "Poly: " << der_intp(e) << endl;
 	cout << "Annotate: " << der_intp.annotate(e) << endl;
+	ArgTerm<Template::Fun> x = Smt::PostExp(1);
+	x *= "foo";
+	cout << x << endl;
 }

@@ -4,11 +4,12 @@ TEST_SRC=test.cpp
 TGT=natt++
 
 CLANGPP=clang++ -std=c++20 -Wfatal-errors -ftemplate-backtrace-limit=0 -Wno-switch
-GPP=gpp -std=c++20 -Wfatal-errors
+GPP=g++ -std=c++20 -Wfatal-errors
 
-CPP=${CLANGPP} -O3
-SANITIZE_CPP=${CLANGPP} -O1 -fsanitize=address,alignment,undefined -fno-omit-frame-pointer
-DEBUG_CPP=${CLANGPP} -O0 -ggdb3
+CPP=${GPP}
+BUILD_CPP=${CPP} -O3
+SANITIZE_CPP=${CPP} -O1 -fsanitize=address,alignment,undefined -fno-omit-frame-pointer
+DEBUG_CPP=${CPP} -O0 -ggdb3
 
 DEPEND=_depend
 BUILD=_build
@@ -32,7 +33,7 @@ DEBUG_MAIN=$(MAIN_SRC:%.cpp=$(DEBUG)/%.o)
 DEBUG_TEST=$(TEST_SRC:%.cpp=$(DEBUG)/%.o)
 
 ${TGT}: ${OBJS} ${MAIN}
-	${CPP} $^ -o $@
+	${BUILD_CPP} $^ -o $@
 
 sanitize: ${SANITIZE_OBJS} ${SANITIZE_MAIN}
 	${SANITIZE_CPP} $^ -o $@

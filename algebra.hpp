@@ -61,16 +61,20 @@ Algebra<F,Term<F>> const TERM = []( F const& f, std::vector<Term<F>>&& args ){
 	return app(f,std::move(args));
 };
 
+template<typename G>
+using ArgTerm = Term<Sum<G,Arg>>;
+
 template<typename F, typename G>
 struct Deriver {
 private:
-	std::function<Term<Sum<G,Arg>>(F const&)> _fun;
+	using _Map = Map<F,ArgTerm<G>>;
+	_Map _map;
 	template<typename T>
-	static T _intp_inner( Algebra<G,T> const& org, Term<Sum<G,Arg>> const& e, std::vector<T> const& vs ) {
+	static T _intp_inner( Algebra<G,T> const& org, ArgTerm<G> const& e, std::vector<T> const& vs ) {
 		auto const& [ifun,args] = *e;
 		if( auto i = ifun.template ref<1>() ) {// placeholder for applied variable arguments
 			assert( args.empty() );
-			assert( i->pos() < vs.size() );
+			if( i->pos() >= vs.size() ) throw Error("#deriver:too-few-arguments");
 			return vs[i->pos()];
 		}
 		if( auto fun = ifun.template ref<0>() ) {
@@ -83,28 +87,40 @@ private:
 		assert(false);
 	};
 	Algebra<F,Term<G>> _alg = [&]( F const& f, std::vector<Term<G>>&& args ){
-		return _intp_inner(TERM<G>,_fun(f),std::move(args));
+		if( auto const& df = _map.find(f) ) {
+			return _intp_inner(TERM<G>,*df,std::move(args));
+		}
+		return app(G(f),std::move(args));
 	};
 public:
 	template<typename... Args>
-		requires std::is_constructible_v<std::function<Term<Sum<G,Arg>>(F const&)>,Args&&...>
-	Deriver( Args&&... args ) : _fun(std::forward<Args>(args)...) {}
-	Term<Sum<G,Arg>> operator()( F const& f ) const& { return _fun(f); }
+		requires std::is_constructible_v<_Map,Args&&...>
+	Deriver( Args&&... args ) : _map(std::forward<Args>(args)...) {}
+	Deriver( std::initializer_list<typename _Map::value_type> list ) : _map(list) {}
+	Opt<ArgTerm<G> const&> find( F const& f ) const& {
+		return _map.find(f);
+	}
 	/** general substitution */
-	Term<G> operator()( Term<F> const& t ) const& {
+	Term<G> subst( Term<F> const& t ) const& {
 		return _alg(t);
 	}
 	auto derive( auto ) && = delete;
 	template<typename T>
 	Algebra<F,T> derive( Algebra<G,T>&& org ) const & {
 		return [org=std::move(org),this]( F const& f, std::vector<T>&& args ){
-			return _intp_inner(org,_fun(f),std::move(args));
+			if( auto const& df = _map.find(f) ) {
+				return _intp_inner(org,*df,std::move(args));
+			}
+			return org(f,std::move(args));
 		};
 	}
 	template<typename T>
 	Algebra<F,T> derive( Algebra<G,T> const& org ) const & {
 		return [&]( F const& f, std::vector<T>&& args ){
-			return _intp_inner(org,_fun(f),std::move(args));
+			if( auto const& df = _map.find(f) ) {
+				return _intp_inner(org,*df,std::move(args));
+			}
+			return org(f,std::move(args));
 		};
 	}
 };

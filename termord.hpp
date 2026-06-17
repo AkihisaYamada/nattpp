@@ -2,7 +2,7 @@
 #define TERMORD_HPP_
 
 #include"trs.hpp"
-#include"smt.hpp"
+#include"template.hpp"
 
 struct TermOrder {
     virtual ~TermOrder() = default;// to be able to make pointer of TermOrder 
@@ -84,7 +84,7 @@ private:
 	Smt::Solver _solver;
 	int _log;
 public:
-	Deriver<std::string, typename A::Sig> const deriver;
+	Deriver<std::string,Template::Fun> const deriver;
 	Algebra<std::string,A> const intp;
 	DerivedTermOrder(
 		Trs::Sig const& sig,
@@ -93,8 +93,8 @@ public:
 		int log_ = NONE
 	) : _solver(std::move(sol_)),
 		_log(log_),
-		deriver(A::deriver(temp,sig,_solver)),
-		intp(A::expand(deriver.derive(A::algebra(_solver)),_solver)) {
+		deriver(Template::deriver_of(temp,sig,_solver)),
+		intp(A::expand(deriver.derive(A::ALGEBRA),_solver)) {
 	}
 	Smt::Compare compare( Exp const& l, Exp const& r ) override {
 		auto const& ord = order(intp(l),intp(r),_solver);
@@ -110,7 +110,7 @@ public:
 		return _solver;
 	}
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override {
-		return os << ":intp " << A::instantiate(solver(),deriver(f));
+		return os << ":intp " << Template::instantiator(solver())(*deriver.find(f));
 	}
 	int log() override {
 		return _log;

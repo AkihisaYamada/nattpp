@@ -11,21 +11,30 @@
 #define DEBval(a) ([&]{ auto const& _r = a; DEB(_r); return _r; }())
 #define return_DEB(in,ret) DEB(in << ret); return ret;
 
-template<typename T>
-T sum( std::vector<T> const& args ) {
-	T ret = 0;
-	for( auto const& arg : args ) {
-		ret += arg;
+/** binary eta-expansion, to avoid the crazy C++ syntax... */
+#define BINARY(f) ([](auto&& x, auto&& y) -> decltype(f(std::forward<decltype(x)>(x),std::forward<decltype(y)>(y))) {\
+    return f(std::forward<decltype(x)>(x),std::forward<decltype(y)>(y));\
+})
+
+template<typename F, typename T, typename I, typename E>
+std::remove_cvref_t<T> chain( T&& x, F const& f, I it, E const& end ) {
+	std::remove_cvref_t<T> ret = std::forward<T>(x);
+	for( ; it != end; it++ ) {
+		f(ret,*it);
 	}
 	return std::move(ret);
 }
+template<typename F, typename T, typename C>
+std::remove_cvref_t<T> chain( T&& x, F const& f, C const& c ){
+	return chain(x,f,c.begin(),c.end());
+}
+template<typename T>
+T sum( std::vector<T> const& args ) {
+	return chain(T(0),BINARY(operator+=),args);
+}
 template<typename T>
 T prod( std::vector<T> const& args ) {
-	T ret = 1;
-	for( auto const& arg : args ) {
-		ret *= arg;
-	}
-	return std::move(ret);
+	return chain(T(1),BINARY(operator*=),args);
 }
 
 static Opt<int> is_int( std::string const& str ) try {
@@ -154,4 +163,10 @@ template<typename C>
 Printable print_list( C const& c ) {
 	return print_list( c.begin(), c.end() );
 }
+
+template<typename T1, typename T2>
+std::ostream& operator<<( std::ostream& os, std::pair<T1,T2> const& pair ) {
+	return os << "{" << pair.first << ", " << pair.second << "}";
+}
+
 #endif

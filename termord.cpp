@@ -1,6 +1,6 @@
-#include "poly.hpp"
 #include "termord.hpp"
-#include "exp.hpp"
+#include "template.hpp"
+#include "poly.hpp"
 
 using namespace std;
 
@@ -225,7 +225,7 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 		x.process_keys( n, solver_key || log_key );
 		set_log();
 		return std::make_unique<DerivedTrsPosOrder<Poly>>
-			( sig, trs, mono ? Poly::MONO_SUM : Poly::SUM, mk_smt(), log );
+			( sig, trs, mono ? Template::MONO_SUM : Template::SUM, mk_smt(), log );
 	} else if( f == "template" ) {
 		Exp t = x.get_arg(n);
 		x.process_keys( n, solver_key || log_key );

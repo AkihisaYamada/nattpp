@@ -2,6 +2,7 @@
 #define _SMT_HPP
 
 #include<iostream>
+#include"set.hpp"
 #include"algebra.hpp"
 #include"proc.hpp"
 
@@ -48,7 +49,13 @@ public:
 	};
 	static Logic const QF_LIA, QF_LRA, LIA, LRA, QF_NIA, QF_NRA, NIA, NRA;
 	using Fun = Sum<int,std::string>;
-	static Fun const TRUE_F, FALSE_F, AND, OR, NOT, IMP, ITE, ADD, MUL, EQ, GE, LE, GT, CONS, CAR, CDR, LIST, NTH;
+	static std::string const TRUE_F, FALSE_F, AND, OR, NOT, IMP, ITE, ADD, MUL, EQ, GE, LE, GT, CONS, CAR, CDR, LIST, NTH;
+	static Set<std::string> const FUNS;
+	static Opt<Fun> is_fun( std::string const& sym ) {
+		return FUNS.find(sym);
+	}
+	class PostExp;
+	static PostExp const TRUE, FALSE;
 	class PostExp {
 		friend Smt;
 		Term<Fun> _term;
@@ -57,7 +64,7 @@ public:
 		PostExp( PostExp const& ) = default;
 		PostExp( PostExp && ) = default;
 		PostExp() : _term(std::in_place_type<int>) {}
-		PostExp( bool b ) : _term( b ? TRUE_F : FALSE_F ) {}
+		PostExp( bool b ) : _term( b ? TRUE : FALSE ) {}
 		PostExp( int i ) : _term(i) {}
 		PostExp( unsigned int i ) : _term((int)i) {}
 		operator Term<Fun> const&() const& {
@@ -77,6 +84,8 @@ public:
 		bool operator!=( PostExp const& other ) const {
 			return _term != other._term;
 		}
+		Opt<std::string> is_app() && { return std::move(_term).fun().ref<std::string>(); }
+		Opt<std::string const&> is_app() const& { return _term.fun().ref<std::string>(); }
 		Opt<int> is_int() && { return _term.fun().ref<int>(); }
 		Opt<int const&> is_int() const & { return _term.fun().ref<int>(); }
 		int as_int() const& {
@@ -104,7 +113,6 @@ public:
 		}
 		Exp exp() const;
 	};
-	static PostExp const TRUE, FALSE;
 	static PostExp disj( auto i, auto const& end, auto const& f ) {
 		std::vector<Term<Fun>> ds;
 		for( ; i != end; i++ ) {
@@ -157,8 +165,9 @@ public:
 		Sum<PostExp,Ref<App>,Ref<Let>,Lazy> _un;
 		explicit PreExp( Sort const& sort, PreExp const& val, std::function<PreExp(PostExp const&)> body ) :
 			_un(Ref<Let>::make(val,sort,body)) {}
-		explicit PreExp( Fun const& fun, std::vector<PreExp>&& args ) :
-			_un(Ref<App>::make(fun,std::move(args))) {}
+		explicit PreExp( std::string const& fun, std::vector<PreExp>&& args ) :
+			_un(Ref<App>::make(fun,std::move(args))) {
+}
 	public:
 		PreExp( PostExp const& e ) : _un(e) {}
 		template<typename T>
@@ -177,13 +186,13 @@ public:
 			return std::move(_un).ref<Ref<App>>() >>= []( auto ref )->OptRef<App>{ return ref; };
 		}
 		Opt<App const&> app() const& {
-			return _un.ref<Ref<App>>() >>= [](auto ref)->Opt<App const&>{ return {*ref}; };
+			return _un.ref<Ref<App>>() >>= []( auto ref )->Opt<App const&>{ return {*ref}; };
 		}
 		OptRef<Let> let() && {
 			return std::move(_un).ref<Ref<Let>>() >>= []( auto ref )->OptRef<Let>{ return ref; };
 		}
 		Opt<Let const&> let() const& {
-			return _un.ref<Ref<Let>>() >>= [](auto ref)->Opt<Let const&>{ return {*ref}; };
+			return _un.ref<Ref<Let>>() >>= []( auto ref )->Opt<Let const&>{ return {*ref}; };
 		}
 		Opt<Lazy> lazy() && {
 			return {std::move(_un).ref<Lazy>()};
@@ -360,6 +369,7 @@ public:
 			return _status == UNSAT;
 		}
 		PostExp get_value( PostExp const& e ) &;
+		PreExp get_value( PreExp const& e )&;
 		static Solver of( Exp const& );
 	};
 	class Z3 : public Solver {
@@ -383,7 +393,7 @@ inline Smt::Compare order( Smt::PostExp const& x, Smt::PostExp const& y ) {
 	return {Smt::ge(x,y),Smt::gt(x,y)};
 }
 struct Smt::PreExp::App {
-	Fun fun;
+	std::string fun;
 	std::vector<PreExp> args;
 };
 struct Smt::PreExp::Let {
@@ -435,6 +445,13 @@ inline std::ostream& operator<<( std::ostream& os, Smt::PostExp const& e ) {
 std::ostream& operator<<( std::ostream& os, Smt::PreExp const& e );
 inline std::ostream& operator<<( std::ostream& os, Smt::Compare const& c ) {
 	return os << '{' << c.ge << ", " << c.gt << '}';
+}
+
+inline std::ostream& operator<<( std::ostream& os, Sum<std::string,Smt::PostExp> const& sum ){
+	if( auto const& o = sum.ref<std::string>() ) {
+		return os << *o;
+	}
+	return os << *sum.ref<Smt::PostExp>();
 }
 
 #endif

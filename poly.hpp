@@ -2,7 +2,7 @@
 #define _POLY_HPP
 #include"util.hpp"
 #include"smt.hpp"
-#include"trs.hpp"
+#include"template.hpp"
 
 struct Poly {
 	struct Error : ::Error {
@@ -19,7 +19,7 @@ struct Poly {
 		Var( std::string_view const& str, Range range ) : std::string(str), range(range) {}
 	};
 	using Sig = Sum<Add,Mul,Cond,Smt::PreExp,Var>;
-	static Algebra<Sig,Smt::PreExp> const ALGEBRA;
+	static Algebra<Template::Fun,Poly> const ALGEBRA;
 	static Range range_mult( Range r1, Range r2 ) {
 		switch(r1) {
 		case NONE:
@@ -92,15 +92,15 @@ public:
 	Poly& expand( Smt::Solver& solver );
 	/** evaluate SMT coefficients */
 	Poly eval_coeffs( Smt::Solver& solver ) const;
-	Poly operator+( Poly const& p2 ) const &;
-	Poly& operator+=( Poly const& p2 ) &;
+	friend Poly operator+( Poly const& p1, Poly const& p2 );
+	friend Poly& operator+=( Poly& p1, Poly const& p2 );
 	Poly monom_mult( Smt::PreExp const& c, Vars const& vs ) const;
-	Poly operator*( Poly const& p2 ) const;
-	Poly& operator*=( Poly const& p2 ) & {
-		return *this = *this * p2;
+	friend Poly operator*( Poly const& p1, Poly const& p2 );
+	friend Poly& operator*=( Poly& p1, Poly const& p2 ) {
+		return p1 = p1 * p2;
 	}
 	Smt::PreExp ge( Poly const& p2 ) const;
-	static Poly ite( Smt::PreExp const& c, Poly const& p1, Poly const& p2 );
+	static Poly ite( Poly const& c, Poly const& p1, Poly const& p2 );
 	friend Smt::Compare order( Poly const& p1, Poly const& p2, Smt::Solver& solver );
 	static int test();
 
@@ -118,15 +118,7 @@ public:
 		};
 	}
 
-	static Algebra<Sig,Poly> algebra( Smt::Solver& solver );
-
-	/** create deriver from expression */
-	static Deriver<std::string,Sig> deriver(
-		Exp const& e,
-		Trs::Sig const& sig,
-		Smt::Solver& solver
-	);
-	static Exp const SUM, MONO_SUM, MONO_POLY2;
+	static Algebra<Sig,Poly> sig_algebra( Smt::Solver& solver );
 
 	/** instantiate coefficients via get-value */
 	static Term<Sum<Sig,Arg>> instantiate(

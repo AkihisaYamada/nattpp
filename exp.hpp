@@ -21,11 +21,11 @@ template<typename F>
 class Term {
 	template<typename G>
 	friend class Term;
-	typedef F Fun;
+	using Fun = F;
 	/**
 	 * @brief Application. The pair of the function and the vector of arguments.
 	 */
-	typedef std::pair<Fun,std::vector<Term>> App;
+	using App = std::pair<Fun,std::vector<Term>>;
 	Ref<App> _ref;
 public:
 	/** @brief copy constructor */

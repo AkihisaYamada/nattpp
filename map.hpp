@@ -6,7 +6,7 @@
 
 template<typename K, typename T>
 class Map : std::map<K,T,std::less<>> {
-	typedef std::map<K,T,std::less<>> M;
+	using M = std::map<K,T,std::less<>>;
 public:
 	using typename M::value_type, typename M::iterator, typename M::const_iterator;
 	using M::M, M::begin, M::end, M::size, M::empty, M::erase;

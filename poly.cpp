@@ -45,35 +45,37 @@ ostream& operator<<( ostream& os, Poly const& p ) {
 	}
 	return os << ')';
 }
-Poly Poly::operator+( Poly const& p2 ) const & {
+Poly operator+( Poly const& p1, Poly const& p2 ) {
 	Poly ret;
-	iter2(_map,p2._map,[&]( auto const& it1, auto const& it2 ){
+	iter2(p1._map,p2._map,[&]( auto const& it1, auto const& it2 ){
 		ret._map.emplace( it1->first, it1->second + it2->second );
 	},[&]( auto const& it1 ){
-		ret._map.insert(*it1);
+		ret._map.emplace(*it1);
 	},[&]( auto const& it2 ){
-		ret._map.insert(*it2);
+		ret._map.emplace(*it2);
 	});
 	return std::move(ret);
 }
-Poly& Poly::operator+=( Poly const& p2 ) & {
-	iter2(_map,p2._map,[&]( auto const it1, auto const it2 ){
+Poly& operator+=( Poly& p1, Poly const& p2 ) {
+	iter2(p1._map,p2._map,[&]( auto const it1, auto const it2 ){
 		it1->second += it2->second;
 	},[&]( auto const it1 ){
 	},[&]( auto const it2 ){
-		_map.insert(*it2);
+		p1._map.emplace(*it2);
 	});
-	return *this;
+	return p1;
 }
 
-Poly Poly::ite( Smt::PreExp const& i, Poly const& p1, Poly const& p2 ) {
+Poly Poly::ite( Poly const& i, Poly const& p1, Poly const& p2 ) {
+	assert( i._map.size() == 1 );
+	Smt::PreExp ie = i._map.find({}).value_or_throw(Error("#poly:ite"));
 	Poly ret;
 	iter2(p1._map,p2._map,[&]( auto const& it1, auto const& it2 ){
-		ret._map.emplace( it1->first, Smt::ite(i,it1->second,it2->second) );
+		ret._map.emplace( it1->first, Smt::ite(ie,it1->second,it2->second) );
 	},[&]( auto const& it1 ){
-		ret._map.emplace( it1->first, Smt::ite(i,it1->second,0) );
+		ret._map.emplace( it1->first, Smt::ite(ie,it1->second,0) );
 	},[&]( auto const& it2 ){
-		ret._map.emplace( it2->first, Smt::ite(i,0,it2->second) );
+		ret._map.emplace( it2->first, Smt::ite(ie,0,it2->second) );
 	});
 	return std::move(ret);
 }
@@ -84,10 +86,10 @@ Poly Poly::monom_mult( Smt::PreExp const& c, Vars const& vs ) const {
 	}
 	return std::move(ret);
 }
-Poly Poly::operator*( Poly const& p2 ) const {
+Poly operator*( Poly const& p1, Poly const& p2 ) {
 	Poly ret;
 	for( auto const& [vs2,c2] : p2._map ) {
-		ret += monom_mult(c2,vs2);
+		ret += p1.monom_mult(c2,vs2);
 	}
 	return std::move(ret);
 }
@@ -172,7 +174,28 @@ ostream& operator<<( ostream& os, Poly::Sig const& f ) {
 	assert(false);
 }
 
-Algebra<Poly::Sig,Poly> Poly::algebra( Smt::Solver& solver ) {
+Algebra<Template::Fun,Poly> const Poly::ALGEBRA =
+	[]( Template::Fun const& f, std::vector<Poly> const& args )->Poly {
+	if( auto const& smt = f.is_smt() ) {
+		return *smt;
+	}
+	if( auto const& sym = f.is_fun() ) {
+		if( *sym == Smt::ADD ){
+			return sum(args);
+		} else if( *sym == Smt::MUL ) {
+			return prod(args);
+		} else if( *sym == Smt::ITE ) {
+			assert( args.size() == 3 );
+			return ite(args[0],args[1],args[2]);
+		} else {
+			assert( args.empty() );
+			return Var(*sym,Poly::POS);
+		}
+	}
+	throw Error("#poly:template-algebra");
+};
+
+Algebra<Poly::Sig,Poly> Poly::sig_algebra( Smt::Solver& solver ) {
 	return [&solver]( Poly::Sig const& f, std::vector<Poly> const& args )->Poly{
 		if( f.ref<Add>() ) {
 			return sum(args);
@@ -192,11 +215,6 @@ Algebra<Poly::Sig,Poly> Poly::algebra( Smt::Solver& solver ) {
 		}
 		assert(false);
 	};
-}
-
-template<typename T1, typename T2>
-ostream& operator<<( ostream& os, pair<T1,T2> const& pair ) {
-	return os << "〈" << pair.first << ", " << pair.second << "〉";
 }
 
 Term<Sum<Poly::Sig,Arg>> Poly::instantiate(
@@ -319,26 +337,18 @@ int Poly::test() {
 	auto c2 = z3.declare_const("c2",Smt::INT);
 	auto wa = z3.declare_const("wa",Smt::INT);
 	auto wb = z3.declare_const("wb",Smt::INT);
-	auto hsubst = Deriver<string,Sig>( [&]( string const& f ){
-		if( f == "f" ) {
-			return Term<Sum<Sig,Arg>>{
-				ADD,
-				Term<Sum<Sig,Arg>>{MUL,c1,Arg(0)},
-				Term<Sum<Sig,Arg>>{MUL,c2,Arg(1)}
-			};
-		}
-		if( f == "a" ) {
-			return Term<Sum<Sig,Arg>>{ADD,Arg(0),wa};
-		}
-		if( f == "b" ) {
-			return Term<Sum<Sig,Arg>>{ADD,Arg(0),wb};
-		}
-		return Term<Sum<Sig,Arg>>(Poly::Var(f,POS));
-	} );
+	auto hsubst = Deriver<string,Template::Fun>{
+		{ "f", Term<Sum<Template::Fun,Arg>>(
+			string("+"),
+			Term<Sum<Template::Fun,Arg>>("*",c1,Arg(0)),
+			Term<Sum<Template::Fun,Arg>>("*",c2,Arg(1))
+		)},
+		{ "a", Term<Sum<Template::Fun,Arg>>(string("+"),Arg(0),wa) },
+		{ "b", Term<Sum<Template::Fun,Arg>>(string("+"),Arg(0),wb) }
+	};
 	auto e = Exp{"f",Exp{"a","x"},Exp{"b","x"}};
-	cout << "⟦" << e << "⟧ = " << hsubst.derive(TERM<Sig>)(e) << endl;
-	auto z3poly = Poly::algebra(z3);
-	cout << hsubst.derive(z3poly)(e) << endl;
+	cout << "⟦" << e << "⟧ = " << hsubst.derive(TERM<Template::Fun>)(e) << endl;
+	cout << hsubst.derive(Poly::ALGEBRA)(e) << endl;
 	Poly x = Poly::Var("x",Poly::POS);
 	Poly y = Poly::Var("y",Poly::NEG);
 	auto c = z3.declare_const("c",Smt::INT);
@@ -346,21 +356,6 @@ int Poly::test() {
 	Poly p = x * c + d, q = x * 5 + 3;
 	cout << "Poly: " << p << " >= " << q << endl;
 	cout << "Smt: " << z3.expand(p.ge(q)) << endl;
-	Trs::Sig sig;
-	sig.emplace("f",2);
-	sig.emplace("g",1);
-	sig.emplace("a",0);
-	auto der = deriver(SUM,sig,z3);
-	auto der_intp = expand(der.derive(z3poly),z3);
-	e = Exp{"f",Exp{"g","x"},"a"};
-	for( auto p : sig ) {
-		cout << "der(" << p.first << ") = " << der(p.first) << endl;
-	}
-	auto der_term = der.derive(TERM<Sig>);
-	cout << "der⟦" << "(g x)" << "⟧ = " << der_term(Exp{"g","x"}) << endl;
-	cout << "der⟦a⟧ = " << der_term("a") << endl;
-	cout << "der⟦" << e << "⟧ = " << der_term(e) << endl;
-	cout << "Poly: " << der_intp(e) << endl;
-	cout << "Annotate: " << der_intp.annotate(e) << endl;
+
 	return 0;
 }

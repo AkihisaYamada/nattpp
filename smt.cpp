@@ -17,7 +17,7 @@ Smt::Logic const Smt::QF_NRA = {"QF_NRA",false,Smt::REAL};
 Smt::Logic const Smt::NIA = {"NIA",false,Smt::INT};
 Smt::Logic const Smt::NRA = {"NRA",false,Smt::REAL};
 
-Smt::Fun const
+std::string const
 	Smt::TRUE_F = "true",
 	Smt::FALSE_F = "false",
 	Smt::AND = "and",
@@ -36,6 +36,10 @@ Smt::Fun const
 	Smt::CDR = "cdr",
 	Smt::LIST = "list",
 	Smt::NTH = "nth";
+
+Set<std::string> const Smt::FUNS = {
+	TRUE_F, FALSE_F, AND, OR, NOT, IMP, ITE, ADD, MUL, EQ, GE, LE, GT, CONS, CAR, CDR, LIST, NTH
+};
 
 Smt::PostExp const Smt::TRUE = PostExp(TRUE_F);
 Smt::PostExp const Smt::FALSE = PostExp(FALSE_F);
@@ -106,14 +110,14 @@ Smt::PostExp Smt::PostExp::conj( Smt::PostExp const& y ) const& {
 	if( *this == TRUE || y == FALSE ) return y;
 	if( *this == FALSE || y == TRUE ) return *this;
 	std::vector<Term<Fun>> cs;
-	if( _term.fun() == AND ) {
+	if( is_app().contains(AND) ) {
 		for( auto const& c : _term.args() ) {
 			cs.push_back(c);
 		}
 	} else {
 		cs.push_back(_term);
 	}
-	if( y._term.fun() == AND ) {
+	if( y.is_app().contains(AND) ) {
 		for( auto const& c : y._term.args() ) {
 			cs.push_back(c);
 		}
@@ -127,14 +131,14 @@ Smt::PostExp Smt::PostExp::disj( Smt::PostExp const& y ) const& {
 	if( *this == TRUE || y == FALSE ) return *this;
 	if( *this == FALSE || y == TRUE ) return y;
 	std::vector<Term<Fun>> ds;
-	if( _term.fun() == OR ) {
+	if( is_app().contains(OR) ) {
 		for( auto const& d : _term.args() ) {
 			ds.push_back(d);
 		}
 	} else {
 		ds.push_back(_term);
 	}
-	if( y._term.fun() == OR ) {
+	if( y.is_app().contains(OR) ) {
 		for( auto const& d : y._term.args() ) {
 			ds.push_back(d);
 		}
@@ -147,14 +151,14 @@ Smt::PostExp Smt::PostExp::disj( Smt::PostExp const& y ) const& {
 Smt::PostExp Smt::PostExp::imp( Smt::PostExp const& y ) const {
 	if( *this == FALSE ) return TRUE;
 	if( *this == TRUE ) return y;
+	if( y == TRUE ) return TRUE;
 	if( y == FALSE ) return !*this;
-	if( _term.fun() == NOT ) {
+	if( is_app().contains(NOT) ) {
 		assert( _term.args().size() == 1 );
 		return _term.arg(0) || y;
 	}
-	auto& yfun = y._term.fun();
-	auto yargs = y._term.args();
-	if( yfun == OR ) {
+	if( y.is_app().contains(OR) ) {
+		auto yargs = y._term.args();
 		yargs.push_back(!*this);
 		return app(OR,std::move(yargs));
 	}
@@ -204,7 +208,7 @@ Smt::PostExp Smt::ite( PostExp const& i, PostExp const& t, PostExp const& e ) {
 	return Term<Fun>(ITE,i,t,e);
 }
 Opt<std::tuple<Smt::PostExp,Smt::PostExp,Smt::PostExp>> Smt::PostExp::is_ite() const & {
-	if( _term.fun() == ITE && this->_term.args().size() == 3 ) {
+	if( is_app().contains(ITE) && this->_term.args().size() == 3 ) {
 		return {{this->_term.args()[0],this->_term.args()[1],this->_term.args()[2]}};
 	}
 	return {};
@@ -330,24 +334,36 @@ Smt::PostExp Smt::Solver::get_value( PostExp const& e ) & {
 	_reader.close();
 	return ret;
 }
+Smt::PreExp Smt::Solver::get_value( PreExp const& e ) & {
+	if( auto const& o = e.post() ) return get_value(*o);
+	if( auto const& o = e.app() ) {
+		auto const& [f,args] = *o;
+		if( f == CONS ) {
+			auto vargs = std::vector<PreExp>();
+			for( auto const& arg : args ) {
+				vargs.emplace_back(get_value(arg));
+			}
+			return PreExp(CONS,std::move(vargs));
+		}
+	}
+	assert(false);
+}
 
 std::string Smt::Solver::_make_fresh() & {
 	return string("_") + to_string(_var_count++);
 }
 
 Smt::PostExp Smt::car( PostExp const& arg ) {
-	auto& fun = arg._term.fun();
-	auto& args = arg._term.args();
-	if( fun == CONS && args.size() == 2 ) {
-		return args[0];
+	if( arg.is_app().contains(CONS) ) {
+		auto& args = arg._term.args();
+		if( args.size() == 2 ) return args[0];
 	}
 	throw Error{"#car-on",arg.exp()};
 }
 Smt::PostExp Smt::cdr( PostExp const& arg ) {
-	auto& fun = arg._term.fun();
-	auto& args = arg._term.args();
-	if( fun == CONS && args.size() == 2 ) {
-		return args[1];
+	if( arg.is_app().contains(CONS) ) {
+		auto& args = arg._term.args();
+		if( args.size() == 2 ) return args[1];
 	}
 	throw Error{"#cdr-on",arg.exp()};
 }
@@ -358,10 +374,9 @@ Smt::PostExp Smt::PostExp::operator!() const {
 	if( *this == FALSE ) {
 		return TRUE;
 	}
-	auto& fun = _term.fun();
-	auto& args = _term.args();
-	if( fun == NOT ) {
-		return args[0];
+	if( is_app().contains(NOT) ) {
+		if( _term.args().size() != 1 ) throw Error("#smt:bad-not");
+		return _term.arg(0);
 	}
 	return Term<Fun>(NOT,*this);
 }
@@ -475,11 +490,11 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 		} else if( fun == ADD ) {
 			for( auto const& arg : args ) {
 				auto const& earg = expand(arg);
-				auto& afun = earg._term.fun();
-				if( afun == Fun(0) ) {
-					continue;
-				}
-				if( afun == ADD ) {
+				if( auto const& oi = earg.is_int() ) {
+					if( *oi == 0 ) {
+						continue;
+					}
+				} else if( earg.is_app().contains(ADD) ) {
 					for( auto& eaarg : earg._term.args() ) {
 						eargs.push_back(eaarg);
 					}
@@ -494,26 +509,24 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 		} else if( fun == MUL ) {
 			assert( args.size() == 2 );
 			auto const& earg1 = expand(args[0]);
-			auto const& efun1 = earg1._term.fun();
-			if( auto num1 = efun1.ref<int>() ) {
+			if( auto num1 = earg1.is_int() ) {
 				if( *num1 == 0 ) return 0;
 				if( *num1 == 1 ) return expand(args[1]);
 			}
 			auto const& earg2 = expand(args[1]);
-			auto const& efun2 = earg2._term.fun();
-			if( auto num2 = efun2.ref<int>() ) {
+			if( auto num2 = earg2.is_int() ) {
 				if( *num2 == 0 ) return 0;
 				if( *num2 == 1 ) return earg1;
 			}
-			auto const& eargs1 = earg1._term.args();
 			if( logic().linear() ) {
-				if( efun1 == ITE ) {
+				if( earg1.is_app().contains(ITE) ) {
+					auto const& eargs1 = earg1._term.args();
 					assert( eargs1.size() == 3 );
 					auto v = let(logic().base_sort(),earg2);//TODO
 					return ite( eargs1[0], Smt::mul(eargs1[1],v,true), Smt::mul(eargs1[2],v,true) );
 				}
-				auto const& eargs2 = earg2._term.args();
-				if( efun2 == ITE ) {
+				if( earg2.is_app().contains(ITE) ) {
+					auto const& eargs2 = earg2._term.args();
 					assert( eargs2.size() == 3 );
 					auto v = let(logic().base_sort(),earg1);//TODO
 					return ite( eargs2[0], Smt::mul(v,eargs2[1],true), Smt::mul(v,eargs2[2],true) );
@@ -543,16 +556,16 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 	assert(false);
 };
 Smt::PostExp Smt::Solver::let( Sort const& sort, PostExp const& val ) & {
-	auto const& vfun = val._term.fun();
-	if( vfun.ref<int>() ) {
+	if( val.is_int() ) {
 		return val;
 	}
+	auto vfun = *val.is_app();
 	auto const& vargs = val._term.args();
 	if( _logic._linear ) {
-		if( vfun.ref<string>().contains("*") ) {
+		if( vfun == MUL ) {
 			return val;
 		}
-		if( vfun.ref<string>().contains("ite") ) {
+		if( vfun == ITE ) {
 			auto i = let(BOOL,vargs[0]);
 			auto t = let(sort,vargs[1]);
 			auto e = let(sort,vargs[2]);

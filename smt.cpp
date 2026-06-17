@@ -36,7 +36,8 @@ std::string const
 	Smt::CAR = "car",
 	Smt::CDR = "cdr",
 	Smt::LIST = "list",
-	Smt::NTH = "nth";
+	Smt::NTH = "nth",
+	Smt::MAX = "max";
 
 Set<std::string> const Smt::FUNS = {
 	TRUE_F, FALSE_F, AND, OR, NOT, IMP, ITE, ADD, MUL, EQ, GE, LE, GT, CONS, CAR, CDR, LIST, NTH

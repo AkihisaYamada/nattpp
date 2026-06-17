@@ -223,18 +223,18 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 	} else if( f == "sum" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTrsPosOrder<Poly>>
+		return std::make_unique<DerivedTrsPosOrder<MPoly>>
 			( sig, trs, mono ? Template::MONO_SUM : Template::SUM, mk_smt(), log );
 	} else if( f == "poly" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTrsPosOrder<Poly>>
+		return std::make_unique<DerivedTrsPosOrder<MPoly>>
 			( sig, trs, mono ? Template::MONO_POLY2 : Template::SUM, mk_smt(), log );
 	} else if( f == "template" ) {
 		Exp t = x.get_arg(n);
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTrsPosOrder<Poly>>(sig,trs,t,mk_smt(),log);
+		return std::make_unique<DerivedTrsPosOrder<MPoly>>(sig,trs,t,mk_smt(),log);
 	} else if( f == "path-order" ) {
 		auto w = x.gets_arg(n);
 		Opt<std::function<PathOrder::Status(Trs::Rank const&)>> status;

@@ -7,9 +7,11 @@ struct Template {
 	Template() = delete;
 	struct Fun {
 	private:
-		Sum<std::string,Smt::PreExp> _sum;
+		using _Sum = Sum<std::string,Smt::PreExp>;
+		_Sum _sum;
 	public:
 		template<typename... Args>
+			requires std::is_constructible_v<_Sum,Args...>
 		Fun( Args&&... args ) : _sum(std::forward<Args>(args)...) {}
 		Opt<std::string const&> is_fun() const& {
 			return _sum.ref<std::string>();
@@ -23,7 +25,7 @@ struct Template {
 	/** instantiate SMT expressions via get_value */
 	static Algebra<Sum<Fun,Arg>,ArgTerm<Fun>> instantiator( Smt::Solver& solver );
 
-	static ::Exp const SUM, MONO_SUM, MONO_POLY2;
+	static ::Exp const SUM, MONO_SUM, MONO_POLY2, SIMP_MAX;
 
 	static void test();
 };
@@ -35,6 +37,7 @@ ArgTerm<Template::Fun> ite(
 	ArgTerm<Template::Fun> const& t,
 	ArgTerm<Template::Fun> const& e
 );
+ArgTerm<Template::Fun>& max_eq( ArgTerm<Template::Fun>& x, ArgTerm<Template::Fun> const& y );
 
 inline std::ostream& operator<<( std::ostream& os, Template::Fun const& sym ) {
 	if( auto const& e = sym.is_smt() ) {

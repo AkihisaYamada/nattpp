@@ -45,6 +45,18 @@ ostream& operator<<( ostream& os, Poly const& p ) {
 	}
 	return os << ')';
 }
+std::ostream& operator<<( std::ostream& os, MPoly const& p ) {
+	switch( p.set().size() ) {
+	case 0: return os << "-inf";
+	case 1: return os << p.set()[0];
+	}
+	os << "(join";
+	for( auto const& x : p.set() ) {
+		os << ' ' << x;
+	}
+	return os << ')';
+}
+
 Poly operator+( Poly const& p1, Poly const& p2 ) {
 	Poly ret;
 	iter2(p1._map,p2._map,[&]( auto const& it1, auto const& it2 ){
@@ -66,7 +78,7 @@ Poly& operator+=( Poly& p1, Poly const& p2 ) {
 	return p1;
 }
 
-Poly Poly::ite( Poly const& i, Poly const& p1, Poly const& p2 ) {
+Poly ite( Poly const& i, Poly const& p1, Poly const& p2 ) {
 	assert( i._map.size() == 1 );
 	Smt::PreExp ie = i._map.find({}).value_or_throw(Error("#poly:ite"));
 	Poly ret;
@@ -154,8 +166,9 @@ ostream& operator<<( ostream& os, Poly::Sig const& f ) {
 	assert(false);
 }
 
-Algebra<Template::Fun,Poly> const Poly::ALGEBRA =
-	[]( Template::Fun const& f, std::vector<Poly> const& args )->Poly {
+
+Algebra<Template::Fun,MPoly> const MPoly::ALGEBRA =
+	[]( Template::Fun const& f, std::vector<MPoly> const& args )->MPoly {
 	if( auto const& smt = f.is_smt() ) {
 		return *smt;
 	}
@@ -169,7 +182,7 @@ Algebra<Template::Fun,Poly> const Poly::ALGEBRA =
 			return ite(args[0],args[1],args[2]);
 		} else {
 			assert( args.empty() );
-			return Var(*sym,Poly::POS);
+			return Poly::Var(*sym,Poly::POS);
 		}
 	}
 	throw Error("#poly:template-algebra");
@@ -190,6 +203,17 @@ MPoly operator*( MPoly const& x, MPoly const& y ) {
 	for( auto const& xp : x._set ) {
 		for( auto const& yp : y._set ) {
 			ret._set.emplace_back( xp * yp );
+		}
+	}
+	return std::move(ret);
+}
+MPoly ite( MPoly const& cm, MPoly const& tm, MPoly const& em ) {
+	assert( cm.set().size() == 1 );
+	auto const& cp = cm.set()[0];
+	MPoly ret;
+	for( auto const& tp : tm.set() ) {
+		for( auto const& ep : em.set() ) {
+			ret._set.emplace_back(ite(cp,tp,ep));
 		}
 	}
 	return std::move(ret);
@@ -232,7 +256,7 @@ int Poly::test() {
 	};
 	auto e = Exp{"f",Exp{"a","x"},Exp{"b","x"}};
 	cout << "⟦" << e << "⟧ = " << hsubst.derive(TERM<Template::Fun>)(e) << endl;
-	cout << hsubst.derive(Poly::ALGEBRA)(e) << endl;
+	cout << hsubst.derive(MPoly::ALGEBRA)(e) << endl;
 	Poly x = Poly::Var("x",Poly::POS);
 	Poly y = Poly::Var("y",Poly::NEG);
 	auto c = z3.declare_const("c",Smt::INT);

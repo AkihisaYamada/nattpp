@@ -175,7 +175,7 @@ public:
 	};
 	static Logic const QF_LIA, QF_LRA, LIA, LRA, QF_NIA, QF_NRA, NIA, NRA;
 	using Fun = Sum<std::string,Val>;
-	static std::string const TRUE_F, FALSE_F, AND, OR, NOT, IMP, ITE, ADD, MUL, EQ, GE, LE, GT, CONS, CAR, CDR, LIST, NTH;
+	static std::string const TRUE_F, FALSE_F, AND, OR, NOT, IMP, ITE, ADD, MUL, EQ, GE, LE, GT, CONS, CAR, CDR, LIST, NTH, MAX;
 	static Set<std::string> const FUNS;
 	static Opt<Fun> is_fun( std::string const& sym ) {
 		return FUNS.find(sym) >>= []( auto const& str ){ return Opt<Fun>::make(str); };

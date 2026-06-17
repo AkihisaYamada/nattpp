@@ -19,7 +19,6 @@ struct Poly {
 		Var( std::string_view const& str, Range range ) : std::string(str), range(range) {}
 	};
 	using Sig = Sum<Add,Mul,Cond,Smt::PreExp,Var>;
-	static Algebra<Template::Fun,Poly> const ALGEBRA;
 	static Range range_mult( Range r1, Range r2 ) {
 		switch(r1) {
 		case NONE:
@@ -71,8 +70,7 @@ private:
 public:
 	Poly() {}
 	template<typename T> requires std::is_constructible_v<Smt::PreExp,T>
-	Poly( T const& c ) : _map{{{},c}} {}
-	Poly( int i ) : _map{{{},Smt::PreExp(i)}} {}
+	Poly( T const& c ) : _map{{{},Smt::PreExp(c)}} {}
 	Poly( Var const& v ) : _map{{v,Smt::PreExp(1)}} {}
 	Map<Vars,Smt::PreExp> const& map() const & {
 		return _map;
@@ -91,7 +89,7 @@ public:
 		return p1 = p1 * p2;
 	}
 	Smt::PreExp ge( Poly const& p2 ) const;
-	static Poly ite( Poly const& c, Poly const& p1, Poly const& p2 );
+	friend Poly ite( Poly const& c, Poly const& p1, Poly const& p2 );
 	friend Smt::Compare order( Poly const& p1, Poly const& p2, Smt::Solver& solver );
 	static int test();
 };
@@ -100,12 +98,21 @@ struct MPoly {
 private:
 	std::vector<Poly> _set;
 public:
+	/** -∞ */
+	MPoly() {}
+	template<typename T> requires std::is_constructible_v<Poly,T>
+	MPoly( T&& arg ) { _set.emplace_back( std::forward<T>(arg) ); }
 	MPoly& join( MPoly const& y ) & {
 		for( auto const& yc : y._set ) {
 			_set.emplace_back(yc);
 		}
 		return *this;
 	}
+	std::vector<Poly> const& set() const& {
+		return _set;
+	}
+	static Algebra<Template::Fun,MPoly> const ALGEBRA;
+	friend MPoly ite( MPoly const& c, MPoly const& p1, MPoly const& p2 );
 	friend MPoly operator+( MPoly const& x, MPoly const& y );
 	friend MPoly& operator+=( MPoly& x, MPoly const& y ) {
 		return x = x + y;
@@ -126,5 +133,7 @@ std::ostream& operator<<( std::ostream& os, Poly::Var const& v );
 std::ostream& operator<<( std::ostream& os, Poly::Vars const& vs );
 
 std::ostream& operator<<( std::ostream& os, Poly const& p );
+
+std::ostream& operator<<( std::ostream& os, MPoly const& p );
 
 #endif

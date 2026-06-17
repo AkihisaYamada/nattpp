@@ -98,7 +98,26 @@ ArgTerm<Template::Fun> ite(
 	}
 	return {Smt::ITE,i,t,e};
 }
-
+ArgTerm<Template::Fun>& max_eq( ArgTerm<Template::Fun>& x, ArgTerm<Template::Fun> const& y ) {
+	auto const& [xsym,xargs] = *x;
+	auto const& [ysym,yargs] = *y;
+	std::vector<ArgTerm<Template::Fun>> args;
+	if( auto const& xf = xsym.ref<Template::Fun>(); xf && xf->is_fun().contains(Smt::MAX) ) {
+		for( auto const& xarg : xargs ) {
+			args.emplace_back(xarg);
+		}
+	} else {
+		args.emplace_back(x);
+	}
+	if( auto const& yf = ysym.ref<Template::Fun>(); yf && yf->is_fun().contains(Smt::MAX) ) {
+		for( auto const& yarg : yargs ) {
+			args.emplace_back(yarg);
+		}
+	} else {
+		args.emplace_back(y);
+	}
+	return x = app(Smt::MAX,std::move(args));
+}
 
 Algebra<Sum<Template::Fun,Arg>,ArgTerm<Template::Fun>> Template::instantiator( Smt::Solver& solver ) {
 	return [&]( Sum<Fun,Arg> const& sym, std::vector<ArgTerm<Fun>>&& args )->ArgTerm<Fun>{
@@ -121,6 +140,9 @@ Algebra<Sum<Template::Fun,Arg>,ArgTerm<Template::Fun>> Template::instantiator( S
 		if( f == Smt::ITE ) {
 			assert( args.size() == 3 );
 			return ite(args[0],args[1],args[2]);
+		}
+		if( f == Smt::MAX ) {
+			
 		}
 		std::vector<ArgTerm<Fun>> targs;
 		for( auto&& arg : args ) {
@@ -208,47 +230,25 @@ Template::deriver_of( Exp const& e, Trs::Sig const& sig, Smt::Solver& solver ) {
 	}
 	return std::move(map);
 }
-
+static Exp _posvar = Exp("var",":constrain",Exp(">=","_","0"));
+static Exp _1_or_2 = Exp("ite",Exp("var",":sort","Bool"),"2","1");
+static Exp _0_or_1 = Exp("ite",Exp("var",":sort","Bool"),"1","0");
 Exp const Template::MONO_SUM = Exp{
-	Exp("+",Exp("args","+","arg"),Exp("var",":constrain",Exp(">=","_","0")))
+	Exp("+",Exp("args","+","arg"),_posvar)
 };
-
-Exp const Template::MONO_POLY2 = Exp(
-	"arity",
-	Exp("0",Exp("var",":constrain",Exp(">=","_","0"))),
-	Exp("1",
-		Exp("+",
-			Exp("*",Exp("ite",Exp("var",":sort","Bool"),"2","1"),"arg"),
-			Exp("var",":constrain",Exp(">=","_","0"))
-		)
-	),
-	Exp("otherwise",
-		Exp("+",
-			Exp("args","+",
-				Exp("*",Exp("ite",Exp("var",":sort","Bool"),"2","1"),"arg")
-			),
-			Exp("var",":constrain",Exp(">=","_","0"))
-		)
-	)
+Exp const Template::MONO_POLY2 = Exp("arity",
+	Exp("0",_posvar),
+	Exp("1",Exp("+", Exp("*",_1_or_2,"arg"), _posvar)),
+	Exp("otherwise",Exp("+",Exp("args","+",Exp("*",_1_or_2,"arg")),_posvar))
 );
-
-Exp const Template::SUM = Exp(
-	"arity",
-	Exp("0",Exp("var",":constrain",Exp(">=","_","0"))),
-	Exp("1",
-		Exp("+",
-			Exp("*",Exp("ite",Exp("var",":sort","Bool"),"1","0"),"arg"),
-			Exp("var",":constrain",Exp(">=","_","0"))
-		)
-	),
-	Exp("otherwise",
-		Exp("+",
-			Exp("args","+",
-				Exp("*",Exp("ite",Exp("var",":sort","Bool"),"1","0"),"arg")
-			),
-			Exp("var",":constrain",Exp(">=","_","0"))
-		)
-	)
+Exp const Template::SIMP_MAX = Exp("arity",
+	Exp("0",_posvar),
+	Exp("otherwise",Exp("args","max",Exp("+","arg",_posvar)))
+);
+Exp const Template::SUM = Exp("arity",
+	Exp("0",_posvar),
+	Exp("1",Exp("+",Exp("*",_0_or_1,"arg"),_posvar)),
+	Exp("otherwise",Exp("+",Exp("args","+",Exp("*",_0_or_1,"arg")),_posvar))
 );
 
 void Template::test() {
@@ -259,12 +259,12 @@ void Template::test() {
 	sig.emplace("g",1);
 	sig.emplace("a",0);
 	auto der = deriver_of(SUM,sig,z3);
-	auto der_intp = der.derive(Poly::ALGEBRA);
+	auto der_intp = der.derive(MPoly::ALGEBRA);
 	auto e = Exp("f",Exp("g","x"),"a");
 	for( auto [f,rank] : sig ) {
 		cout << "der(" << f << ") = " << *der.find(f) << endl;
 	}
-	auto der_term = der.derive(Poly::ALGEBRA);
+	auto der_term = der.derive(MPoly::ALGEBRA);
 	cout << "der⟦" << "(g x)" << "⟧ = " << der_term(Exp("g","x")) << endl;
 	cout << "der⟦a⟧ = " << der_term("a") << endl;
 	cout << "der⟦" << e << "⟧ = " << der_term(e) << endl;

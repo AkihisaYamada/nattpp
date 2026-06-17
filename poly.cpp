@@ -135,26 +135,6 @@ Smt::Compare order( Poly const& p1, Poly const& p2, Smt::Solver& solver ) {
 	return { val && Smt::ge(c1,c2), val && Smt::gt(c1,c2) };
 }
 
-Poly& Poly::expand( Smt::Solver& solver ) {
-	for( auto& [vars,coeff] : _map ) {
-		if( !solver.logic().linear() || vars.vars().empty() ) {
-			coeff = solver.let(coeff);
-		} else {
-			coeff = solver.expand(coeff);
-		}
-	}
-	return *this;
-}
-Poly Poly::eval_coeffs( Smt::Solver& solver ) const {
-	Poly ret;
-	for( auto& [vars,coeff] : _map ) {
-		auto post = coeff.is_post();
-		assert(post);
-		ret._map.emplace(vars,solver.get_value(*post));
-	}
-	return ret;
-}
-
 ostream& operator<<( ostream& os, Poly::Sig const& f ) {
 	if( f.ref<Poly::Add>() ) {
 		return os << '+';

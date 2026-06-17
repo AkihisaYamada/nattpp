@@ -83,15 +83,6 @@ public:
 		}
 		return Smt::PreExp(0);
 	}
-	/**
-	 * @brief Turn coefficients into temporary variables
-	 * 
-	 * @param solver 
-	 * @return Poly& 
-	 */
-	Poly& expand( Smt::Solver& solver );
-	/** evaluate SMT coefficients */
-	Poly eval_coeffs( Smt::Solver& solver ) const;
 	friend Poly operator+( Poly const& p1, Poly const& p2 );
 	friend Poly& operator+=( Poly& p1, Poly const& p2 );
 	Poly monom_mult( Smt::PreExp const& c, Vars const& vs ) const;
@@ -116,7 +107,13 @@ public:
 		return *this;
 	}
 	friend MPoly operator+( MPoly const& x, MPoly const& y );
+	friend MPoly& operator+=( MPoly& x, MPoly const& y ) {
+		return x = x + y;
+	}
 	friend MPoly operator*( MPoly const& x, MPoly const& y );
+	friend MPoly& operator*=( MPoly& x, MPoly const& y ) {
+		return x = x * y;
+	}
 	friend Smt::Compare order( MPoly const& x, MPoly const& y, Smt::Solver& solver );
 };
 

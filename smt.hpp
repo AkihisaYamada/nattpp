@@ -2,6 +2,7 @@
 #define _SMT_HPP
 
 #include<iostream>
+#include <numeric>
 #include"set.hpp"
 #include"algebra.hpp"
 #include"proc.hpp"
@@ -21,6 +22,131 @@ public:
 		static BaseSort of( Exp const& );
 		friend Smt;
 		bool operator==( Smt::BaseSort const& y ) const& = default;
+	};
+	class Rat {
+		int _numen, _denom;
+	public:
+		Rat( int i ) : _numen(i), _denom(1) {}
+		Rat( int numen, int denom ) {
+			int gcd = std::gcd(numen,denom);
+			_numen = numen/gcd;
+			_denom = denom/gcd;
+		}
+		friend bool operator==( Rat const&, Rat const& ) = default;
+		int numen() const { return _numen; }
+		int denom() const { return _denom; }
+		friend Rat operator+( Rat const& x, Rat const& y ) {
+			int n = std::gcd(x._denom,y._denom);
+			int m = y._denom/n;
+			return Rat( x._numen * m + y._numen * (x._denom / n), x._denom * m );
+		}
+		friend Rat& operator+=( Rat& x, Rat const& y ) {
+			return x = x + y;
+		}
+		friend Rat& operator*=( Rat& x, Rat const& y ) {
+			int ngcd = std::gcd(x._numen,y._denom);
+			int dgcd = std::gcd(x._denom,y._numen);
+			x._numen = x._numen / ngcd * (y._numen / dgcd);
+			x._denom = x._denom / dgcd * (y._denom / ngcd);
+			return x;
+		}
+		friend Rat operator*( Rat const& x, Rat const& y ) {
+			Rat z = x;
+			return z+=y;
+		}
+		friend auto operator<=>(Rat const& x, Rat const& y) {
+			return (long long)x._numen * y._denom <=> (long long)y._numen * x._denom;
+		}
+	};
+	class Val {
+		Sum<int,Rat> _sum;
+	public:
+		Val( int i ) : _sum(i) {}
+		Val( Rat r ) : _sum(r) {}
+		Opt<int> is_int() const& { return _sum.ref<int>(); }
+		Opt<int&> is_int()& { return _sum.ref<int>(); }
+		Opt<Rat const&> is_rat() const& { return _sum.ref<Rat>(); }
+		Opt<Rat&> is_rat()& { return _sum.ref<Rat>(); }
+		friend bool operator==( Val const& x, Val const& y ) {
+			if( auto const& xi = x.is_int() ) {
+				if( auto const& yi = y.is_int() ) {
+					return *xi == *yi;
+				} else if( auto const& yr = y.is_rat() ) {
+					return yr->denom() == 1 && *xi == yr->numen();
+				}
+			} else if( auto const& xr = x.is_rat() ) {
+				if( auto const& yi = y.is_int() ) {
+					return xr->denom() == 1 && xr->numen() == *yi;
+				} else if( auto const& yr = y.is_rat() ) {
+					return *xr == *yr;
+				}
+			}
+			assert(false);
+		}
+		friend auto operator<=>( Val const& x, Val const& y ) {
+			if( auto xi = x.is_int() ) {
+				if( auto yi = y.is_int() ) {
+					return *xi <=> *yi;
+				} else if( auto yr = y.is_rat() ) {
+					return *xi <=> *yr;
+				}
+			} else if( auto xr = x.is_rat() ) {
+				if( auto yi = y.is_int() ) {
+					return *xr <=> *yi;
+				} else if( auto yr = y.is_rat() ) {
+					return *xr <=> *yr;
+				}
+			}
+			assert(false);
+		}
+		friend Val& operator+=( Val& x, Val const& y ) {
+			if( auto xi = x._sum.ref<int>() ) {
+				if( auto yi = y._sum.ref<int>() ) {
+					*xi += *yi;
+					return x;
+				}
+				if( auto yr = y._sum.ref<Rat>() ) {
+					return x = *xi + *yr;
+				}
+			} else if( auto xr = x._sum.ref<Rat>() ) {
+				if( auto yi = y._sum.ref<int>() ) {
+					*xr += *yi;
+					return x;
+				}
+				if( auto yr = y._sum.ref<Rat>() ) {
+					*xr += *yr;
+					return x;
+				}
+			}
+			assert(false);
+		}
+		friend Val operator+( Val x, Val const& y ) {
+			return x+=y;
+		}
+		friend Val& operator*=( Val& x, Val const& y ) {
+			if( auto xi = x._sum.ref<int>() ) {
+				if( auto yi = y._sum.ref<int>() ) {
+					*xi *= *yi;
+					return x;
+				}
+				if( auto yr = y._sum.ref<Rat>() ) {
+					return x = *xi * *yr;
+				}
+			} else if( auto xr = x._sum.ref<Rat>() ) {
+				if( auto yi = y._sum.ref<int>() ) {
+					*xr *= *yi;
+					return x;
+				}
+				if( auto yr = y._sum.ref<Rat>() ) {
+					*xr *= *yr;
+					return x;
+				}
+			}
+			assert(false);
+		}
+		friend Val operator*( Val x, Val const& y ) {
+			return x *= y;
+		}
 	};
 	class Sort {
 		struct _Cons;
@@ -48,11 +174,11 @@ public:
 		static Logic of( Exp const& );
 	};
 	static Logic const QF_LIA, QF_LRA, LIA, LRA, QF_NIA, QF_NRA, NIA, NRA;
-	using Fun = Sum<int,std::string>;
+	using Fun = Sum<std::string,Val>;
 	static std::string const TRUE_F, FALSE_F, AND, OR, NOT, IMP, ITE, ADD, MUL, EQ, GE, LE, GT, CONS, CAR, CDR, LIST, NTH;
 	static Set<std::string> const FUNS;
 	static Opt<Fun> is_fun( std::string const& sym ) {
-		return FUNS.find(sym);
+		return FUNS.find(sym) >>= []( auto const& str ){ return Opt<Fun>::make(str); };
 	}
 	class PostExp;
 	static PostExp const TRUE, FALSE;
@@ -63,10 +189,10 @@ public:
 	public:
 		PostExp( PostExp const& ) = default;
 		PostExp( PostExp && ) = default;
-		PostExp() : _term(std::in_place_type<int>) {}
 		PostExp( bool b ) : _term( b ? TRUE : FALSE ) {}
 		PostExp( int i ) : _term(i) {}
 		PostExp( unsigned int i ) : _term((int)i) {}
+		PostExp( Val v ) : _term(v) {}
 		operator Term<Fun> const&() const& {
 			return _term;
 		}
@@ -86,10 +212,10 @@ public:
 		}
 		Opt<std::string> is_app() && { return std::move(_term).fun().ref<std::string>(); }
 		Opt<std::string const&> is_app() const& { return _term.fun().ref<std::string>(); }
-		Opt<int> is_int() && { return _term.fun().ref<int>(); }
-		Opt<int const&> is_int() const & { return _term.fun().ref<int>(); }
-		int as_int() const& {
-			auto opt = is_int();
+		Opt<Val> is_val() && { return std::move(_term).fun().ref<Val>(); }
+		Opt<Val const&> is_val() const & { return _term.fun().ref<Val>(); }
+		Val as_val() const& {
+			auto opt = is_val();
 			assert(opt);
 			return *opt;
 		}
@@ -106,7 +232,7 @@ public:
 		PostExp disj( PostExp const& y ) const &;
 		PostExp imp( PostExp const& y ) const;
 		PostExp operator!() const;
-		PostExp& operator+=( PostExp const& y ) &;
+		friend PostExp& operator+=( PostExp& x, PostExp const& y );
 		PostExp& mul_eq( PostExp const&, bool linear ) &;
 		PostExp cons( PostExp const& y ) const {
 			return Term<Fun>(CONS,*this,y);
@@ -176,28 +302,28 @@ public:
 		PreExp operator!() const {
 			return PreExp(NOT,{*this});
 		}
-		Opt<PostExp> post() && {
+		Opt<PostExp> is_post() && {
 			return std::move(_un).ref<PostExp>();
 		}
-		Opt<PostExp const&> post() const& {
+		Opt<PostExp const&> is_post() const& {
 			return _un.ref<PostExp>();
 		}
-		OptRef<App> app() && {
+		OptRef<App> is_app() && {
 			return std::move(_un).ref<Ref<App>>() >>= []( auto ref )->OptRef<App>{ return ref; };
 		}
-		Opt<App const&> app() const& {
+		Opt<App const&> is_app() const& {
 			return _un.ref<Ref<App>>() >>= []( auto ref )->Opt<App const&>{ return {*ref}; };
 		}
-		OptRef<Let> let() && {
+		OptRef<Let> is_let() && {
 			return std::move(_un).ref<Ref<Let>>() >>= []( auto ref )->OptRef<Let>{ return ref; };
 		}
-		Opt<Let const&> let() const& {
+		Opt<Let const&> is_let() const& {
 			return _un.ref<Ref<Let>>() >>= []( auto ref )->Opt<Let const&>{ return {*ref}; };
 		}
-		Opt<Lazy> lazy() && {
+		Opt<Lazy> is_lazy() && {
 			return {std::move(_un).ref<Lazy>()};
 		}
-		Opt<Lazy const&> lazy() const& {
+		Opt<Lazy const&> is_lazy() const& {
 			return _un.ref<Lazy>();
 		}
 		PreExp conj( PreExp const& y ) const {
@@ -209,14 +335,14 @@ public:
 		PreExp add( PreExp const& y ) const {
 			return PreExp(ADD,{*this,y});
 		}
-		PreExp& operator+=( PreExp const& y ) & {
-			return *this = add(y);
+		friend PreExp& operator+=( PreExp& x, PreExp const& y ) {
+			return x = x.add(y);
 		}
 		PreExp mul( PreExp const& y ) const {
 			return PreExp(MUL,{*this,y});
 		}
-		PreExp& operator*=( PreExp const& y ) & {
-			return *this = mul(y);
+		friend PreExp& operator*=( PreExp& x, PreExp const& y ) {
+			return x = x.mul(y);
 		}
 		PreExp cons( PreExp const& y ) const {
 			return PreExp(CONS,{*this,y});
@@ -369,8 +495,12 @@ public:
 			return _status == UNSAT;
 		}
 		PostExp get_value( PostExp const& e ) &;
-		PreExp get_value( PreExp const& e )&;
+		PostExp get_value( PreExp const& e ) &;
 		static Solver of( Exp const& );
+	private:
+		PostExp _get_value( PostExp const& e ) &;
+		PostExp _get_value_base( PostExp const& e ) &;
+		PostExp _get_value( PreExp const& e ) &;
 	};
 	class Z3 : public Solver {
 	public:
@@ -378,7 +508,6 @@ public:
 			Solver( std::make_unique<Proc>("z3",std::vector{"z3","-smt2","-in"},std::move(tee)), logic ) {}
 	};
 	static int test();
-
 };
 
 struct Smt::Sort::_Cons {
@@ -438,6 +567,8 @@ inline std::ostream& operator<<( std::ostream& os, Smt::BaseSort const& x ) {
 	return os << x.name();
 }
 std::ostream& operator<<( std::ostream& os, Smt::Sort const& e );
+std::ostream& operator<<( std::ostream& os, Smt::Rat const& r );
+std::ostream& operator<<( std::ostream& os, Smt::Val const& v );
 std::ostream& operator<<( std::ostream& os, Smt::Fun const& f );
 inline std::ostream& operator<<( std::ostream& os, Smt::PostExp const& e ) {
 	return os << (Term<Smt::Fun>)e;

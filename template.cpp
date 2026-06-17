@@ -91,7 +91,7 @@ ArgTerm<Template::Fun> ite(
 ) {
 	if( auto const& ifun = i.fun().ref<Template::Fun>() ) {
 		if( auto ie = ifun->is_smt() ) {
-			if( auto const& ie2 = ie->post() ) {
+			if( auto const& ie2 = ie->is_post() ) {
 				if( *ie2 == Smt::TRUE ) return t;
 				if( *ie2 == Smt::FALSE ) return e;
 			}
@@ -260,7 +260,7 @@ void Template::test() {
 	sig.emplace("g",1);
 	sig.emplace("a",0);
 	auto der = deriver_of(SUM,sig,z3);
-	auto der_intp = Poly::expand(der.derive(Poly::ALGEBRA),z3);
+	auto der_intp = der.derive(Poly::ALGEBRA);
 	auto e = Exp("f",Exp("g","x"),"a");
 	for( auto [f,rank] : sig ) {
 		cout << "der(" << f << ") = " << *der.find(f) << endl;

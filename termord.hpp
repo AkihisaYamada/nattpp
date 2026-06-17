@@ -94,7 +94,7 @@ public:
 	) : _solver(std::move(sol_)),
 		_log(log_),
 		deriver(Template::deriver_of(temp,sig,_solver)),
-		intp(A::expand(deriver.derive(A::ALGEBRA),_solver)) {
+		intp(deriver.derive(A::ALGEBRA)) {
 	}
 	Smt::Compare compare( Exp const& l, Exp const& r ) override {
 		auto const& ord = order(intp(l),intp(r),_solver);

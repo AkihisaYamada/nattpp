@@ -44,6 +44,21 @@ Set<std::string> const Smt::FUNS = {
 Smt::PostExp const Smt::TRUE = PostExp(TRUE_F);
 Smt::PostExp const Smt::FALSE = PostExp(FALSE_F);
 
+ostream& operator<<( ostream& os, Smt::Rat const& r ) {
+	if( r.denom() == 1 ) {
+		return os << r.numen();
+	}
+	return os << "(/ " << r.numen() << ' ' << r.denom() << ')';
+}
+ostream& operator<<( ostream& os, Smt::Val const& v ) {
+	if( auto const& i = v.is_int() ) {
+		if( *i < 0 ) return os << "(- " << *i << ')';
+		return os << *i;
+	} else if( auto const& r = v.is_rat() ) {
+		return os << *r;
+	}
+	assert(false);
+}
 ostream& operator<<( ostream& os, Smt::Sort const& e ) {
 	if( auto base = e.base() ) {
 		return os << *base;
@@ -58,17 +73,17 @@ std::ostream& operator<<( std::ostream& os, Smt::Fun const& f ) {
 	if( auto str = f.ref<string>() ) {
 		return os << *str;
 	}
-	if( auto i = f.ref<int>() ) {
+	if( auto i = f.ref<Smt::Val>() ) {
 		return os << *i;
 	}
 	assert(false);
 }
 
 ostream& operator<<( ostream& os, Smt::PreExp const& e ) {
-	if( auto post = e.post() ) {
+	if( auto post = e.is_post() ) {
 		return os << *post;
 	}
-	if( auto app = e.app() ) {
+	if( auto app = e.is_app() ) {
 		auto const& [fun,args] = *app;
 		if( args.empty() ) {
 			return os << fun;
@@ -79,18 +94,18 @@ ostream& operator<<( ostream& os, Smt::PreExp const& e ) {
 		}
 		return os << ')';
 	}
-	if( auto let = e.let() ) {
+	if( auto let = e.is_let() ) {
 		auto const& [val,sort,body] = *let;
 		return os << "(let " << val << ' ' << sort << " ...)";
 	}
-	if( auto lazy = e.lazy() ) {
+	if( auto lazy = e.is_lazy() ) {
 		return os << "...";
 	}
 	assert(false);
 }
 
 string to_string( Smt::Fun const& fun ) {
-	if( auto i = fun.ref<int>() ) {
+	if( auto i = fun.ref<Smt::Val>() ) {
 		return to_string(*i);
 	}
 	if( auto s = fun.ref<string>() ) {
@@ -166,32 +181,32 @@ Smt::PostExp Smt::PostExp::imp( Smt::PostExp const& y ) const {
 }
 
 Smt::PostExp Smt::eq( PostExp const& x, PostExp const& y ) {
-	if( auto xi = x.is_int() )
-		if( auto yi = y.is_int() ) {
+	if( auto xi = x.is_val() )
+		if( auto yi = y.is_val() ) {
 			return *xi == *yi;
 		}
 	return Term<Fun>(EQ,x,y);
 }
 
 Smt::PostExp Smt::ge( PostExp const& x, PostExp const& y ) {
-	if( auto xi = x.is_int() )
-		if( auto yi = y.is_int() ) {
+	if( auto xi = x.is_val() )
+		if( auto yi = y.is_val() ) {
 			return *xi >= *yi;
 		}
 	return Term<Fun>(GE,x,y);
 }
 
 Smt::PostExp Smt::le( PostExp const& x, PostExp const& y ) {
-	if( auto xi = x.is_int() )
-		if( auto yi = y.is_int() ) {
+	if( auto xi = x.is_val() )
+		if( auto yi = y.is_val() ) {
 			return *xi <= *yi;
 		}
 	return Term<Fun>(LE,x,y);
 }
 
 Smt::PostExp Smt::gt( PostExp const& x, PostExp const& y ) {
-	if( auto xi = x.is_int() )
-		if( auto yi = y.is_int() ) {
+	if( auto xi = x.is_val() )
+		if( auto yi = y.is_val() ) {
 			return *xi > *yi;
 		}
 	if( x == y ) return FALSE;
@@ -322,31 +337,56 @@ Smt::PostExp Smt::Reader::read_post_exp() {
 }
 Smt::PostExp Smt::Solver::get_value( PostExp const& e ) & {
 	if( _status != SAT ) {
-		throw Error("#smt:get_value");
+		throw Error("#smt:get_value","\"status is not SAT\"");
 	}
+	return _get_value(e);
+}
+Smt::PostExp Smt::Solver::get_value( PreExp const& e ) & {
+	if( _status != SAT ) {
+		throw Error("#smt:get_value","\"status is not SAT\"");
+	}
+	return _get_value(e);
+}
+Smt::PostExp Smt::Solver::_get_value( PostExp const& e ) & {
+	if( e.is_app().contains(CONS) ) {
+		auto vargs = std::vector<Term<Fun>>();
+		for( auto const& arg : e._term.args() ) {
+			vargs.emplace_back(_get_value(arg));
+		}
+		return app(CONS,std::move(vargs));
+	}
+	return _get_value_base(e);
+}
+Smt::PostExp Smt::Solver::_get_value( PreExp const& e ) & {
+	if( auto const& post = e.is_post() ) {
+		return _get_value(*post);
+	}
+	if( auto const& app = e.is_app() ) {
+		auto const& [fun,args] = *app;
+		if( fun == MUL ) {
+			Val ret = 1;
+			for( auto const& arg : args ) {
+				auto varg = _get_value(arg);
+				Val v = varg.is_val().value_or_throw(Error("#smt:get_value","\"bad value\""));
+				ret *= v;
+			}
+			return ret;
+		}
+	}
+	throw Error("#smt:bad-get_value");
+}
+Smt::PostExp Smt::Solver::_get_value_base( PostExp const& e ) & {
 	_proc->to << "(get-value (" << e << "))" << endl;
 	_reader.open();
 	_reader.open();
 	auto re = _reader.read_post_exp();
-	assert( re == e );
+	if( re != e ) {
+		cerr << re << endl; assert(false);
+	}
 	PostExp ret = _reader.read_post_exp();
 	_reader.close();
 	_reader.close();
 	return ret;
-}
-Smt::PreExp Smt::Solver::get_value( PreExp const& e ) & {
-	if( auto const& o = e.post() ) return get_value(*o);
-	if( auto const& o = e.app() ) {
-		auto const& [f,args] = *o;
-		if( f == CONS ) {
-			auto vargs = std::vector<PreExp>();
-			for( auto const& arg : args ) {
-				vargs.emplace_back(get_value(arg));
-			}
-			return PreExp(CONS,std::move(vargs));
-		}
-	}
-	assert(false);
 }
 
 std::string Smt::Solver::_make_fresh() & {
@@ -380,33 +420,33 @@ Smt::PostExp Smt::PostExp::operator!() const {
 	}
 	return Term<Fun>(NOT,*this);
 }
-Smt::PostExp& Smt::PostExp::operator+=( PostExp const& arg ) & {
-	if( auto num = this->is_int() ) {
+Smt::PostExp& operator+=( Smt::PostExp& x, Smt::PostExp const& y ) {
+	if( auto num = x.is_val() ) {
 		if( *num == 0 ) {
-			return *this = arg;
+			return x = y;
 		}
-		if( auto num2 = arg.is_int() ) {
-			return *this = *num + *num2;
+		if( auto num2 = y.is_val() ) {
+			return x = *num + *num2;
 		}
-	} else if( auto num2 = arg.is_int() ) {
+	} else if( auto num2 = y.is_val() ) {
 		if( *num2 == 0 ) {
-			return *this;
+			return x;
 		}
 	}
-	return *this = Term<Fun>(ADD,*this,arg);
+	return x = Term<Smt::Fun>(Smt::ADD,x,y);
 }
 Smt::PostExp& Smt::PostExp::mul_eq( Smt::PostExp const& y, bool linear ) & {
-	if( auto num = is_int() ) {
+	if( auto num = is_val() ) {
 		if( *num == 0 ) {
 			return *this;
 		}
 		if ( *num == 1 ) {
 			return *this = y;
 		}
-		if( auto num2 = y.is_int() ) {
+		if( auto num2 = y.is_val() ) {
 			return *this = *num * *num2;
 		}
-	} else if( auto num2 = y.is_int() ) {
+	} else if( auto num2 = y.is_val() ) {
 		if( *num2 == 0 ) {
 			return *this = 0;
 		}
@@ -430,10 +470,10 @@ Smt::PostExp& Smt::PostExp::mul_eq( Smt::PostExp const& y, bool linear ) & {
 }
 
 Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
-	if( auto post = p.post() ) {
+	if( auto post = p.is_post() ) {
 		return *post;
 	}
-	if( auto o = p.app() ) {
+	if( auto o = p.is_app() ) {
 		auto const& [fun,args] = *o;
 		auto eargs = vector<Term<Fun>>();
 		if( fun == AND ) {
@@ -490,7 +530,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 		} else if( fun == ADD ) {
 			for( auto const& arg : args ) {
 				auto const& earg = expand(arg);
-				if( auto const& oi = earg.is_int() ) {
+				if( auto const& oi = earg.is_val() ) {
 					if( *oi == 0 ) {
 						continue;
 					}
@@ -509,12 +549,12 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 		} else if( fun == MUL ) {
 			assert( args.size() == 2 );
 			auto const& earg1 = expand(args[0]);
-			if( auto num1 = earg1.is_int() ) {
+			if( auto num1 = earg1.is_val() ) {
 				if( *num1 == 0 ) return 0;
 				if( *num1 == 1 ) return expand(args[1]);
 			}
 			auto const& earg2 = expand(args[1]);
-			if( auto num2 = earg2.is_int() ) {
+			if( auto num2 = earg2.is_val() ) {
 				if( *num2 == 0 ) return 0;
 				if( *num2 == 1 ) return earg1;
 			}
@@ -546,17 +586,17 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 		}
 		return app(fun,std::move(eargs));
 	}
-	if( auto tp = p.let() ) {
+	if( auto tp = p.is_let() ) {
 		auto const& [val,sort,body] = *tp;
 		return expand(body(let(sort,expand(val))));
 	}
-	if( auto lazy = p.lazy() ) {
+	if( auto lazy = p.is_lazy() ) {
 		return expand((*lazy)());
 	}
 	assert(false);
 };
 Smt::PostExp Smt::Solver::let( Sort const& sort, PostExp const& val ) & {
-	if( val.is_int() ) {
+	if( val.is_val() ) {
 		return val;
 	}
 	auto vfun = *val.is_app();
@@ -653,7 +693,7 @@ int Smt::test() try {
 	cout << x << " := " << xv << endl;
 	auto yv = z3.get_value(y);
 	cout << y << " := " << yv << endl;
-	assert( xv.as_int() > yv.as_int() + 4);
+	assert( xv.as_val() > yv.as_val() + 4);
 
 	cout << z3.expand( FALSE && []{ return PostExp("BUG"); } ) << endl;
 

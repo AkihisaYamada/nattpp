@@ -148,7 +148,7 @@ Poly& Poly::expand( Smt::Solver& solver ) {
 Poly Poly::eval_coeffs( Smt::Solver& solver ) const {
 	Poly ret;
 	for( auto& [vars,coeff] : _map ) {
-		auto post = coeff.post();
+		auto post = coeff.is_post();
 		assert(post);
 		ret._map.emplace(vars,solver.get_value(*post));
 	}
@@ -195,102 +195,6 @@ Algebra<Template::Fun,Poly> const Poly::ALGEBRA =
 	throw Error("#poly:template-algebra");
 };
 
-Algebra<Poly::Sig,Poly> Poly::sig_algebra( Smt::Solver& solver ) {
-	return [&solver]( Poly::Sig const& f, std::vector<Poly> const& args )->Poly{
-		if( f.ref<Add>() ) {
-			return sum(args);
-		}
-		if( f.ref<Mul>() ) {
-			return prod(args);
-		}
-		if( auto const& i = f.ref<Cond>() ) {
-			return ite(i->exp,args[0],args[1]);
-		}
-		assert( args.size() == 0 );
-		if( auto const& var = f.ref<Var>() ) {
-			return Var(*var,Poly::POS);
-		}
-		if( auto const& c = f.ref<Smt::PreExp>() ) {
-			return *c;
-		}
-		assert(false);
-	};
-}
-
-Term<Sum<Poly::Sig,Arg>> Poly::instantiate(
-	Smt::Solver& solver,
-	Term<Sum<Sig,Arg>> const& org
-) {
-	auto const& sym = org.fun();
-	auto args = vector<Term<Sum<Sig,Arg>>>();
-	for( auto const& a : org.args() ) {
-		args.push_back(instantiate(solver,a));
-	}
-	if( auto const& f = sym.ref<Poly::Sig>() ) {
-		auto rargs = vector<Term<Sum<Sig,Arg>>>();
-		if( auto pre = f->ref<Smt::PreExp>() ) {
-			auto post = pre->post();
-			assert( post );
-			assert( args.size() == 0 );
-			return solver.get_value(*post);
-		}
-		if( f->ref<Poly::Add>() ) {
-			Smt::PostExp smtsum = 0;
-			for( auto const& v : args ) {
-				if( auto g = v.fun().ref<Poly::Sig>() ) {
-					if( auto pre = g->ref<Smt::PreExp>() ) {
-						auto post = pre->post();
-						assert(post);
-						smtsum += *post;
-						continue;
-					}
-					if( g->ref<Poly::Add>() ) {// merge arguments
-						std::move(v.args().begin(), v.args().end(), std::back_inserter(rargs));
-						continue;
-					}
-				}
-				rargs.push_back(v);
-			}
-			if( rargs.empty() ) return smtsum;
-			if( smtsum != 0 ) {
-				rargs.push_back(smtsum);
-			}
-			if( rargs.size() == 1 ) return rargs[0];
-			return app(Poly::ADD,std::move(rargs));
-		}
-		if( f->ref<Poly::Mul>() ) {
-			Smt::PostExp smtprod = 1;
-			for( auto const& v : args ) {
-				if( auto g = v.fun().ref<Poly::Sig>() )
-					if( auto pre = g->ref<Smt::PreExp>() ) {
-						auto post = pre->post();
-						assert(post);
-						smtprod.mul_eq(*post,solver.logic().linear());
-						continue;
-					}
-				rargs.push_back(v);
-			}
-			if( rargs.empty() || smtprod == 0 ) return smtprod;
-			if( smtprod != 1 ) {
-				rargs.push_back(smtprod);
-			}
-			if( rargs.size() == 1 ) return rargs[0];
-			return app(Poly::MUL,std::move(rargs));
-		}
-		if( auto const& cond = f->ref<Poly::Cond>() ) {
-			assert( args.size() == 2 );
-			auto post = cond->exp.post();
-			assert(post);
-			auto condval = solver.get_value(*post);
-			if( auto b = condval.is_bool() ) {
-				return args[ *b ? 0 : 1 ];
-			}
-			return app(Poly::Cond(condval),std::move(args));
-		}
-	}
-	return app(sym,std::move(args));
-}
-
 MPoly operator+( MPoly const& x, MPoly const& y ) {
 	MPoly ret;
 	for( auto const& xp : x._set ) {
@@ -314,7 +218,7 @@ MPoly operator*( MPoly const& x, MPoly const& y ) {
 Smt::Compare order( MPoly const& x, MPoly const& y, Smt::Solver& solver ) {
 	Smt::PostExp ge_all = true, gt_all = true;
 	for( auto const& yp : y._set ){
-		Smt::PostExp some_ge, some_gt;
+		Smt::PostExp some_ge = false, some_gt = false;
 		for( auto const& xp : x._set ){
 			auto [ge,gt] = order(xp,yp,solver);
 			some_ge = some_ge || ge;

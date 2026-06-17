@@ -103,36 +103,6 @@ public:
 	static Poly ite( Poly const& c, Poly const& p1, Poly const& p2 );
 	friend Smt::Compare order( Poly const& p1, Poly const& p2, Smt::Solver& solver );
 	static int test();
-
-	template<typename F>
-	static Algebra<F,Poly> expand( Algebra<F,Poly> && intp, Smt::Solver& solver ) {
-		return [intp=std::move(intp),&solver]( F const& f, std::vector<Poly> && args ) {
-			return intp(f,std::move(args)).expand(solver);
-		};
-	}
-
-	template<typename F>
-	static Algebra<F,Poly> expand( Algebra<F,Poly> const& intp, Smt::Solver& solver ) {
-		return [&intp,&solver]( F const& f, std::vector<Poly> && args ) {
-			return intp(f,std::move(args)).expand(solver);
-		};
-	}
-
-	static Algebra<Sig,Poly> sig_algebra( Smt::Solver& solver );
-
-	/** instantiate coefficients via get-value */
-	static Term<Sum<Sig,Arg>> instantiate(
-		Smt::Solver& solver,
-		Term<Sum<Sig,Arg>> const& org
-	);
-private:
-	static Term<Sum<Sig,Arg>> _deriver_inner(
-		std::string const& f,
-		Trs::Rank const& rank,
-		Smt::Solver& solver,
-		Exp const& exp,
-		int pos
-	);
 };
 
 struct MPoly {

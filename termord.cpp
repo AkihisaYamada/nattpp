@@ -17,9 +17,8 @@ PathOrder::PathOrder(
 	auto const& sort = sol.logic().base_sort();
 	for( auto const&[f,rank] : sig ) {
 		if( log & DEBUG ) cerr << "; fun " << f << ' ' << rank << endl;
-		auto [info,suc] = _info.emplace(f,_SymInfo{});
+		auto [info,suc] = _info.emplace(f,_SymInfo{sol.declare_fresh(sort)});
 		assert(suc);
-		info.prec = sol.declare_fresh(sort);
 		sol.ass( Smt::ge(info.prec,0) );
 		if( log & DEBUG ) cerr << ";  prec: " << info.prec << endl;
 		if( auto post_arity = status(rank).post_arity() ) {

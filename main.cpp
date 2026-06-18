@@ -76,15 +76,12 @@ int main( int argc, char* argv[] ) try {
 	cerr << p << endl;
 	auto const& sig = p.sig;
 	auto const& trs = p.systems[0];
-	bool mono;
 	bool use_dp;
 	switch( mode ) {
 	case UNSET: case SN:
-		mono = true;
 		if( dprem_specs.empty() ) {
 			if( rulerem_specs.empty() ) {// default strategy
 				rulerem_specs.emplace_back(SUM_SPEC);
-				dprem_specs.emplace_back(SUM_SPEC);
 				dprem_specs.emplace_back(LPO3_SPEC);
 				use_dp = true;
 			} else {
@@ -95,32 +92,34 @@ int main( int argc, char* argv[] ) try {
 		}
 		break;
 	case SOME:
-		mono = false;
 		use_dp = false;
 		break;
 	}
 	vector<unique_ptr<TrsOrder>> rule_removers;
 	for( auto x : rulerem_specs ) {
-		rule_removers.push_back(TrsOrder::of(x,sig,trs,mono,default_smt,Smt::INT,default_log));
+		rule_removers.push_back(TrsOrder::of(x,sig,trs,default_smt,Smt::INT,default_log));
 	}
 
 	// rule removal loop
+	auto rule_removes = [&]( TrsOrder& ord ) {
+		cerr << "; trying " << ord.print_name() << "... " << endl;
+		auto const& rem = order_some_rule(ord,p.systems[0]);
+		if( rem.empty() ) {
+			return false;
+		}
+		cerr << "(remove-rule\n  " << ord.print(p.sig) << "\n ";
+		for( size_t i : rem ) {
+			cerr << ' ' << i;
+			p.systems[0].erase(i);
+		}
+		cerr << ")" << endl;
+		return true;
+	};
 	do {
 		if( p.systems[0].empty() ) throw Answer::YES;
 	} while( [&](){
 		for( auto& proc : rule_removers ) {
-			cerr << "; trying " << proc->print_name() << "... " << endl;
-			auto const& rem = order_some_rule(*proc,p.systems[0]);
-			if( rem.empty() ) {
-				continue;
-			}
-			cerr << "(remove-rule\n  " << proc->print(p.sig) << "\n ";
-			for( size_t i : rem ) {
-				cerr << ' ' << i;
-				p.systems[0].erase(i);
-			}
-			cerr << ")" << endl;
-			return true;
+			if( rule_removes(*proc) ) return true;
 		}
 		return false;
 	}() );
@@ -138,25 +137,31 @@ int main( int argc, char* argv[] ) try {
 
 	vector<unique_ptr<TrsOrder>> dp_removers;
 	for( auto x : dprem_specs ) {
-		dp_removers.push_back(TrsOrder::of(x,sig,trs,false,default_smt,Smt::INT,default_log));
+		dp_removers.push_back(TrsOrder::of(x,sig,trs,default_smt,Smt::INT,default_log));
 	}
 	// DP removal loop
+	auto dp_removes = [&]( TrsOrder& ord ){
+		cerr << "; trying " << ord.print_name() << "... " << endl;
+		auto const& rem = order_some_dp(ord,p.systems[0],dps);
+		if( rem.empty() ) {
+			return false;
+		}
+		cerr << "(remove-dp\n  " << ord.print(p.sig) << "\n ";
+		for( size_t i : rem ) {
+			cerr << ' ' << i;
+			dps.erase(i);
+		}
+		cerr << ')' << endl;
+		return true;
+	};
 	do {
 		if( dps.empty() ) throw Answer::YES;
 	} while( [&]{
+		for( auto& proc : rule_removers ) {
+			if( dp_removes(*proc) ) return true;
+		}
 		for( auto& proc : dp_removers ) {
-			cerr << "; trying " << proc->print_name() << "... " << endl;
-			auto const& rem = order_some_dp(*proc,p.systems[0],dps);
-			if( rem.empty() ) {
-				continue;
-			}
-			cerr << "(remove-dp\n  " << proc->print(p.sig) << "\n ";
-			for( size_t i : rem ) {
-				cerr << ' ' << i;
-				dps.erase(i);
-			}
-			cerr << ')' << endl;
-			return true;
+			if( dp_removes(*proc) ) return true;
 		}
 		return false;
 	}() );

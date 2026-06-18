@@ -17,6 +17,7 @@ public:
  * 
  * @tparam F signature
  * @tparam T carrier
+ * @todo do not maintain function
  */
 template<typename F, typename T>
 struct Algebra {
@@ -24,9 +25,11 @@ struct Algebra {
 private:
 	Intp _intp;
 public:
-	template<typename... Args>
-		requires std::is_constructible_v<Intp,Args&&...>
-	Algebra( Args&&... args ) : _intp(std::forward<Args>(args)...) {}
+	template<typename Arg>
+		requires (!std::same_as<std::remove_cvref_t<Arg>,Algebra>) && std::is_constructible_v<Intp,Arg&&>
+	Algebra( Arg&& arg ) : _intp(std::forward<Arg>(arg)) {}
+	Algebra(Algebra&&) = default;
+	Algebra(Algebra const&) = delete;
 	T operator()( F const& f, std::vector<T>&& args ) const {
 		return _intp(f,std::move(args));
 	}
@@ -87,12 +90,14 @@ private:
 		assert(false);
 	};
 public:
-	Algebra<F,Term<G>> const algebra = [&]( F const& f, std::vector<Term<G>>&& args ){
-		if( auto const& df = _map.find(f) ) {
-			return _intp_inner(TERM<G>,*df,std::move(args));
-		}
-		return app(G(f),std::move(args));
-	};
+	Algebra<F,Term<G>> algebra() const {
+		return [&]( F const& f, std::vector<Term<G>>&& args ){
+			if( auto const& df = _map.find(f) ) {
+				return _intp_inner(TERM<G>,*df,std::move(args));
+			}
+			return app(G(f),std::move(args));
+		};
+	}
 	template<typename... Args>
 		requires std::is_constructible_v<_Map,Args&&...>
 	Deriver( Args&&... args ) : _map(std::forward<Args>(args)...) {}
@@ -102,7 +107,7 @@ public:
 	}
 	_Map const& map() const& { return _map; }
 	/** general substitution */
-	Term<G> subst( Term<F> const& t ) const& { return algebra(t); }
+	Term<G> subst( Term<F> const& t ) const& { return algebra()(t); }
 	auto derive( auto ) && = delete;
 	template<typename T>
 	Algebra<F,T> derive( Algebra<G,T>&& org ) const & {

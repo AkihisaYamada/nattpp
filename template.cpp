@@ -3,6 +3,8 @@
 
 using namespace std;
 
+string const Template::MONO = "mono";
+
 ArgTerm<Template::Fun>& operator+=( ArgTerm<Template::Fun>& x, ArgTerm<Template::Fun> const& y ) {
 	auto xf = x.fun().ref<Template::Fun>();
 	auto yf = y.fun().ref<Template::Fun>();
@@ -222,17 +224,21 @@ static Term<Sum<Template::Fun,Arg>> _deriver_of(
 	exp.get_end(n);
 	return app(fun,std::move(args));
 }
-Deriver<std::string,Template::Fun>
-Template::deriver_of( Exp const& e, Trs::Sig const& sig, Smt::Solver& solver ) {
+Template::Deriver Template::Deriver::of( Exp const& e, Trs::Sig const& sig, Smt::Solver& solver ) {
 	Map<string,Term<Sum<Template::Fun,Arg>>> map;
+	auto mono = solver.declare_const(MONO,Smt::BOOL);// monotonicity flag
 	for( auto [f,rank] : sig ) {
 		map.emplace(f,_deriver_of(e,solver,f,rank,0));
 	}
-	return std::move(map);
+	return Deriver(std::move(map),std::move(mono));
 }
 static Exp _posvar = Exp("var",":constrain",Exp(">=","_","0"));
 static Exp _1_or_2 = Exp("ite",Exp("var",":sort","Bool"),"2","1");
-static Exp _0_or_1 = Exp("ite",Exp("var",":sort","Bool"),"1","0");
+static Exp _bcoeff = Exp("ite",
+	Exp("var",":sort","Bool",
+		":constrain",Exp("=>",Template::MONO,"_")// monotonicity requires non-zero coefficient
+	),
+	"1","0");
 Exp const Template::MONO_SUM = Exp{
 	Exp("+",Exp("args","+","arg"),_posvar)
 };
@@ -247,8 +253,8 @@ Exp const Template::SIMP_MAX = Exp("arity",
 );
 Exp const Template::SUM = Exp("arity",
 	Exp("0",_posvar),
-	Exp("1",Exp("+",Exp("*",_0_or_1,"arg"),_posvar)),
-	Exp("otherwise",Exp("+",Exp("args","+",Exp("*",_0_or_1,"arg")),_posvar))
+	Exp("1",Exp("+",Exp("*",_bcoeff,"arg"),_posvar)),
+	Exp("otherwise",Exp("+",Exp("args","+",Exp("*",_bcoeff,"arg")),_posvar))
 );
 
 void Template::test() {
@@ -258,7 +264,7 @@ void Template::test() {
 	sig.emplace("f",2);
 	sig.emplace("g",1);
 	sig.emplace("a",0);
-	auto der = deriver_of(SUM,sig,z3);
+	auto der = Template::Deriver::of(SUM,sig,z3);
 	auto der_intp = der.derive(MPoly::ALGEBRA);
 	auto e = Exp("f",Exp("g","x"),"a");
 	cout << der << endl;

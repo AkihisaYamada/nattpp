@@ -34,6 +34,7 @@ struct TermOrder {
 		});
 	}
 	virtual Smt::Compare compare( Exp const& l, Exp const& r ) = 0;
+	virtual Smt::PostExp mono() = 0;
 	virtual Smt::PostExp simple( std::string const& f, size_t i ) = 0;
 	static void test();
 	static int log_of( Exp const& exp );
@@ -45,7 +46,6 @@ struct TrsOrder : TermOrder {
 		Exp const& x,
 		Trs::Sig const& sig,
 		Trs::Rules const& trs,
-		bool mono,
 		std::function<Smt::Solver()> const& default_smt,
 		Smt::Sort const& default_sort,
 		int default_log
@@ -77,6 +77,9 @@ struct TrivOrder : TrsOrder {
 	Smt::Compare order_rule( size_t i ) & override {
 		return {Smt::TRUE,Smt::FALSE};
 	}
+	Smt::PostExp mono() override {
+		return Smt::TRUE;
+	}
 	Smt::PostExp simple( std::string const& f, size_t i ) override {
 		return Smt::TRUE;
 	}
@@ -89,7 +92,7 @@ private:
 	Map<std::string,std::vector<Smt::PostExp>> _simple;
 	int _log;
 public:
-	Deriver<std::string,Template::Fun> const deriver;
+	Template::Deriver const deriver;
 	Algebra<std::string,A> const intp;
 	DerivedTermOrder(
 		Trs::Sig const& sig,
@@ -98,9 +101,9 @@ public:
 		int log_ = NONE
 	) : _solver(std::move(sol_)),
 		_log(log_),
-		deriver(Template::deriver_of(temp,sig,_solver)),
+		deriver(Template::Deriver::of(temp,sig,_solver)),
 		intp(deriver.derive(A::ALGEBRA)) {
-		for( auto const& [f,rank] : sig ) {
+		for( auto const& [f,rank] : sig ) {// initializing simplicity table
 			auto [vec,flag] = _simple.emplace(f,std::vector<Smt::PostExp>());
 			std::vector<Term<std::string>> is;
 			for( size_t i = 0; i < rank.arity; i++ ) {
@@ -130,6 +133,9 @@ public:
 	}
 	int log() override {
 		return _log;
+	}
+	Smt::PostExp mono() override {
+		return deriver.mono;
 	}
 	Smt::PostExp simple( std::string const& f, size_t i ) override {
 		return (*_simple.find(f))[i];
@@ -174,6 +180,9 @@ public:
 	}
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override {
 		return _term_order.print_sym_info(os,f);
+	}
+	Smt::PostExp mono() override {
+		return _term_order.mono();
 	}
 	Smt::PostExp simple( std::string const& f, size_t i ) override {
 		return _term_order.simple(f,i);
@@ -221,6 +230,9 @@ public:
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override {
 		return _term_order.print_sym_info(os,f);
 	}
+	Smt::PostExp mono() override {
+		return _term_order.mono();
+	}
 	Smt::PostExp simple( std::string const& f, size_t i ) override {
 		return _term_order.simple(f,i);
 	}
@@ -231,14 +243,16 @@ struct PathOrder : TrsOrder {
 private:
 	struct _SymInfo {
 		Smt::PostExp prec;
-		int post_arity;// arity after argument rearrangement
-		std::vector<std::vector<Smt::PostExp>> map;// map[i][j] i-th argument is mapped to j-th position
-		std::vector<Smt::PostExp> mapped;// flags if the corresponding argument is mapped
+		size_t arity;
+		size_t post_arity;// arity after argument rearrangement
+		std::function<Smt::PostExp(size_t,size_t)> map;// map(i,j) i-th argument is mapped to j-th position
+		std::function<Smt::PostExp(size_t)> mapped;// flags if the corresponding argument is mapped
 	};
 	std::unique_ptr<TermOrder> _weight;
 	Map<std::string,_SymInfo> _info;
 	Map<size_t,Smt::Compare> _ord;
 	Map<std::pair<Term<std::string>,Term<std::string>>,Smt::Compare> _table;
+	Smt::PostExp _mono;// strict monotonicity flag
 	int _log;
 public:
 	struct Status {
@@ -255,7 +269,7 @@ public:
 		Opt<size_t> post_arity() {
 			return _sum.ref<Mapped>() >>= [&]( auto b )->Opt<size_t>{ return {b.post_arity}; };
 		}
-		static std::function<Status(Trs::Rank const&)> of( Exp const&, bool mono );
+		static std::function<Status(Trs::Rank const&)> of( Exp const& );
 	};
 	PathOrder(
 		Trs::Sig const& sig,
@@ -278,6 +292,7 @@ public:
 		return *opt;
 	}
 	int log() override { return _log; }
+	Smt::PostExp mono() override { return _mono; }
 	Smt::PostExp simple( std::string const& f, size_t i ) override {
 		return _weight->simple(f,i);
 	}
@@ -311,15 +326,11 @@ Smt::Compare mapped_lex_compare(
 	F const& comp,
 	size_t lpar,// post arity
 	size_t rpar,
-	std::vector<std::vector<Smt::PostExp>> const& lmap,
-	std::vector<std::vector<Smt::PostExp>> const& rmap,
+	std::function<Smt::PostExp(size_t,size_t)> const& lmap,
+	std::function<Smt::PostExp(size_t,size_t)> const& rmap,
 	std::vector<T> const& ls,
 	std::vector<T> const& rs
 ) {
-	if( lmap.empty() ) {// special treatment for straight status
-		assert(rmap.empty());
-		return lex_compare(comp,ls,rs);
-	}
 	auto all_ge = Smt::TRUE, gt = Smt::FALSE;
 	auto lin = ls.size();
 	auto rin = rs.size();
@@ -334,13 +345,13 @@ Smt::Compare mapped_lex_compare(
 			return { gt || all_ge, gt || all_ge };
 		}
 		auto ige = Smt::disj( 0, lin, [&]( size_t const& i ){
-			return lmap[i][k] && Smt::disj( 0, rin, [&]( size_t const& j ){
-				return rmap[j][k] && comp(ls[i],rs[j]).ge;
+			return lmap(i,k) && Smt::disj( 0, rin, [&]( size_t const& j ){
+				return rmap(j,k) && comp(ls[i],rs[j]).ge;
 			} );
 		} );
 		auto igt = Smt::disj( 0, lin, [&]( size_t const& i ){
-			return lmap[i][k] && Smt::disj( 0, rin, [&]( size_t const& j ){
-				return rmap[j][k] && comp(ls[i],rs[j]).gt;
+			return lmap(i,k) && Smt::disj( 0, rin, [&]( size_t const& j ){
+				return rmap(j,k) && comp(ls[i],rs[j]).gt;
 			} );
 		} );
 		gt = gt || (all_ge && igt);

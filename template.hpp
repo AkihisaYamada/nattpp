@@ -3,8 +3,12 @@
 #include"smt.hpp"
 #include"trs.hpp"
 
+/** SMT extended with custom functions.
+ * @todo Consider moving features from smt.hpp
+ */
 struct Template {
 	Template() = delete;
+	static std::string const MONO;
 	struct Fun {
 	private:
 		using _Sum = Sum<std::string,Smt::PreExp>;
@@ -20,9 +24,19 @@ struct Template {
 			return _sum.ref<Smt::PreExp>();
 		}
 	};
-	static Deriver<std::string,Fun> deriver_of( ::Exp const& e, Trs::Sig const& sig, Smt::Solver& solver );
-
-	/** instantiate SMT expressions via get_value */
+	struct Deriver : ::Deriver<std::string,Fun> {
+		Deriver() = delete;
+		Smt::PostExp const mono;
+//		std::function<Smt::PostExp(std::string const&, size_t)> const simp;
+		static Deriver of( Exp const& e, Trs::Sig const& sig, Smt::Solver& solver );
+	private:
+		Deriver(
+			::Deriver<std::string,Fun>&& der,
+			Smt::PostExp&& mono
+//			std::function<Smt::PostExp(std::string const&, size_t)>&& simp
+		) : ::Deriver<std::string,Fun>(std::move(der)), mono(std::move(mono)) {}
+	};
+	/** instantiate SMT expressions in templates via get_value */
 	static Algebra<Sum<Fun,Arg>,ArgTerm<Fun>> instantiator( Smt::Solver& solver );
 
 	static ::Exp const SUM, MONO_SUM, MONO_POLY2, SIMP_MAX;

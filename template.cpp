@@ -261,9 +261,7 @@ void Template::test() {
 	auto der = deriver_of(SUM,sig,z3);
 	auto der_intp = der.derive(MPoly::ALGEBRA);
 	auto e = Exp("f",Exp("g","x"),"a");
-	for( auto [f,rank] : sig ) {
-		cout << "der(" << f << ") = " << *der.find(f) << endl;
-	}
+	cout << der << endl;
 	auto der_term = der.derive(MPoly::ALGEBRA);
 	cout << "der⟦" << "(g x)" << "⟧ = " << der_term(Exp("g","x")) << endl;
 	cout << "der⟦a⟧ = " << der_term("a") << endl;

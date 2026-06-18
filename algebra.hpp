@@ -100,6 +100,7 @@ public:
 	Opt<ArgTerm<G> const&> find( F const& f ) const& {
 		return _map.find(f);
 	}
+	_Map const& map() const& { return _map; }
 	/** general substitution */
 	Term<G> subst( Term<F> const& t ) const& { return algebra(t); }
 	auto derive( auto ) && = delete;
@@ -155,13 +156,22 @@ std::ostream& operator<<( std::ostream& os, Sum<F,Arg> const& df ) {
 	assert(false);
 }
 
+template<typename F, typename G>
+std::ostream& operator<<( std::ostream& os, Deriver<F,G> const& subst ) {
+	os << "(deriver" << std::endl;
+	for( auto const& [key,val] : subst.map() ) {
+		os << "  (" << key << ' ' << val << ')' << std::endl;
+	}
+	return os << ')';
+}
+
 template<typename F>
 std::ostream& operator<<( std::ostream& os, Subst<F> const& subst ) {
-	os << '[' << std::endl;
+	os << "(subst" << std::endl;
 	for( auto const& [key,val] : subst ) {
-		os << '\t' << key << " := " << val << std::endl;
+		os << "  (" << key << ' ' << val << ')' << std::endl;
 	}
-	return os << ']';
+	return os << ')';
 }
 
 #endif

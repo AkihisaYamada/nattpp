@@ -142,22 +142,22 @@ std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sy
 
 
 std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules ) {
-	vector<pair<size_t,Smt::PostExp>> gts;
 	auto& solver = order.solver();
 	if( solver.is_sat() || solver.is_unsat() ) {
 		solver.pop();
 	}
-	solver.push();
-	solver.ass(order.mono());// require monotonicity
+	vector<pair<size_t,Smt::PostExp>> gts;
+	Smt::PostExp all_ge = true;
 	for( auto const& [i,rule] : rules ) {
 		if( order.log() & TermOrder::RULE ) {
 			cerr << "; " << rule << endl;
 		}
 		auto const& [ge,gt] = order.order_rule(i);
-		solver.ass(ge);
+		all_ge = all_ge && ge;
 		gts.emplace_back(i,gt);
 	}
-	solver.ass( Smt::disj(gts,[]( auto const& gt ){ return gt.second; }) );
+	solver.push();
+	solver.ass( order.mono() && all_ge && Smt::disj(gts,[]( auto const& gt ){ return gt.second; }) );
 	solver.check_sat();
 	std::vector<size_t> ret;
 	if( solver.result().is_sat() ) {

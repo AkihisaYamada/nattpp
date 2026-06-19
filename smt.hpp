@@ -507,6 +507,11 @@ public:
 		Z3( Logic const& logic, Opt<OStream> && tee = {} ) :
 			Solver( std::make_unique<Proc>("z3",std::vector{"z3","-smt2","-in"},std::move(tee)), logic ) {}
 	};
+	class CVC5 : public Solver {
+	public:
+		CVC5( Logic const& logic, Opt<OStream> && tee = {} ) :
+			Solver( std::make_unique<Proc>("cvc5",std::vector{"cvc5","--incremental","--produce-models"},std::move(tee)), logic ) {}
+	};
 	static int test();
 };
 

@@ -56,12 +56,13 @@ public:
 		if( auto const& opt = _table.find({l,r}) ) {
 			return *opt;
 		}
-		auto comp = compare_inner(l,r);
+		auto [ge,gt] = compare_inner(l,r);
+		auto ret = Smt::Compare(solver().let(Smt::BOOL,ge),solver().let(Smt::BOOL,gt));
 		if( log() & PAIR ) {
-			std::cerr << "; " << l << " <=> " << r << " = " << comp << std::endl;
+			std::cerr << "; " << l << " <=> " << r << " = " << ret << std::endl;
 		}
-		_table.emplace(std::pair{l,r},comp);
-		return comp;
+		_table.emplace(std::pair{l,r},ret);
+		return ret;
 	}
 };
 
@@ -100,8 +101,10 @@ private:
 public:
 	_Wrapper( Trs::Rules const& rules, std::unique_ptr<TermOrder>&& org ) :
 		_ptr( std::move(org) ) {
+		auto& sol = solver();
 		for( auto [i,rule] : rules ) {
-			_rule_order_table.emplace(i,_ptr->compare(rule.first,rule.second));
+			auto [ge,gt] = _ptr->compare(rule.first,rule.second);
+			_rule_order_table.emplace(i,Smt::Compare(sol.let(Smt::BOOL,ge),sol.let(Smt::BOOL,gt)));
 		}
 	}
 	Smt::Compare order_rule( size_t i ) override {

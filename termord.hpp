@@ -8,14 +8,23 @@ struct TermOrder {
 	virtual ~TermOrder() = default;// to be able to make pointer of TermOrder 
 	enum { NONE = 0, RULE = 1 << 1, PAIR = 1 << 2, DEBUG = 1 << 3 };
 	virtual int log() = 0;
+	virtual void extend_sig( std::string const& f, Trs::Rank const& rank ) = 0;
 	virtual Smt::Solver& solver() = 0;
 	virtual std::ostream& print_name( std::ostream& os ) = 0;
+	virtual std::ostream& print_sym_info( std::ostream& os, std::string const& f ) = 0;
+	virtual Smt::Compare compare( Exp const& l, Exp const& r ) = 0;
+	virtual Smt::PostExp mono() = 0;
+	virtual Smt::PostExp simple( std::string const& f, size_t i ) = 0;
+	virtual void extend_sig( Trs::Sig const& sig ) {
+		for( auto const& [f,rank] : sig ) {
+			extend_sig(f,rank);
+		}
+	}
 	Printable print_name() & {
 		return Printable([&]( std::ostream& os )->std::ostream&{
 			return print_name(os);
 		});
 	}
-	virtual std::ostream& print_sym_info( std::ostream& os, std::string const& f ) = 0;
 	Printable print_sym_info( std::string const& f ) {
 		return Printable([&]( std::ostream& os )->std::ostream&{
 			return print_sym_info(os,f);
@@ -33,14 +42,10 @@ struct TermOrder {
 			return print(os,sig);
 		});
 	}
-	virtual Smt::Compare compare( Exp const& l, Exp const& r ) = 0;
-	virtual Smt::PostExp mono() = 0;
-	virtual Smt::PostExp simple( std::string const& f, size_t i ) = 0;
 	static void test();
 	static int log_of( Exp const& exp );
 	static std::unique_ptr<TermOrder> of(
 		Exp const& x,
-		Trs::Sig const& sig,
 		std::function<Smt::Solver()> const& default_smt,
 		Smt::Sort const& default_sort,
 		int default_log
@@ -76,6 +81,9 @@ public:
 	}
 	int log() override { return _ptr->log(); }
 	Smt::Solver& solver() override { return _ptr->solver(); }
+	void extend_sig( std::string const& f, Trs::Rank const& rank ) override {
+		_ptr->extend_sig(f,rank);
+	}
 	std::ostream& print_name( std::ostream& os ) override { return _ptr->print_name(os); }
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override {
 		return _ptr->print_sym_info(os,f);
@@ -85,11 +93,8 @@ public:
 };
 
 struct TrsOrder : TermOrder {
-	virtual Smt::Compare order_rule( size_t i ) = 0;
-	static std::unique_ptr<TrsOrder> of(
-		std::unique_ptr<TermOrder>&& org,
-		Trs::Rules const& rules
-	);
+	virtual Smt::Compare order_rule( Exp const& l, Exp const& r, size_t i ) = 0;
+	static std::unique_ptr<TrsOrder> of( std::unique_ptr<TermOrder>&& org );
 private:
 	struct _Wrapper;
 };
@@ -99,18 +104,21 @@ private:
 	std::unique_ptr<TermOrder> _ptr;
 	Map<size_t,Smt::Compare> _rule_order_table;
 public:
-	_Wrapper( Trs::Rules const& rules, std::unique_ptr<TermOrder>&& org ) :
+	_Wrapper( std::unique_ptr<TermOrder>&& org ) :
 		_ptr( std::move(org) ) {
-		auto& sol = solver();
-		for( auto [i,rule] : rules ) {
-			auto [ge,gt] = _ptr->compare(rule.first,rule.second);
-			_rule_order_table.emplace(i,Smt::Compare(sol.let(Smt::BOOL,ge),sol.let(Smt::BOOL,gt)));
-		}
 	}
-	Smt::Compare order_rule( size_t i ) override {
-		return *ASSERTED(_rule_order_table.find(i));
+	Smt::Compare order_rule( Exp const& l, Exp const& r, size_t i ) override {
+		if( auto const& opt = _rule_order_table.find(i) ) return *opt;
+		Smt::Solver& sol = _ptr->solver();
+		auto [ge,gt] = _ptr->compare(l,r);
+		Smt::Compare ret = {sol.let(Smt::BOOL,ge),sol.let(Smt::BOOL,gt)};
+		_rule_order_table.emplace(i,ret);
+		return ret;
 	}
 	int log() final override { return _ptr->log(); }
+	void extend_sig( std::string const& f, Trs::Rank const& rank ) override {
+		_ptr->extend_sig(f,rank);
+	}
 	Smt::Solver& solver() final override { return _ptr->solver(); }
 	std::ostream& print_name( std::ostream& os ) final override { return _ptr->print_name(os); }
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) final override {
@@ -127,6 +135,8 @@ private:
 public:
 	TrivOrder( Smt::Solver&& sol ) : _solver(std::move(sol)) {}
 	int log() override { return NONE; }
+	void extend_sig( std::string const& f, Trs::Rank const& rank ) override {}
+	void extend_sig( Trs::Sig const& sig ) override {}
 	Smt::Solver& solver() override { return _solver; }
 	Smt::Compare compare( Exp const& l, Exp const& r ) override {
 		return {true,false};
@@ -143,7 +153,7 @@ public:
 	Smt::PostExp simple( std::string const& f, size_t i ) override {
 		return true;
 	}
-	Smt::Compare order_rule( size_t i ) override {
+	Smt::Compare order_rule( Exp const&, Exp const&, size_t ) override {
 		return {true,false};
 	}
 };
@@ -155,29 +165,30 @@ private:
 	Map<std::string,std::vector<Smt::PostExp>> _simple;
 	int _log;
 public:
-	Template::Deriver const deriver;
+	Template::Deriver deriver;
 	Algebra<std::string,A> const intp;
 	DerivedTermOrder(
-		Trs::Sig const& sig,
 		Exp const& temp,
 		Smt::Solver&& sol_,
 		int log_ = NONE
 	) : _solver(std::move(sol_)),
 		_log(log_),
-		deriver(Template::Deriver::of(temp,sig,_solver)),
+		deriver(temp,_solver),
 		intp(deriver.derive(A::ALGEBRA)) {
-		for( auto const& [f,rank] : sig ) {// initializing simplicity table
-			auto [vec,flag] = _simple.emplace(f,std::vector<Smt::PostExp>());
-			std::vector<Term<std::string>> is;
-			for( size_t i = 0; i < rank.arity; i++ ) {
-				is.emplace_back( std::string("#") + std::to_string(i) );
-			}
-			auto l = deriver.subst(app(f,is));
-			for( size_t i = 0; i < rank.arity; i++ ) {
-				vec.emplace_back(_solver.expand(A::ALGEBRA(l).ge(A::ALGEBRA(is[i].fun()))));
-			}
+	}
+	void extend_sig( std::string const& f, Trs::Rank const& rank ) override {
+		deriver.extend_sig(f,rank);
+		auto [vec,flag] = _simple.emplace(f,std::vector<Smt::PostExp>());
+		std::vector<Term<std::string>> is;
+		for( size_t i = 0; i < rank.arity; i++ ) {
+			is.emplace_back( std::string("#") + std::to_string(i) );
+		}
+		auto l = deriver.subst(app(f,is));
+		for( size_t i = 0; i < rank.arity; i++ ) {
+			vec.emplace_back(_solver.expand(A::ALGEBRA(l).ge(A::ALGEBRA(is[i].fun()))));
 		}
 	}
+
 	Smt::Compare compare_inner( Exp const& l, Exp const& r ) override {
 		return order(intp(l),intp(r),_solver);
 	}
@@ -231,14 +242,21 @@ public:
 		Opt<size_t> post_arity() {
 			return _sum.ref<Mapped>() >>= [&]( auto b )->Opt<size_t>{ return {b.post_arity}; };
 		}
-		static std::function<Status(Trs::Rank const&)> of( Exp const& );
 	};
+	struct StatusFun {
+		std::function<Status(Trs::Rank const&)> fun;
+		StatusFun( std::function<Status(Trs::Rank const&)>&& arg ) : fun(std::move(arg)) {}
+		static StatusFun of( Exp const& );
+	};
+private:
+	StatusFun _status;
+public:
 	PathOrder(
-		Trs::Sig const& sig,
 		std::unique_ptr<TermOrder>&& weight,
-		std::function<Status(Trs::Rank const&)> status,
+		StatusFun&& status,
 		int log_
 	);
+	void extend_sig( std::string const& f, Trs::Rank const& rank ) override;
 	std::ostream& print_name( std::ostream& os ) override {
 		return os << "path-order " << _weight->print_name();
 	}

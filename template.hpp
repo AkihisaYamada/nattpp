@@ -25,16 +25,26 @@ struct Template {
 		}
 	};
 	struct Deriver : ::Deriver<std::string,Fun> {
-		Deriver() = delete;
-		Smt::PostExp const mono;
-//		std::function<Smt::PostExp(std::string const&, size_t)> const simp;
-		static Deriver of( Exp const& e, Trs::Sig const& sig, Smt::Solver& solver );
 	private:
+		Deriver() = delete;
+		Smt::Solver& _solver;
+		Exp _template_exp;
+//		std::function<Smt::PostExp(std::string const&, size_t)> const simp;
+	public:
+		Smt::PostExp const mono;
 		Deriver(
-			::Deriver<std::string,Fun>&& der,
-			Smt::PostExp&& mono
+			Exp const& e,
+			Smt::Solver& solver
 //			std::function<Smt::PostExp(std::string const&, size_t)>&& simp
-		) : ::Deriver<std::string,Fun>(std::move(der)), mono(std::move(mono)) {}
+		) : _template_exp(e),
+			_solver(solver),
+			mono(solver.declare_const(MONO,Smt::BOOL)) {}
+		void extend_sig( std::string const& f, Trs::Rank const& rank ) &;
+		void extend_sig( Trs::Sig const& sig ) & {
+			for( auto [f,rank] : sig ) {
+				extend_sig(f,rank);
+			}
+		}
 	};
 	/** instantiate SMT expressions in templates via get_value */
 	static Algebra<Sum<Fun,Arg>,ArgTerm<Fun>> instantiator( Smt::Solver& solver );

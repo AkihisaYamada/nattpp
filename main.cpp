@@ -1,5 +1,6 @@
 #include<fstream>
 #include<fcntl.h>
+#include<algorithm>
 #include"problem.hpp"
 #include"termord.hpp"
 #include"deprem.hpp"
@@ -16,6 +17,7 @@ int main( int argc, char* argv[] ) try {
 	int default_log = -1;
 	bool default_strategy = true;
 	bool use_dp = false;
+	bool use_marked_dp = false;
 	vector<Exp> rulerem_specs;
 	vector<Exp> rem_specs;
 	vector<Exp> dprem_specs;
@@ -94,29 +96,35 @@ int main( int argc, char* argv[] ) try {
 			rem_specs.emplace_back(LPO_SPEC);
 			dprem_specs.emplace_back("max");
 			use_dp = true;
+			use_marked_dp = true;
 		}
 		break;
 	case SOME:
 		use_dp = false;
 		break;
 	}
-	vector<unique_ptr<TrsOrder>> rule_removers;
+	vector<pair<int,unique_ptr<TrsOrder>>> rule_removers;
 	for( auto x : rulerem_specs ) {
-		rule_removers.push_back(TrsOrder::of(TermOrder::of(x,sig,default_smt,Smt::INT,default_log),trs));
+		rule_removers.emplace_back(0,TrsOrder::of(TermOrder::of(x,default_smt,Smt::INT,default_log)));
 	}
-	vector<unique_ptr<TrsOrder>> both_removers;
+	vector<pair<int,unique_ptr<TrsOrder>>> both_removers;
 	for( auto x : rem_specs ) {
-		both_removers.push_back(TrsOrder::of(TermOrder::of(x,sig,default_smt,Smt::INT,default_log),trs));
+		both_removers.emplace_back(0,TrsOrder::of(TermOrder::of(x,default_smt,Smt::INT,default_log)));
 	}
 
 	// rule removal loop
-	auto rule_removes = [&]( TrsOrder& ord ) {
-		cerr << "; trying " << ord.print_name() << "... " << endl;
-		auto const& rem = order_some_rule(ord,p.systems[0]);
+	auto rule_removes = [&]( pair<int,unique_ptr<TrsOrder>>& pair ) {
+		auto& [stage,ord] = pair;
+		cerr << "; trying " << ord->print_name() << "... " << endl;
+		if( stage < 1 ) {// initialize for signature
+			ord->extend_sig(sig);
+			stage = 1;
+		}
+		auto const& rem = order_some_rule(*ord,p.systems[0]);
 		if( rem.empty() ) {
 			return false;
 		}
-		cerr << "(remove-rule\n  " << ord.print(p.sig) << "\n ";
+		cerr << "(remove-rule\n  " << ord->print(p.sig) << "\n ";
 		for( size_t i : rem ) {
 			cerr << ' ' << i;
 			p.systems[0].erase(i);
@@ -126,15 +134,10 @@ int main( int argc, char* argv[] ) try {
 	};
 	do {
 		if( p.systems[0].empty() ) throw Answer::YES;
-	} while( [&](){
-		for( auto& proc : rule_removers ) {
-			if( rule_removes(*proc) ) return true;
-		}
-		for( auto& proc : both_removers ) {
-			if( rule_removes(*proc) ) return true;
-		}
-		return false;
-	}() );
+	} while(
+		std::ranges::any_of(rule_removers,rule_removes) ||
+		std::ranges::any_of(both_removers,rule_removes)
+	);
 
 	if( !use_dp ) throw Answer::MAYBE;
 
@@ -147,36 +150,51 @@ int main( int argc, char* argv[] ) try {
 	Dps dps = make_dps(p.sig,p.systems[0]);
 	cerr << dps << endl;
 
-	vector<unique_ptr<TrsOrder>> dp_removers;
+	vector<pair<int,unique_ptr<TrsOrder>>> dp_removers;
 	for( auto x : dprem_specs ) {
-		dp_removers.push_back(TrsOrder::of(TermOrder::of(x,sig,default_smt,Smt::INT,default_log),trs));
+		dp_removers.emplace_back(0,TrsOrder::of(TermOrder::of(x,default_smt,Smt::INT,default_log)));
 	}
 	// DP removal loop
-	auto dp_removes = [&]( TrsOrder& ord ){
-		cerr << "; trying " << ord.print_name() << "... " << endl;
-		auto const& rem = order_some_dp(ord,p.systems[0],dps);
+	bool marked = false;
+	auto dp_removes = [&]( pair<int,unique_ptr<TrsOrder>>& pair ){
+		auto& [stage,ord] = pair;
+		cerr << "; trying " << ord->print_name() << "... " << endl;
+		if( stage < 1 ) {
+			ord->extend_sig(sig);
+			stage = 1;
+		}
+		if( marked && stage < 2 ) {// extend for marked signature
+			ord->extend_sig(dps.extra_sig);
+			stage = 2;
+		}
+		auto const& rem = order_some_dp(*ord,p.systems[0],dps);
 		if( rem.empty() ) {
 			return false;
 		}
-		cerr << "(remove-dp\n  " << ord.print(p.sig) << "\n ";
+		cerr << "(remove-dp\n  " << ord->print(p.sig) << "\n ";
 		for( size_t i : rem ) {
 			cerr << ' ' << i;
-			dps.erase(i);
+			dps.map.erase(i);
 		}
 		cerr << ')' << endl;
 		return true;
 	};
-	do {
-		if( dps.empty() ) throw Answer::YES;
-	} while( [&]{
-		for( auto& proc : both_removers ) {
-			if( dp_removes(*proc) ) return true;
-		}
-		for( auto& proc : dp_removers ) {
-			if( dp_removes(*proc) ) return true;
-		}
-		return false;
-	}() );
+	auto dp_rem_loop = [&]{
+		do {
+			if( dps.map.empty() ) throw Answer::YES;
+		} while(
+			std::ranges::any_of( both_removers, dp_removes ) ||
+			std::ranges::any_of( dp_removers, dp_removes )
+		);
+	};
+	dp_rem_loop();
+	if( use_marked_dp ) {
+		cerr << "; marking DPs" << endl;
+		mark_dps(sig,dps);
+		cerr << dps << endl;
+		marked = true;
+		dp_rem_loop();
+	}
 	throw Answer::MAYBE;
 } catch( Answer a ) {
 	if( a == Answer::YES ) {

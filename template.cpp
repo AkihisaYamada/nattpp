@@ -224,14 +224,10 @@ static Term<Sum<Template::Fun,Arg>> _deriver_of(
 	exp.get_end(n);
 	return app(fun,std::move(args));
 }
-Template::Deriver Template::Deriver::of( Exp const& e, Trs::Sig const& sig, Smt::Solver& solver ) {
-	Map<string,Term<Sum<Template::Fun,Arg>>> map;
-	auto mono = solver.declare_const(MONO,Smt::BOOL);// monotonicity flag
-	for( auto [f,rank] : sig ) {
-		map.emplace(f,_deriver_of(e,solver,f,rank,0));
-	}
-	return Deriver(std::move(map),std::move(mono));
-}
+void Template::Deriver::extend_sig( std::string const& f, Trs::Rank const& rank ) & {
+	assign(f,_deriver_of(_template_exp,_solver,f,rank,0));
+} 
+
 static Exp _posvar = Exp("var",":constrain",Exp(">=","_","0"));
 static Exp _1_or_2 = Exp("ite",Exp("var",":sort","Bool"),"2","1");
 static Exp _0_or_1 = Exp("ite",Exp("var",":sort","Bool"),"1","0");
@@ -270,7 +266,8 @@ void Template::test() {
 	sig.emplace("f",2);
 	sig.emplace("g",1);
 	sig.emplace("a",0);
-	auto der = Template::Deriver::of(SUM,sig,z3);
+	auto der = Template::Deriver(SUM,z3);
+	der.extend_sig(sig);
 	auto der_intp = der.derive(MPoly::ALGEBRA);
 	auto e = Exp("f",Exp("g","x"),"a");
 	cout << der << endl;

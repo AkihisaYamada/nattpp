@@ -15,9 +15,20 @@ struct Dp {
 	}
 };
 
-using Dps = Map<size_t,Dp>;
+struct Dps {
+	size_t max_index;
+	Trs::Sig extra_sig;
+	Map<size_t,Dp> map;
+	template<typename... Args>
+	void emplace( Args&&... args ) {
+		map.emplace( max_index, Dp( std::forward<Args>(args)... ) );
+		max_index++;
+	}
+};
 
 Dps make_dps( Trs::Sig const& sig, Trs::Rules const& rules );
+
+void mark_dps( Trs::Sig const& sig, Dps& dps );
 
 inline std::ostream& operator<<( std::ostream& os, Dp const& dp ) {
 	return os << '(' << dp.print_content() << ')';

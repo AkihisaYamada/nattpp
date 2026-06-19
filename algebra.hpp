@@ -106,6 +106,10 @@ public:
 		return _map.find(f);
 	}
 	_Map const& map() const& { return _map; }
+	Deriver& assign( F const& f, ArgTerm<G> const& t ) {
+		_map.emplace(f,t);
+		return *this;
+	}
 	/** general substitution */
 	Term<G> subst( Term<F> const& t ) const& { return algebra()(t); }
 	auto derive( auto ) && = delete;

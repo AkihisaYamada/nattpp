@@ -5,62 +5,64 @@
 using namespace std;
 
 PathOrder::PathOrder(
-	Trs::Sig const& sig,
 	std::unique_ptr<TermOrder>&& weight,
-	std::function<Status(Trs::Rank const&)> status,
+	StatusFun&& status,
 	int log
-) : _weight([&]{// ugly but C++ 
-		if( log & DEBUG ) cerr << "; initializing path order" << endl;
-		return std::move(weight);
+) : _weight(
+		[&]{// ugly but C++ 
+			if( log & DEBUG ) cerr << "; initializing path order" << endl;
+			return std::move(weight);
 		}()
 	),
 	_log(log),
-	_mono(_weight->solver().declare_fresh(Smt::BOOL)) {
+	_mono(_weight->solver().declare_fresh(Smt::BOOL)),
+	_status(std::move(status))
+{
 	if( log & DEBUG ) cerr << "; monotonicity flag: " << _mono << endl;
-	size_t sigsize = sig.size();
+}
+void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 	auto& sol = solver();
 	auto const& sort = sol.logic().base_sort();
-	for( auto const&[f,rank] : sig ) {
-		if( log & DEBUG ) cerr << "; fun " << f << ' ' << rank << endl;
-		auto [info,suc] = _info.emplace(f,_SymInfo{sol.declare_fresh(sort)});
-		assert(suc);
-		sol.ass( Smt::ge(info.prec,0) );
-		if( log & DEBUG ) cerr << ";  prec: " << info.prec << endl;
-		std::vector<Smt::PostExp> mapped_tbl;
-		auto ass_mapped = [&]( Smt::PostExp const& mappedi, size_t i ) {
-			// monotonicity requires mapped[i]
-			sol.ass( _mono.imp(mappedi) );
-			// mapped[i] requires weak simplicity of weight
-			sol.ass( mappedi.imp(_weight->simple(f,i)) );
-		};
-		if( auto post_arity = status(rank).post_arity() ) {
-			info.post_arity = *post_arity;
-			std::vector<std::vector<Smt::PostExp>> map_tbl;
-			for( size_t i = 0; i < rank.arity; i++ ) {
-				auto& mapi = map_tbl.emplace_back();
-				for( size_t k = 0; k < info.post_arity; k++ ) {// k-th place after mapping
-					auto const& ik = mapi.emplace_back(sol.declare_fresh(Smt::BOOL));
-					for( size_t j = 0; j < i; j++ ) {// k-th place cannot be shared
-						sol.ass( !map_tbl[i][k] || !map_tbl[j][k] );
-					}
+	if( _log & DEBUG ) cerr << "; fun " << f << ' ' << rank << endl;
+	_weight->extend_sig(f,rank);
+	auto [info,suc] = _info.emplace(f,_SymInfo{sol.declare_fresh(sort)});
+	assert(suc);
+	sol.ass( Smt::ge(info.prec,0) );
+	if( _log & DEBUG ) cerr << ";  prec: " << info.prec << endl;
+	std::vector<Smt::PostExp> mapped_tbl;
+	auto ass_mapped = [&]( Smt::PostExp const& mappedi, size_t i ) {
+		// monotonicity requires mapped[i]
+		sol.ass( _mono.imp(mappedi) );
+		// mapped[i] requires weak simplicity of weight
+		sol.ass( mappedi.imp(_weight->simple(f,i)) );
+	};
+	if( auto post_arity = _status.fun(rank).post_arity() ) {
+		info.post_arity = *post_arity;
+		std::vector<std::vector<Smt::PostExp>> map_tbl;
+		for( size_t i = 0; i < rank.arity; i++ ) {
+			auto& mapi = map_tbl.emplace_back();
+			for( size_t k = 0; k < info.post_arity; k++ ) {// k-th place after mapping
+				auto const& ik = mapi.emplace_back(sol.declare_fresh(Smt::BOOL));
+				for( size_t j = 0; j < i; j++ ) {// k-th place cannot be shared
+					sol.ass( !map_tbl[i][k] || !map_tbl[j][k] );
 				}
-				if( log & DEBUG ) cerr << ";  map[" << i << "] = " << print_list(mapi) << std::endl;
-				// mapped[i] means i-th argument survives mapping
-				auto const& mappedi = mapped_tbl.emplace_back( sol.let(Smt::BOOL,Smt::disj(mapi)) );
-				ass_mapped(mappedi,i);
 			}
-			info.map = [map_tbl=std::move(map_tbl)]( size_t i, size_t j ){ return map_tbl[i][j]; };
-		} else {// straight status
-			for( size_t i = 0; i < rank.arity; i++ ) {
-				auto const& mappedi = mapped_tbl.emplace_back(sol.declare_fresh(Smt::BOOL));
-				ass_mapped(mappedi,i);
-			}
-			info.map = [&]( size_t i, size_t j ){
-				return i == j ? info.mapped(i) : Smt::PostExp(false);
-			};
+			if( _log & DEBUG ) cerr << ";  map[" << i << "] = " << print_list(mapi) << std::endl;
+			// mapped[i] means i-th argument survives mapping
+			auto const& mappedi = mapped_tbl.emplace_back( sol.let(Smt::BOOL,Smt::disj(mapi)) );
+			ass_mapped(mappedi,i);
 		}
-		info.mapped = [mapped_tbl=std::move(mapped_tbl)]( size_t i ){ return mapped_tbl[i]; };
+		info.map = [map_tbl=std::move(map_tbl)]( size_t i, size_t j ){ return map_tbl[i][j]; };
+	} else {// straight status
+		for( size_t i = 0; i < rank.arity; i++ ) {
+			auto const& mappedi = mapped_tbl.emplace_back(sol.declare_fresh(Smt::BOOL));
+			ass_mapped(mappedi,i);
+		}
+		info.map = [&]( size_t i, size_t j ){
+			return i == j ? info.mapped(i) : Smt::PostExp(false);
+		};
 	}
+	info.mapped = [mapped_tbl=std::move(mapped_tbl)]( size_t i ){ return mapped_tbl[i]; };
 }
 
 Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
@@ -73,17 +75,17 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 	}
 	auto const& [lf,largs] = *l;
 	auto const& linfo = _info.find(lf);
-	auto some_arg_ge = (bool)linfo && Smt::disj( 0, largs.size(), [&]( size_t i ){
+	auto some_arg_ge = linfo ? Smt::disj( 0, largs.size(), [&]( size_t i ){
 		return linfo->mapped(i) && compare(largs[i],r).ge;// l_i survives and l_i >= r
-	} );
+	} ) : false;
 	if( some_arg_ge == true ) {
 		return {true,true};
 	}
 	auto const& [rf,rargs] = *r;
 	auto const& rinfo = _info.find(rf);
-	auto gt_all_arg = !rinfo || Smt::conj( 0, rargs.size(), [&]( size_t j ){
+	auto gt_all_arg = rinfo ? Smt::conj( 0, rargs.size(), [&]( size_t j ){
 		return rinfo->mapped(j).imp( compare(l,rargs[j]).gt );// if r_j survives, then l > r_j
-	});
+	}) : true;
 	if( !linfo ) {// lhs is a variable
 		return { solver().let( Smt::BOOL, gt_all_arg && lf == rf ), false };
 	}
@@ -152,7 +154,7 @@ std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules ) 
 		if( order.log() & TermOrder::RULE ) {
 			cerr << "; " << rule << endl;
 		}
-		auto const& [ge,gt] = order.order_rule(i);
+		auto const& [ge,gt] = order.order_rule(rule.first,rule.second,i);
 		all_ge = all_ge && ge;
 		gts.emplace_back(i,gt);
 	}
@@ -170,11 +172,11 @@ std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules ) 
 	return std::move(ret);
 }
 
-std::function<PathOrder::Status(Trs::Rank const&)> PathOrder::Status::of( Exp const& x ) {
+PathOrder::StatusFun PathOrder::StatusFun::of( Exp const& x ) {
 	size_t n = 0;
 	if( x.fun() == "straight" ) {
 		x.get_end(n);
-		return [](auto){ return Straight(); };
+		return StatusFun([](auto){ return Status::Straight(); });
 	}
 	if( x.fun() == "map" ) {
 		int num;
@@ -183,9 +185,9 @@ std::function<PathOrder::Status(Trs::Rank const&)> PathOrder::Status::of( Exp co
 		} else {
 			num = -1;
 		}
-		return [num]( Trs::Rank const& rank ){
-			return Mapped( num == -1 ? rank.arity : rank.arity ? num : 0 );
-		};
+		return StatusFun([num]( Trs::Rank const& rank ){
+			return Status::Mapped( num == -1 ? rank.arity : rank.arity ? num : 0 );
+		});
 	}
 	throw Error("#malformed-status",x);
 }
@@ -203,7 +205,6 @@ int TermOrder::log_of( Exp const& x ) {
 
 std::unique_ptr<TermOrder> TermOrder::of(
 	Exp const& x,
-	Trs::Sig const& sig,
 	std::function<Smt::Solver()> const& default_smt,
 	Smt::Sort const& default_sort,
 	int default_log
@@ -235,30 +236,30 @@ std::unique_ptr<TermOrder> TermOrder::of(
 	} else if( f == "mono-sum" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<MPoly>>(sig,Template::MONO_SUM,mk_smt(),log);
+		return std::make_unique<DerivedTermOrder<MPoly>>(Template::MONO_SUM,mk_smt(),log);
 	} else if( f == "sum" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<MPoly>>(sig,Template::SUM,mk_smt(),log);
+		return std::make_unique<DerivedTermOrder<MPoly>>(Template::SUM,mk_smt(),log);
 	} else if( f == "poly" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<MPoly>>(sig,Template::MONO_POLY2,mk_smt(),log);
+		return std::make_unique<DerivedTermOrder<MPoly>>(Template::MONO_POLY2,mk_smt(),log);
 	} else if( f == "max" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<MPoly>>(sig,Template::MAX,mk_smt(),log);
+		return std::make_unique<DerivedTermOrder<MPoly>>(Template::MAX,mk_smt(),log);
 	} else if( f == "template" ) {
 		Exp t = x.get_arg(n);
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<MPoly>>(sig,t,mk_smt(),log);
+		return std::make_unique<DerivedTermOrder<MPoly>>(t,mk_smt(),log);
 	} else if( f == "path-order" ) {
 		auto w = x.gets_arg(n);
-		Opt<std::function<PathOrder::Status(Trs::Rank const&)>> status;
+		Opt<PathOrder::StatusFun> status;
 		Exp::KeyValProc status_key = [&]( auto const& key, Exp const& val ){
 			if( key == "status" ) {
-				status = {PathOrder::Status::of(val)};
+				status = {PathOrder::StatusFun::of(val)};
 				return true;
 			}
 			return false;
@@ -267,12 +268,11 @@ std::unique_ptr<TermOrder> TermOrder::of(
 		x.get_end(n);
 		set_log();
 		std::unique_ptr<TermOrder> weight;
-		if( w ) weight = std::make_unique<MemoizeTermOrder>(of(*w,sig,default_smt,default_sort,log));
+		if( w ) weight = std::make_unique<MemoizeTermOrder>(of(*w,default_smt,default_sort,log));
 		else weight = std::make_unique<TrivOrder>(mk_smt());
 		return std::make_unique<PathOrder>(
-			sig,
 			std::move(weight),
-			status ? *status : []( Trs::Rank const& rank ){ return PathOrder::Status::Straight(); },
+			status ? *status : PathOrder::StatusFun( []( Trs::Rank const& rank ){ return PathOrder::Status::Straight(); } ),
 			log
 		);
 	} else {
@@ -281,15 +281,14 @@ std::unique_ptr<TermOrder> TermOrder::of(
 }
 
 std::unique_ptr<TrsOrder> TrsOrder::of(
-	std::unique_ptr<TermOrder>&& p,
-	Trs::Rules const& rules
+	std::unique_ptr<TermOrder>&& p
 ) {
 	if( dynamic_cast<TrsOrder*>(p.get()) ) {
 		return std::unique_ptr<TrsOrder>(
 			static_cast<TrsOrder*>(p.release())
 		);
 	}
-	return std::make_unique<_Wrapper>(rules,std::move(p));
+	return std::make_unique<_Wrapper>(std::move(p));
 }
 
 Exp const SUM_SPEC = Exp{"sum"};
@@ -306,14 +305,15 @@ void TermOrder::test() {
 	cout << lex_compare(order,vector{x},{x,z}).ge << endl;
 
 	Trs::Sig sig = {{"+",{2}}};
-	Trs::Rules trs;
-	trs.emplace(0,Trs::Rule({"+","x","y"},{"x"}));
 
 	auto lpo = TrsOrder::of(
-		std::make_unique<PathOrder>(sig,std::make_unique<TrivOrder>(Smt::Z3(Smt::LIA)),
-			[&](Trs::Rank const&){ return PathOrder::Status::Mapped(2); },TermOrder::RULE),
-		trs
+		std::make_unique<PathOrder>(
+			std::make_unique<TrivOrder>(Smt::Z3(Smt::LIA)),
+			PathOrder::StatusFun( [&](Trs::Rank const&){ return PathOrder::Status::Mapped(2); } ),
+			TermOrder::RULE
+		)
 	);
-	cout << lpo->order_rule(0).gt << endl;
+	lpo->extend_sig(sig);
+	cout << lpo->order_rule({"+","x","y"},{"x"},0).gt << endl;
 
 }

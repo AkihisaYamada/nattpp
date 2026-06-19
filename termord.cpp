@@ -6,7 +6,6 @@ using namespace std;
 
 PathOrder::PathOrder(
 	Trs::Sig const& sig,
-	Trs::Rules const& rules,
 	std::unique_ptr<TermOrder>&& weight,
 	std::function<Status(Trs::Rank const&)> status,
 	int log
@@ -62,30 +61,15 @@ PathOrder::PathOrder(
 		}
 		info.mapped = [mapped_tbl=std::move(mapped_tbl)]( size_t i ){ return mapped_tbl[i]; };
 	}
-	for( auto const& [n,rule] : rules ) {
-		auto const& l = rule.first;
-		auto const& r = rule.second;
-		_ord.emplace(n,compare(l,r));
-	}
 }
 
-Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
-	if( auto const& opt = _table.find({l,r}) ) {
-		return *opt;
-	}
-	auto memo = [&]( Smt::Compare const& comp ){
-		if( log() & PAIR ) {
-			cerr << "; " << l << " <=> " << r << " = " << comp << endl;
-		}
-		_table.emplace(pair{l,r},comp);
-		return comp;
-	};
+Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 	auto const& [wge,wgt] = _weight->compare(l,r);
 	if( wgt == true ) {
-		return memo({true,true});
+		return {true,true};
 	}
 	if( wge == false ) {
-		return memo({false,false});
+		return {false,false};
 	}
 	auto const& [lf,largs] = *l;
 	auto const& linfo = _info.find(lf);
@@ -93,7 +77,7 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 		return linfo->mapped(i) && compare(largs[i],r).ge;// l_i survives and l_i >= r
 	} );
 	if( some_arg_ge == true ) {
-		return memo({true,true});
+		return {true,true};
 	}
 	auto const& [rf,rargs] = *r;
 	auto const& rinfo = _info.find(rf);
@@ -101,12 +85,12 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 		return rinfo->mapped(j).imp( compare(l,rargs[j]).gt );// if r_j survives, then l > r_j
 	});
 	if( !linfo ) {// lhs is a variable
-		return memo({ solver().let( Smt::BOOL, gt_all_arg && lf == rf ), false });
+		return { solver().let( Smt::BOOL, gt_all_arg && lf == rf ), false };
 	}
 	some_arg_ge = solver().let(Smt::BOOL,some_arg_ge);
-	if( gt_all_arg == false ) return memo({false,false});
+	if( gt_all_arg == false ) return {false,false};
 	if( !rinfo ) { // rhs is a variable
-		return memo({some_arg_ge,some_arg_ge});
+		return {some_arg_ge,some_arg_ge};
 	}
 	gt_all_arg = solver().let(Smt::BOOL,gt_all_arg);
 	auto const& [args_ge,args_gt] = mapped_lex_compare(
@@ -123,7 +107,7 @@ Smt::Compare PathOrder::compare( Exp const& l, Exp const& r ) {
 	auto const& ge = solver().let(
 		Smt::BOOL, gt || (wge && gt_all_arg && pge && args_ge )
 	);
-	return memo({ge,gt});
+	return {ge,gt};
 }
 
 std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sym ) {
@@ -217,10 +201,9 @@ int TermOrder::log_of( Exp const& x ) {
 	}
 }
 
-std::unique_ptr<TrsOrder> TrsOrder::of(
+std::unique_ptr<TermOrder> TermOrder::of(
 	Exp const& x,
 	Trs::Sig const& sig,
-	Trs::Rules const& trs,
 	std::function<Smt::Solver()> const& default_smt,
 	Smt::Sort const& default_sort,
 	int default_log
@@ -248,22 +231,28 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 	};
 	if( f == "trivial" ) {
 		x.process_keys(n,solver_key);
-		return std::make_unique<TrivOrder>(mk_smt()); 
+		return std::make_unique<TrivOrder>(mk_smt());
+	} else if( f == "mono-sum" ) {
+		x.process_keys( n, solver_key || log_key );
+		set_log();
+		return std::make_unique<DerivedTermOrder<MPoly>>(sig,Template::MONO_SUM,mk_smt(),log);
 	} else if( f == "sum" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTrsPosOrder<MPoly>>
-			( sig, trs, Template::SUM, mk_smt(), log );
+		return std::make_unique<DerivedTermOrder<MPoly>>(sig,Template::SUM,mk_smt(),log);
 	} else if( f == "poly" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTrsPosOrder<MPoly>>
-			( sig, trs, Template::MONO_POLY2, mk_smt(), log );
+		return std::make_unique<DerivedTermOrder<MPoly>>(sig,Template::MONO_POLY2,mk_smt(),log);
+	} else if( f == "max" ) {
+		x.process_keys( n, solver_key || log_key );
+		set_log();
+		return std::make_unique<DerivedTermOrder<MPoly>>(sig,Template::MAX,mk_smt(),log);
 	} else if( f == "template" ) {
 		Exp t = x.get_arg(n);
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTrsPosOrder<MPoly>>(sig,trs,t,mk_smt(),log);
+		return std::make_unique<DerivedTermOrder<MPoly>>(sig,t,mk_smt(),log);
 	} else if( f == "path-order" ) {
 		auto w = x.gets_arg(n);
 		Opt<std::function<PathOrder::Status(Trs::Rank const&)>> status;
@@ -277,9 +266,12 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 		x.process_keys( n, status_key || log_key || (w ? [](auto,auto){ return false; } : solver_key) );
 		x.get_end(n);
 		set_log();
+		std::unique_ptr<TermOrder> weight;
+		if( w ) weight = std::make_unique<MemoizeTermOrder>(of(*w,sig,default_smt,default_sort,log));
+		else weight = std::make_unique<TrivOrder>(mk_smt());
 		return std::make_unique<PathOrder>(
-			sig, trs,
-			w ? of(*w,sig,trs,default_smt,default_sort,log) : std::make_unique<TrivOrder>(mk_smt()),
+			sig,
+			std::move(weight),
 			status ? *status : []( Trs::Rank const& rank ){ return PathOrder::Status::Straight(); },
 			log
 		);
@@ -288,7 +280,20 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 	}
 }
 
+std::unique_ptr<TrsOrder> TrsOrder::of(
+	std::unique_ptr<TermOrder>&& p,
+	Trs::Rules const& rules
+) {
+	if( dynamic_cast<TrsOrder*>(p.get()) ) {
+		return std::unique_ptr<TrsOrder>(
+			static_cast<TrsOrder*>(p.release())
+		);
+	}
+	return std::make_unique<_Wrapper>(rules,std::move(p));
+}
+
 Exp const SUM_SPEC = Exp{"sum"};
+Exp const LPO_SPEC = Exp{"path-order", ":status", "map"};
 Exp const LPO3_SPEC = Exp{"path-order", ":status",Exp{"map","3"}};
 
 void TermOrder::test() {
@@ -304,8 +309,11 @@ void TermOrder::test() {
 	Trs::Rules trs;
 	trs.emplace(0,Trs::Rule({"+","x","y"},{"x"}));
 
-	auto lpo = PathOrder(sig,trs,std::make_unique<TrivOrder>
-		(Smt::Z3(Smt::LIA)),[&](Trs::Rank const&){ return PathOrder::Status::Mapped(2); },TermOrder::RULE);
-	cout << lpo.order_rule(0).gt << endl;
+	auto lpo = TrsOrder::of(
+		std::make_unique<PathOrder>(sig,std::make_unique<TrivOrder>(Smt::Z3(Smt::LIA)),
+			[&](Trs::Rank const&){ return PathOrder::Status::Mapped(2); },TermOrder::RULE),
+		trs
+	);
+	cout << lpo->order_rule(0).gt << endl;
 
 }

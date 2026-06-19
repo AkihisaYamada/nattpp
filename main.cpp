@@ -14,7 +14,10 @@ int main( int argc, char* argv[] ) try {
 	Opt<Exp> default_smt_spec;
 	Opt<Smt::BaseSort> default_sort;
 	int default_log = -1;
+	bool default_strategy = true;
+	bool use_dp = false;
 	vector<Exp> rulerem_specs;
+	vector<Exp> rem_specs;
 	vector<Exp> dprem_specs;
 	for( int i = 1; i < argc; i++ ) {
 		if( argv[i][0] == '-' ) {
@@ -44,9 +47,17 @@ int main( int argc, char* argv[] ) try {
 			} else if( opt == "-r" ) {// rule remover
 				require_arg();
 				rulerem_specs.push_back(Exp::of(argv[i]));
+				default_strategy = false;
+			} else if( opt == "-rd" ) {// rule/dp remover
+				require_arg();
+				rem_specs.push_back(Exp::of(argv[i]));
+				default_strategy = false;
+				use_dp = true;
 			} else if( opt == "-d" ) {// dp remover
 				require_arg();
 				dprem_specs.push_back(Exp::of(argv[i]));
+				default_strategy = false;
+				use_dp = true;
 			} else {
 				throw Error("#unknown-option",argv[i]);
 			}
@@ -76,18 +87,12 @@ int main( int argc, char* argv[] ) try {
 	cerr << p << endl;
 	auto const& sig = p.sig;
 	auto const& trs = p.systems[0];
-	bool use_dp;
 	switch( mode ) {
 	case UNSET: case SN:
-		if( dprem_specs.empty() ) {
-			if( rulerem_specs.empty() ) {// default strategy
-				rulerem_specs.emplace_back(SUM_SPEC);
-				dprem_specs.emplace_back(LPO3_SPEC);
-				use_dp = true;
-			} else {
-				use_dp = false;
-			}
-		} else {
+		if( default_strategy ) {
+			rulerem_specs.emplace_back("mono-sum");
+			rem_specs.emplace_back(LPO_SPEC);
+			dprem_specs.emplace_back("max");
 			use_dp = true;
 		}
 		break;
@@ -97,7 +102,11 @@ int main( int argc, char* argv[] ) try {
 	}
 	vector<unique_ptr<TrsOrder>> rule_removers;
 	for( auto x : rulerem_specs ) {
-		rule_removers.push_back(TrsOrder::of(x,sig,trs,default_smt,Smt::INT,default_log));
+		rule_removers.push_back(TrsOrder::of(TermOrder::of(x,sig,default_smt,Smt::INT,default_log),trs));
+	}
+	vector<unique_ptr<TrsOrder>> both_removers;
+	for( auto x : rem_specs ) {
+		both_removers.push_back(TrsOrder::of(TermOrder::of(x,sig,default_smt,Smt::INT,default_log),trs));
 	}
 
 	// rule removal loop
@@ -121,6 +130,9 @@ int main( int argc, char* argv[] ) try {
 		for( auto& proc : rule_removers ) {
 			if( rule_removes(*proc) ) return true;
 		}
+		for( auto& proc : both_removers ) {
+			if( rule_removes(*proc) ) return true;
+		}
 		return false;
 	}() );
 
@@ -137,7 +149,7 @@ int main( int argc, char* argv[] ) try {
 
 	vector<unique_ptr<TrsOrder>> dp_removers;
 	for( auto x : dprem_specs ) {
-		dp_removers.push_back(TrsOrder::of(x,sig,trs,default_smt,Smt::INT,default_log));
+		dp_removers.push_back(TrsOrder::of(TermOrder::of(x,sig,default_smt,Smt::INT,default_log),trs));
 	}
 	// DP removal loop
 	auto dp_removes = [&]( TrsOrder& ord ){
@@ -157,7 +169,7 @@ int main( int argc, char* argv[] ) try {
 	do {
 		if( dps.empty() ) throw Answer::YES;
 	} while( [&]{
-		for( auto& proc : rule_removers ) {
+		for( auto& proc : both_removers ) {
 			if( dp_removes(*proc) ) return true;
 		}
 		for( auto& proc : dp_removers ) {

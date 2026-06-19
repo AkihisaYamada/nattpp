@@ -234,6 +234,7 @@ Template::Deriver Template::Deriver::of( Exp const& e, Trs::Sig const& sig, Smt:
 }
 static Exp _posvar = Exp("var",":constrain",Exp(">=","_","0"));
 static Exp _1_or_2 = Exp("ite",Exp("var",":sort","Bool"),"2","1");
+static Exp _0_or_1 = Exp("ite",Exp("var",":sort","Bool"),"1","0");
 static Exp _bcoeff = Exp("ite",
 	Exp("var",":sort","Bool",
 		":constrain",Exp("=>",Template::MONO,"_")// monotonicity requires non-zero coefficient
@@ -250,6 +251,11 @@ Exp const Template::MONO_POLY2 = Exp("arity",
 Exp const Template::SIMP_MAX = Exp("arity",
 	Exp("0",_posvar),
 	Exp("otherwise",Exp("args","max",Exp("+","arg",_posvar)))
+);
+Exp const Template::MAX = Exp("arity",
+	Exp("0",_posvar),
+	Exp("1",Exp("+",Exp("*",_0_or_1,"arg"),_posvar)),
+	Exp("otherwise",Exp("args","max",Exp("+",Exp("*",_0_or_1,"arg"),_posvar)))
 );
 Exp const Template::SUM = Exp("arity",
 	Exp("0",_posvar),

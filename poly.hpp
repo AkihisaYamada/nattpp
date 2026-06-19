@@ -102,28 +102,31 @@ public:
 	MPoly() {}
 	template<typename T> requires std::is_constructible_v<Poly,T>
 	MPoly( T&& arg ) { _set.emplace_back( std::forward<T>(arg) ); }
-	MPoly& join( MPoly const& y ) & {
-		for( auto const& yc : y._set ) {
-			_set.emplace_back(yc);
-		}
-		return *this;
-	}
 	std::vector<Poly> const& set() const& {
 		return _set;
 	}
 	static Algebra<Template::Fun,MPoly> const ALGEBRA;
 	friend MPoly ite( MPoly const& c, MPoly const& p1, MPoly const& p2 );
 	friend MPoly operator+( MPoly const& x, MPoly const& y );
-	friend MPoly& operator+=( MPoly& x, MPoly const& y ) {
-		return x = x + y;
-	}
 	friend MPoly operator*( MPoly const& x, MPoly const& y );
-	friend MPoly& operator*=( MPoly& x, MPoly const& y ) {
-		return x = x * y;
-	}
+	friend MPoly& max_eq( MPoly& x, MPoly const& y );
 	Smt::PreExp ge( MPoly const& p2 ) const;
 	friend Smt::Compare order( MPoly const& x, MPoly const& y, Smt::Solver& solver );
 };
+MPoly operator+( MPoly const& x, MPoly const& y );
+inline MPoly& operator+=( MPoly& x, MPoly const& y ) {
+	return x = x + y;
+}
+MPoly operator*( MPoly const& x, MPoly const& y );
+inline MPoly& operator*=( MPoly& x, MPoly const& y ) {
+	return x = x * y;
+}
+inline MPoly& max_eq( MPoly& x, MPoly const& y ) {
+	for( auto const& yc : y._set ) {
+		x._set.emplace_back(yc);
+	}
+	return x;
+}
 
 std::ostream& operator<<( std::ostream& os, Poly::Sig const& f );
 

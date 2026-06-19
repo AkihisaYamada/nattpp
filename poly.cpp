@@ -180,6 +180,8 @@ Algebra<Template::Fun,MPoly> const MPoly::ALGEBRA =
 		} else if( *sym == Smt::ITE ) {
 			assert( args.size() == 3 );
 			return ite(args[0],args[1],args[2]);
+		} else if( *sym == Smt::MAX ) {
+			return chain(MPoly(),(MPoly&(*)(MPoly&,MPoly const&))max_eq,args);
 		} else {
 			assert( args.empty() );
 			return Poly::Var(*sym,Poly::POS);

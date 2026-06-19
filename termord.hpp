@@ -5,9 +5,9 @@
 #include"template.hpp"
 
 struct TermOrder {
-    virtual ~TermOrder() = default;// to be able to make pointer of TermOrder 
+	virtual ~TermOrder() = default;// to be able to make pointer of TermOrder 
 	enum { NONE = 0, RULE = 1 << 1, PAIR = 1 << 2, DEBUG = 1 << 3 };
-	virtual int log() { return NONE; };
+	virtual int log() = 0;
 	virtual Smt::Solver& solver() = 0;
 	virtual std::ostream& print_name( std::ostream& os ) = 0;
 	Printable print_name() & {
@@ -23,8 +23,8 @@ struct TermOrder {
 	}
 	virtual std::ostream& print( std::ostream& os, Trs::Sig const& sig ) {
 		os << '(' << print_name();
-		for( auto [f,arity] : sig ) {
-			os << "\n    (" << f << ' ' << print_sym_info(f) << ')';
+		for( auto [f,rank] : sig ) {
+			os << "\n    (" << f << " :arity " << (int)rank.arity << ' ' << print_sym_info(f) << ')';
 		}
 		return os << ')';
 	}
@@ -38,35 +38,95 @@ struct TermOrder {
 	virtual Smt::PostExp simple( std::string const& f, size_t i ) = 0;
 	static void test();
 	static int log_of( Exp const& exp );
-};
-
-struct TrsOrder : TermOrder {
-	virtual Smt::Compare order_rule( size_t i ) & = 0;
-	static std::unique_ptr<TrsOrder> of(
+	static std::unique_ptr<TermOrder> of(
 		Exp const& x,
 		Trs::Sig const& sig,
-		Trs::Rules const& trs,
 		std::function<Smt::Solver()> const& default_smt,
 		Smt::Sort const& default_sort,
 		int default_log
 	);
 };
 
-struct TrsPosOrder : TrsOrder {
-	virtual Smt::Compare order_rule( size_t i, Pos const& l, Pos const& r ) & = 0;
-	Smt::Compare order_rule( size_t i ) & override {
-		return order_rule(i,{},{});
+struct MemoizedTermOrder : TermOrder {
+protected:
+	Map<std::pair<Term<std::string>,Term<std::string>>,Smt::Compare> _table;
+	virtual Smt::Compare compare_inner( Exp const& l, Exp const& r ) = 0;
+public:
+	Smt::Compare compare( Exp const& l, Exp const& r ) final override {
+		if( auto const& opt = _table.find({l,r}) ) {
+			return *opt;
+		}
+		auto comp = compare_inner(l,r);
+		if( log() & PAIR ) {
+			std::cerr << "; " << l << " <=> " << r << " = " << comp << std::endl;
+		}
+		_table.emplace(std::pair{l,r},comp);
+		return comp;
 	}
 };
 
-struct TrivOrder : TrsOrder {
-	Smt::Solver _solver;
-	TrivOrder( Smt::Solver&& sol ) : _solver(std::move(sol)) {}
-	Smt::Solver& solver() override {
-		return _solver;
+struct MemoizeTermOrder final : MemoizedTermOrder {
+private:
+	std::unique_ptr<TermOrder> _ptr;
+public:
+	MemoizeTermOrder( std::unique_ptr<TermOrder>&& org ) : _ptr(std::move(org)) {}
+	Smt::Compare compare_inner( Exp const& l, Exp const& r ) override {
+		return _ptr->compare(l,r);
 	}
+	int log() override { return _ptr->log(); }
+	Smt::Solver& solver() override { return _ptr->solver(); }
+	std::ostream& print_name( std::ostream& os ) override { return _ptr->print_name(os); }
+	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override {
+		return _ptr->print_sym_info(os,f);
+	}
+	Smt::PostExp mono() override { return _ptr->mono(); }
+	Smt::PostExp simple( std::string const& f, size_t i ) override { return _ptr->simple(f,i); }
+};
+
+struct TrsOrder : TermOrder {
+	virtual Smt::Compare order_rule( size_t i ) = 0;
+	static std::unique_ptr<TrsOrder> of(
+		std::unique_ptr<TermOrder>&& org,
+		Trs::Rules const& rules
+	);
+private:
+	struct _Wrapper;
+};
+
+struct TrsOrder::_Wrapper final : TrsOrder {
+private:
+	std::unique_ptr<TermOrder> _ptr;
+	Map<size_t,Smt::Compare> _rule_order_table;
+public:
+	_Wrapper( Trs::Rules const& rules, std::unique_ptr<TermOrder>&& org ) :
+		_ptr( std::move(org) ) {
+		for( auto [i,rule] : rules ) {
+			_rule_order_table.emplace(i,_ptr->compare(rule.first,rule.second));
+		}
+	}
+	Smt::Compare order_rule( size_t i ) override {
+		return *ASSERTED(_rule_order_table.find(i));
+	}
+	int log() final override { return _ptr->log(); }
+	Smt::Solver& solver() final override { return _ptr->solver(); }
+	std::ostream& print_name( std::ostream& os ) final override { return _ptr->print_name(os); }
+	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) final override {
+		return _ptr->print_sym_info(os,f);
+	}
+	Smt::Compare compare( Exp const& l, Exp const& r ) final override { return _ptr->compare(l,r); }
+	Smt::PostExp mono() final override { return _ptr->mono(); }
+	Smt::PostExp simple( std::string const& f, size_t i ) final override { return _ptr->simple(f,i); }
+};
+
+struct TrivOrder final : TrsOrder {
+private:
+	Smt::Solver _solver;
+public:
+	TrivOrder( Smt::Solver&& sol ) : _solver(std::move(sol)) {}
+	int log() override { return NONE; }
+	Smt::Solver& solver() override { return _solver; }
 	Smt::Compare compare( Exp const& l, Exp const& r ) override {
-		return {Smt::TRUE,Smt::FALSE};
+		return {true,false};
 	};
 	std::ostream& print_name( std::ostream& os ) override {
 		return os << "trivial-order";
@@ -74,19 +134,19 @@ struct TrivOrder : TrsOrder {
 	std::ostream& print_sym_info( std::ostream& os, std::string const& sig ) override {
 		return os;
 	}
-	Smt::Compare order_rule( size_t i ) & override {
-		return {Smt::TRUE,Smt::FALSE};
-	}
 	Smt::PostExp mono() override {
-		return Smt::TRUE;
+		return true;
 	}
 	Smt::PostExp simple( std::string const& f, size_t i ) override {
-		return Smt::TRUE;
+		return true;
+	}
+	Smt::Compare order_rule( size_t i ) override {
+		return {true,false};
 	}
 };
 
 template<typename A>
-struct DerivedTermOrder : TermOrder {
+struct DerivedTermOrder final : MemoizedTermOrder {
 private:
 	Smt::Solver _solver;
 	Map<std::string,std::vector<Smt::PostExp>> _simple;
@@ -115,12 +175,8 @@ public:
 			}
 		}
 	}
-	Smt::Compare compare( Exp const& l, Exp const& r ) override {
-		auto const& ord = order(intp(l),intp(r),_solver);
-		if( log() & PAIR ) {
-			std::cerr << "; " << l << " <=> " << r << " = " << ord << std::endl;
-		}
-		return ord;
+	Smt::Compare compare_inner( Exp const& l, Exp const& r ) override {
+		return order(intp(l),intp(r),_solver);
 	}
 	std::ostream& print_name( std::ostream& os ) override {
 		return os << "derived-order";
@@ -144,102 +200,7 @@ public:
 
 std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules );
 
-template<typename A>
-struct DerivedTrsOrder : TrsOrder {
-private:
-	DerivedTermOrder<A> _term_order;
-	Map<size_t,Smt::Compare> _ords;
-public:
-	DerivedTrsOrder(
-		Trs::Sig const& sig,
-		Trs::Rules& rules,
-		Exp const& temp,
-		Smt::Solver&& sol_,
-		Smt::Sort const& sort,
-		int const& log_
-	) : _term_order(sig,temp,std::move(sol_),sort,log_) {
-		auto& sol = solver();
-		for( auto const& [i,rule] : rules ) {
-			auto [ge,gt] = _term_order.compare(rule.first,rule.second);
-			auto gev = sol.let(Smt::BOOL,ge);
-			auto gtv = sol.let(Smt::BOOL,gt);
-			_ords.emplace(i,Smt::Compare{gev,gtv});
-		}
-	}
-	Smt::Solver& solver() override { return _term_order.solver(); }
-	Smt::Compare order_rule( size_t i ) & override {
-		auto o = _ords.find(i);
-		assert(o);
-		return *o;
-	}
-	Smt::Compare compare( Exp const& l, Exp const& r ) override {
-		return _term_order.compare(l,r);
-	}
-	std::ostream& print_name( std::ostream& os ) override {
-		return _term_order.print_name(os);
-	}
-	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override {
-		return _term_order.print_sym_info(os,f);
-	}
-	Smt::PostExp mono() override {
-		return _term_order.mono();
-	}
-	Smt::PostExp simple( std::string const& f, size_t i ) override {
-		return _term_order.simple(f,i);
-	}
-	int log() override { return _term_order.log(); }
-};
-
-template<typename A>
-struct DerivedTrsPosOrder : TrsPosOrder {
-	using ASig = std::pair<std::string,A>;
-protected:
-	DerivedTermOrder<A> _term_order;
-	Map<size_t,std::pair<Term<ASig>,Term<ASig>>> _arules;
-public:
-	DerivedTrsPosOrder(
-		Trs::Sig const& sig,
-		Trs::Rules const& rules,
-		Exp const& temp,
-		Smt::Solver&& solver,
-		int const& log_ = NONE
-	) : _term_order(sig,temp,std::move(solver),log_) {
-		for( auto const& [n,rule] : rules ) {
-			auto const& la = _term_order.intp.annotate(rule.first);
-			auto const& ra = _term_order.intp.annotate(rule.second);
-			if( log() & DEBUG ) {
-				std::cerr << "; intp rule-n " << n << ": " << la.fun().second << " >=? " << ra.fun().second << std::endl;
-			}
-			_arules.emplace(n,std::pair{la,ra});
-		}
-	}
-	Smt::Solver& solver() override { return _term_order.solver(); }
-	Smt::Compare order_rule( size_t i, Pos const& lpos, Pos const& rpos ) & override {
-		auto arule = _arules.find(i);
-		assert(arule);
-		auto lv = arule->first.at(lpos).fun().second;
-		auto rv = arule->second.at(rpos).fun().second;
-		return order(lv,rv,solver());
-	}
-	Smt::Compare compare( Exp const& l, Exp const& r ) override {
-		return _term_order.compare(l,r);
-	}
-	std::ostream& print_name( std::ostream& os ) override {
-		return _term_order.print_name(os);
-	}
-	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override {
-		return _term_order.print_sym_info(os,f);
-	}
-	Smt::PostExp mono() override {
-		return _term_order.mono();
-	}
-	Smt::PostExp simple( std::string const& f, size_t i ) override {
-		return _term_order.simple(f,i);
-	}
-	int log() override { return _term_order.log(); }
-};
-
-struct PathOrder : TrsOrder {
+struct PathOrder final : MemoizedTermOrder {
 private:
 	struct _SymInfo {
 		Smt::PostExp prec;
@@ -250,8 +211,6 @@ private:
 	};
 	std::unique_ptr<TermOrder> _weight;
 	Map<std::string,_SymInfo> _info;
-	Map<size_t,Smt::Compare> _ord;
-	Map<std::pair<Term<std::string>,Term<std::string>>,Smt::Compare> _table;
 	Smt::PostExp _mono;// strict monotonicity flag
 	int _log;
 public:
@@ -273,7 +232,6 @@ public:
 	};
 	PathOrder(
 		Trs::Sig const& sig,
-		Trs::Rules const& rules,
 		std::unique_ptr<TermOrder>&& weight,
 		std::function<Status(Trs::Rank const&)> status,
 		int log_
@@ -285,12 +243,7 @@ public:
 	Smt::Solver& solver() override {
 		return _weight->solver();
 	}
-	Smt::Compare compare( Exp const& l, Exp const& r ) override;
-	Smt::Compare order_rule( size_t i ) & override {
-		auto opt = _ord.find(i);
-		assert( opt );
-		return *opt;
-	}
+	Smt::Compare compare_inner( Exp const& l, Exp const& r ) override;
 	int log() override { return _log; }
 	Smt::PostExp mono() override { return _mono; }
 	Smt::PostExp simple( std::string const& f, size_t i ) override {
@@ -298,7 +251,7 @@ public:
 	}
 };
 
-extern Exp const SUM_SPEC, MONO_LPO_SPEC, LPO3_SPEC;
+extern Exp const SUM_SPEC, LPO_SPEC, LPO3_SPEC;
 
 template<typename F, typename T>
 Smt::Compare lex_compare( F const& comp, std::vector<T> const& ls, std::vector<T> const& rs ) {

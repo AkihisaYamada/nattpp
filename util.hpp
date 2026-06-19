@@ -9,7 +9,8 @@
 
 #define DEB(a) do { std::cerr << __FILE__ << ':' << __LINE__ << ' ' << a << std::endl; } while(0)
 #define DEBval(a) ([&]{ auto const& _r = a; DEB(_r); return _r; }())
-#define return_DEB(in,ret) DEB(in << ret); return ret;
+
+#define ASSERTED(p) ([&](auto&& x)->decltype(auto){ assert(x); return static_cast<decltype(x)>(x); }(p))
 
 /** binary eta-expansion, to avoid the crazy C++ syntax... */
 #define BINARY(f) ([](auto&& x, auto&& y) -> decltype(f(std::forward<decltype(x)>(x),std::forward<decltype(y)>(y))) {\
@@ -26,7 +27,7 @@ std::remove_cvref_t<T> chain( T&& x, F const& f, I it, E const& end ) {
 }
 template<typename F, typename T, typename C>
 std::remove_cvref_t<T> chain( T&& x, F const& f, C const& c ){
-	return chain(x,f,c.begin(),c.end());
+	return chain(std::forward<T>(x),f,c.begin(),c.end());
 }
 template<typename T>
 T sum( std::vector<T> const& args ) {

@@ -39,7 +39,7 @@ struct Template {
 	/** instantiate SMT expressions in templates via get_value */
 	static Algebra<Sum<Fun,Arg>,ArgTerm<Fun>> instantiator( Smt::Solver& solver );
 
-	static ::Exp const SUM, MONO_SUM, MONO_POLY2, SIMP_MAX;
+	static ::Exp const SUM, MONO_SUM, MONO_POLY2, SIMP_MAX, MAX;
 
 	static void test();
 };

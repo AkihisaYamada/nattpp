@@ -29,8 +29,7 @@ public:
 			return Printable([this]( auto& os )->auto&{ return print_content(os); });
 		}
 	};
-	struct Rules : Map<size_t,Rule> {
-	};
+	using Rules = Map<size_t,Rule>;
 };
 
 inline std::ostream& operator<<( std::ostream& os, Trs::Rule const& rule ) {

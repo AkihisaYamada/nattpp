@@ -17,8 +17,8 @@ static void collect_dps(
 	}
 	rpos.pop_back();
 }
-Dps make_dps( Trs::Sig const& sig, Trs::Rules const& rules ) {
-	Dps ret{0};
+Dps make_dps( Trs::Sig const& sig, Trs::Rules const& rules, size_t max_ind ) {
+	Dps ret{max_ind};
 	Pos pos;
 	for( auto const& [org,rule] : rules ) {
 		auto const& l = rule.first;

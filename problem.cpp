@@ -16,7 +16,7 @@ static void _switch(
 	}
 }
 
-Problem::Problem( istream& is ) {
+Problem::Problem( istream& is ) : last_ind(0) {
 	auto eis = Reader(is);
 	eis.open();
 	eis.read_sym("format");
@@ -34,7 +34,6 @@ Problem::Problem( istream& is ) {
 		eis.close();// of format
 		systems = vector<Trs::Rules>( number ? *number : 1 );
 		auto tis = Trs::Reader(eis,sig);
-		size_t rule_no = 0;
 		while( eis.opens() ) {
 			if( eis.reads_sym("fun") ) {
 				string fun = eis.read_sym();
@@ -65,7 +64,7 @@ Problem::Problem( istream& is ) {
 				});
 				auto r = tis.read([&]( auto const& var ){
 					if( !vars.contains(var) ) {
-						extra_var.emplace(rule_no,var);
+						extra_var.emplace(last_ind,var);
 					}
 				});
 				Opt<int> weight;
@@ -86,8 +85,8 @@ Problem::Problem( istream& is ) {
 				if( auto rank = sig.find(l.fun()) ) {
 					rank->defined = true;
 				}
-				systems[ index ? *index-1 : 0 ].emplace( rule_no, Trs::Rule(l, r, weight ? *weight : 1) );
-				rule_no++;
+				systems[ index ? *index-1 : 0 ].emplace( last_ind, Trs::Rule(l, r, weight ? *weight : 1) );
+				last_ind++;
 			} else {
 				throw Error{"#unknown-command",eis.read_exp()};
 			};

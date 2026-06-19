@@ -212,7 +212,11 @@ public:
 	}
 };
 
-std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules );
+bool order_some_rule(
+	TrsOrder& order,
+	Trs::Rules const& rules,
+	std::function<void(std::vector<size_t>&&)> f
+);
 
 struct PathOrder final : MemoizedTermOrder {
 private:

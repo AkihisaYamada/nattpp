@@ -26,7 +26,7 @@ struct Dps {
 	}
 };
 
-Dps make_dps( Trs::Sig const& sig, Trs::Rules const& rules );
+Dps make_dps( Trs::Sig const& sig, Trs::Rules const& rules, size_t max_ind );
 
 void mark_dps( Trs::Sig const& sig, Dps& dps );
 

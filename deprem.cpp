@@ -1,10 +1,12 @@
 #include "deprem.hpp"
 
-std::vector<size_t> order_some_dp( TrsOrder& order, Trs::Rules const& rules, Dps const& dps ) {
+bool order_some_dp(
+	TrsOrder& order,
+	Trs::Rules const& rules,
+	Dps const& dps,
+	std::function<void(std::vector<size_t>&&)> const& f
+) {
 	auto& solver = order.solver();
-	if( solver.is_sat() || solver.is_unsat() ) {
-		solver.pop();
-	}
 	Smt::PostExp some_gt = false;
 	Smt::PostExp all_ge = true;
 	std::vector<std::pair<size_t,Smt::PostExp>> gts;
@@ -24,13 +26,17 @@ std::vector<size_t> order_some_dp( TrsOrder& order, Trs::Rules const& rules, Dps
 	solver.push();
 	solver.ass( all_ge && some_gt );
 	solver.check_sat();
-	std::vector<size_t> ret;
 	if( solver.result().is_sat() ) {
+		std::vector<size_t> rem;
 		for( auto [i,gt] : gts ) {
 			if( solver.get_value(gt) == Smt::TRUE ) {
-				ret.push_back(i);
+				rem.push_back(i);
 			}
 		}
+		f(std::move(rem));
+		solver.pop();
+		return true;
 	}
-	return std::move(ret);
+	solver.pop();
+	return false;
 }

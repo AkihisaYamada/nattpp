@@ -17,6 +17,7 @@ public:
 	} format;
 	Trs::Sig sig;
 	std::vector<Trs::Rules> systems;
+	size_t last_ind;
 	enum {
 		SN,// termination
 		DP,// DP problem

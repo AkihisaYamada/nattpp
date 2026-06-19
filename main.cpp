@@ -17,7 +17,8 @@ int main( int argc, char* argv[] ) try {
 	int default_log = -1;
 	bool default_strategy = true;
 	bool use_dp = false;
-	bool use_marked_dp = false;
+	bool use_unmarked_dprem = false;
+	bool use_marked_dprem = false;
 	vector<Exp> rulerem_specs;
 	vector<Exp> rem_specs;
 	vector<Exp> dprem_specs;
@@ -46,20 +47,27 @@ int main( int argc, char* argv[] ) try {
 				if( default_log != -1 ) throw Error("#duplicate-log");
 				require_arg();
 				default_log = TermOrder::log_of(argv[i]);
-			} else if( opt == "-r" ) {// rule remover
-				require_arg();
-				rulerem_specs.push_back(Exp::of(argv[i]));
-				default_strategy = false;
-			} else if( opt == "-rd" ) {// rule/dp remover
+			} else if( opt == "-a" ) {// general remover
 				require_arg();
 				rem_specs.push_back(Exp::of(argv[i]));
 				default_strategy = false;
 				use_dp = true;
+				use_marked_dprem = true;
+			} else if( opt == "-r" ) {// rule remover
+				require_arg();
+				rulerem_specs.push_back(Exp::of(argv[i]));
+				default_strategy = false;
 			} else if( opt == "-d" ) {// dp remover
 				require_arg();
 				dprem_specs.push_back(Exp::of(argv[i]));
 				default_strategy = false;
 				use_dp = true;
+			} else if( opt == "-udp" ) {// use unmarked dps
+				default_strategy = false;
+				use_dp = use_unmarked_dprem = true;
+			} else if( opt == "-mdp" ) {// use marked dps
+				default_strategy = false;
+				use_dp = use_marked_dprem = true;
 			} else {
 				throw Error("#unknown-option",argv[i]);
 			}
@@ -96,12 +104,18 @@ int main( int argc, char* argv[] ) try {
 			rem_specs.emplace_back(LPO_SPEC);
 			dprem_specs.emplace_back("max");
 			use_dp = true;
-			use_marked_dp = true;
+			use_unmarked_dprem = true;
+			use_marked_dprem = true;
 		}
 		break;
 	case SOME:
 		use_dp = false;
 		break;
+	}
+	if( auto it = p.extra_var.begin(); it != p.extra_var.end() ) {
+		auto const& [no,var] = *it;
+		cerr << "(extra-var " << var << " :rule " << no << ')' << endl;
+		throw Answer::NO;
 	}
 	vector<pair<int,unique_ptr<TrsOrder>>> rule_removers;
 	for( auto x : rulerem_specs ) {
@@ -120,17 +134,14 @@ int main( int argc, char* argv[] ) try {
 			ord->extend_sig(sig);
 			stage = 1;
 		}
-		auto const& rem = order_some_rule(*ord,p.systems[0]);
-		if( rem.empty() ) {
-			return false;
-		}
-		cerr << "(remove-rule\n  " << ord->print(p.sig) << "\n ";
-		for( size_t i : rem ) {
-			cerr << ' ' << i;
-			p.systems[0].erase(i);
-		}
-		cerr << ")" << endl;
-		return true;
+		return order_some_rule(*ord,p.systems[0],[&](auto&&rem){
+			cerr << "(remove-rule\n  " << ord->print(p.sig) << "\n ";
+			for( size_t i : rem ) {
+				cerr << ' ' << i;
+				p.systems[0].erase(i);
+			}
+			cerr << ")" << endl;
+		});
 	};
 	do {
 		if( p.systems[0].empty() ) throw Answer::YES;
@@ -141,20 +152,7 @@ int main( int argc, char* argv[] ) try {
 
 	if( !use_dp ) throw Answer::MAYBE;
 
-	if( auto it = p.extra_var.begin(); it != p.extra_var.end() ) {
-		auto const& [no,var] = *it;
-		cerr << "(extra-var " << var << " :rule " << no << ')' << endl;
-		throw Answer::NO;
-	}
-
-	Dps dps = make_dps(p.sig,p.systems[0]);
-	cerr << dps << endl;
-
-	vector<pair<int,unique_ptr<TrsOrder>>> dp_removers;
-	for( auto x : dprem_specs ) {
-		dp_removers.emplace_back(0,TrsOrder::of(TermOrder::of(x,default_smt,Smt::INT,default_log)));
-	}
-	// DP removal loop
+	Dps dps = make_dps(p.sig,p.systems[0],p.last_ind);
 	bool marked = false;
 	auto dp_removes = [&]( pair<int,unique_ptr<TrsOrder>>& pair ){
 		auto& [stage,ord] = pair;
@@ -167,33 +165,42 @@ int main( int argc, char* argv[] ) try {
 			ord->extend_sig(dps.extra_sig);
 			stage = 2;
 		}
-		auto const& rem = order_some_dp(*ord,p.systems[0],dps);
-		if( rem.empty() ) {
-			return false;
-		}
-		cerr << "(remove-dp\n  " << ord->print(p.sig) << "\n ";
-		for( size_t i : rem ) {
-			cerr << ' ' << i;
-			dps.map.erase(i);
-		}
-		cerr << ')' << endl;
-		return true;
+		return order_some_dp(*ord,p.systems[0],dps,[&]( auto&& rem ){
+			cerr << "(remove-dp\n  " << ord->print(p.sig) << "\n ";
+			for( size_t i : rem ) {
+				cerr << ' ' << i;
+				dps.map.erase(i);
+			}
+			cerr << ')' << endl;
+		});
 	};
-	auto dp_rem_loop = [&]{
+
+	vector<pair<int,unique_ptr<TrsOrder>>> dp_removers;
+	for( auto x : dprem_specs ) {
+		dp_removers.emplace_back(0,TrsOrder::of(TermOrder::of(x,default_smt,Smt::INT,default_log)));
+	}
+
+	if( use_unmarked_dprem ) {
+		cerr << dps << endl;
+		// DP removal loop
 		do {
 			if( dps.map.empty() ) throw Answer::YES;
 		} while(
-			std::ranges::any_of( both_removers, dp_removes ) ||
-			std::ranges::any_of( dp_removers, dp_removes )
+			std::ranges::any_of(both_removers,dp_removes) ||
+			std::ranges::any_of(dp_removers,dp_removes)
 		);
-	};
-	dp_rem_loop();
-	if( use_marked_dp ) {
+	}
+	if( use_marked_dprem ) {
 		cerr << "; marking DPs" << endl;
 		mark_dps(sig,dps);
 		cerr << dps << endl;
 		marked = true;
-		dp_rem_loop();
+		do {
+			if( dps.map.empty() ) throw Answer::YES;
+		} while(
+			std::ranges::any_of(both_removers,dp_removes) ||
+			std::ranges::any_of(dp_removers,dp_removes)
+		);
 	}
 	throw Answer::MAYBE;
 } catch( Answer a ) {

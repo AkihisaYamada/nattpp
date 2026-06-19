@@ -143,11 +143,12 @@ std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sy
 }
 
 
-std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules ) {
+bool order_some_rule(
+	TrsOrder& order,
+	Trs::Rules const& rules,
+	std::function<void(std::vector<size_t>&&)> f
+) {
 	auto& solver = order.solver();
-	if( solver.is_sat() || solver.is_unsat() ) {
-		solver.pop();
-	}
 	vector<pair<size_t,Smt::PostExp>> gts;
 	Smt::PostExp all_ge = true;
 	for( auto const& [i,rule] : rules ) {
@@ -161,15 +162,19 @@ std::vector<size_t> order_some_rule( TrsOrder& order, Trs::Rules const& rules ) 
 	solver.push();
 	solver.ass( order.mono() && all_ge && Smt::disj(gts,[]( auto const& gt ){ return gt.second; }) );
 	solver.check_sat();
-	std::vector<size_t> ret;
 	if( solver.result().is_sat() ) {
+		std::vector<size_t> ret;
 		for( auto [i,gt] : gts ) {
 			if( solver.get_value(gt) == Smt::TRUE ) {
 				ret.push_back(i);
 			}
 		}
+		f(std::move(ret));
+		solver.pop();
+		return true;
 	}
-	return std::move(ret);
+	solver.pop();
+	return false;
 }
 
 PathOrder::StatusFun PathOrder::StatusFun::of( Exp const& x ) {

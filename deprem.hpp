@@ -4,6 +4,11 @@
 #include "termord.hpp"
 #include "dp.hpp"
 
-std::vector<size_t> order_some_dp( TrsOrder& order, Trs::Rules const& rules, Dps const& dps );
+bool order_some_dp(
+	TrsOrder& order,
+	Trs::Rules const& rules,
+	Dps const& dps,
+	std::function<void(std::vector<size_t>&&)> const& f
+);
 
 #endif

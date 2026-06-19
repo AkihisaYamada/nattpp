@@ -260,7 +260,14 @@ std::unique_ptr<TermOrder> TermOrder::of(
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>(t,mk_smt(),log);
 	} else if( f == "path-order" ) {
-		auto w = x.gets_arg(n);
+		Opt<Exp> w;
+		Exp::KeyValProc weight_key = [&]( auto const& key, Exp const& val ){
+			if( key == "weight" ) {
+				w = {val};
+				return true;
+			}
+			return false;
+		};
 		Opt<PathOrder::StatusFun> status;
 		Exp::KeyValProc status_key = [&]( auto const& key, Exp const& val ){
 			if( key == "status" ) {

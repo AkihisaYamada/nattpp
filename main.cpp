@@ -16,9 +16,9 @@ int main( int argc, char* argv[] ) try {
 	Opt<Smt::BaseSort> default_sort;
 	int default_log = -1;
 	bool default_strategy = true;
-	bool use_dp = false;
+	bool use_dp = true;
 	bool use_unmarked_dprem = false;
-	bool use_marked_dprem = false;
+	bool use_marked_dprem = true;
 	vector<Exp> rulerem_specs;
 	vector<Exp> rem_specs;
 	vector<Exp> dprem_specs;
@@ -62,12 +62,16 @@ int main( int argc, char* argv[] ) try {
 				dprem_specs.push_back(Exp::of(argv[i]));
 				default_strategy = false;
 				use_dp = true;
-			} else if( opt == "-udp" ) {// use unmarked dps
-				default_strategy = false;
-				use_dp = use_unmarked_dprem = true;
-			} else if( opt == "-mdp" ) {// use marked dps
-				default_strategy = false;
-				use_dp = use_marked_dprem = true;
+			} else if( opt == "-udp" ) {// unmarked dps only
+				use_dp = true;
+				use_unmarked_dprem = true;
+			} else if( opt == "-umdp" ) {// unmarked and marked dps
+				use_dp = true;
+				use_unmarked_dprem = true;
+			} else if( opt == "-mdp" ) {// marked dps only
+				use_dp = true;
+				use_unmarked_dprem = false;
+				use_marked_dprem = true;
 			} else {
 				throw Error("#unknown-option",argv[i]);
 			}
@@ -101,11 +105,10 @@ int main( int argc, char* argv[] ) try {
 	case UNSET: case SN:
 		if( default_strategy ) {
 			rulerem_specs.emplace_back("mono-sum");
-			rem_specs.emplace_back(LPO_SPEC);
+			dprem_specs.emplace_back("sum");
 			dprem_specs.emplace_back("max");
+			dprem_specs.emplace_back(LPO3_SPEC);
 			use_dp = true;
-			use_unmarked_dprem = true;
-			use_marked_dprem = true;
 		}
 		break;
 	case SOME:
@@ -166,7 +169,13 @@ int main( int argc, char* argv[] ) try {
 			stage = 2;
 		}
 		return order_some_dp(*ord,p.systems[0],dps,[&]( auto&& rem ){
-			cerr << "(remove-dp\n  " << ord->print(p.sig) << "\n ";
+			cerr << "(remove-dp\n  (" << ord->print_name();
+			auto pr_sym = [&]( auto const& f ) {
+				cerr << "\n    (" << f << ' ' << ord->print_sym_info(f) << ')';
+			};
+			for( auto [f,rank] : sig ) pr_sym(f);
+			for( auto [f,rank] : dps.extra_sig ) pr_sym(f);
+			cerr << ")\n  ";
 			for( size_t i : rem ) {
 				cerr << ' ' << i;
 				dps.map.erase(i);

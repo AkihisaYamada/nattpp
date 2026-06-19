@@ -33,7 +33,7 @@ struct TermOrder {
 	virtual std::ostream& print( std::ostream& os, Trs::Sig const& sig ) {
 		os << '(' << print_name();
 		for( auto [f,rank] : sig ) {
-			os << "\n    (" << f << " :arity " << (int)rank.arity << ' ' << print_sym_info(f) << ')';
+			os << "\n    (" << f << ' ' << print_sym_info(f) << ')';
 		}
 		return os << ')';
 	}

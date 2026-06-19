@@ -255,7 +255,7 @@ Exp const Template::SIMP_MAX = Exp("arity",
 Exp const Template::MAX = Exp("arity",
 	Exp("0",_posvar),
 	Exp("1",Exp("+",Exp("*",_0_or_1,"arg"),_posvar)),
-	Exp("otherwise",Exp("args","max",Exp("+",Exp("*",_0_or_1,"arg"),_posvar)))
+	Exp("otherwise",Exp("args","max",Exp("*",_0_or_1,Exp("+","arg",_posvar))))
 );
 Exp const Template::SUM = Exp("arity",
 	Exp("0",_posvar),

@@ -25,12 +25,12 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 	auto const& sort = sol.logic().base_sort();
 	if( _log & DEBUG ) cerr << "; fun " << f << ' ' << rank << endl;
 	_weight->extend_sig(f,rank);
-	auto [info,suc] = _info.emplace(f,_SymInfo{sol.declare_fresh(sort)});
+	auto [info,suc] = _info.emplace(f,_SymInfo{sol.declare_fresh(sort),rank.arity});
 	assert(suc);
 	sol.ass( Smt::ge(info.prec,0) );
 	if( _log & DEBUG ) cerr << ";  prec: " << info.prec << endl;
 	std::vector<Smt::PostExp> mapped_tbl;
-	auto ass_mapped = [&]( Smt::PostExp const& mappedi, size_t i ) {
+	auto set_mappedi = [&]( Smt::PostExp const& mappedi, size_t i ) {
 		// monotonicity requires mapped[i]
 		sol.ass( _mono.imp(mappedi) );
 		// mapped[i] requires weak simplicity of weight
@@ -50,13 +50,13 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 			if( _log & DEBUG ) cerr << ";  map[" << i << "] = " << print_list(mapi) << std::endl;
 			// mapped[i] means i-th argument survives mapping
 			auto const& mappedi = mapped_tbl.emplace_back( sol.let(Smt::BOOL,Smt::disj(mapi)) );
-			ass_mapped(mappedi,i);
+			set_mappedi(mappedi,i);
 		}
 		info.map = [map_tbl=std::move(map_tbl)]( size_t i, size_t j ){ return map_tbl[i][j]; };
 	} else {// straight status
 		for( size_t i = 0; i < rank.arity; i++ ) {
 			auto const& mappedi = mapped_tbl.emplace_back(sol.declare_fresh(Smt::BOOL));
-			ass_mapped(mappedi,i);
+			set_mappedi(mappedi,i);
 		}
 		info.map = [&]( size_t i, size_t j ){
 			return i == j ? info.mapped(i) : Smt::PostExp(false);
@@ -99,7 +99,7 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 		[&]( auto const& x, auto const& y ){ return compare(x,y); },
 		linfo->post_arity, rinfo->post_arity, linfo->map, rinfo->map, largs, rargs
 	);
-	if( _log & DEBUG ) {
+	if( false && _log & DEBUG ) {
 		cerr << "; [" << print_list(largs) << "] <=> [" << print_list(rargs) << "] = {" << args_ge << ", " << args_gt << '}' << endl;
 	}
 	auto const& [pge,pgt] = order(linfo->prec,rinfo->prec);
@@ -115,9 +115,9 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sym ) {
 	auto info = _info.find(sym);
 	assert(info);
-	os << "(prec " << solver().get_value(info->prec) << ')';
+	os << " :prec " << solver().get_value(info->prec);
 	if( info->post_arity > 0 ) {
-		os << " (map ";
+		os << " :map (";
 		auto f = [&]( size_t k ){
 			size_t i = 0;
 			for(;;){
@@ -276,7 +276,7 @@ std::unique_ptr<TermOrder> TermOrder::of(
 			}
 			return false;
 		};
-		x.process_keys( n, status_key || log_key || (w ? [](auto,auto){ return false; } : solver_key) );
+		x.process_keys( n, weight_key || status_key || log_key || (w ? [](auto,auto){ return false; } : solver_key) );
 		x.get_end(n);
 		set_log();
 		std::unique_ptr<TermOrder> weight;

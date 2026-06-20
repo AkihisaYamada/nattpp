@@ -108,6 +108,7 @@ int main( int argc, char* argv[] ) try {
 			dprem_specs.emplace_back("sum");
 			dprem_specs.emplace_back("max");
 			dprem_specs.emplace_back(LPO3_SPEC);
+			dprem_specs.emplace_back(Exp{"path-order",":weight","max",":status","map"});
 			use_dp = true;
 		}
 		break;
@@ -115,6 +116,7 @@ int main( int argc, char* argv[] ) try {
 		use_dp = false;
 		break;
 	}
+
 	if( auto it = p.extra_var.begin(); it != p.extra_var.end() ) {
 		auto const& [no,var] = *it;
 		cerr << "(extra-var " << var << " :rule " << no << ')' << endl;

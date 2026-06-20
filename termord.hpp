@@ -33,7 +33,7 @@ struct TermOrder {
 	virtual std::ostream& print( std::ostream& os, Trs::Sig const& sig ) {
 		os << '(' << print_name();
 		for( auto [f,rank] : sig ) {
-			os << "\n    (" << f << ' ' << print_sym_info(f) << ')';
+			os << "\n    (" << f << print_sym_info(f) << ')';
 		}
 		return os << ')';
 	}
@@ -199,7 +199,7 @@ public:
 		return _solver;
 	}
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override {
-		return os << ":intp " << Template::instantiator(solver())(*deriver.find(f));
+		return os << " :intp " << Template::instantiator(solver())(*deriver.find(f));
 	}
 	int log() override {
 		return _log;

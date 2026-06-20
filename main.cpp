@@ -154,59 +154,61 @@ int main( int argc, char* argv[] ) try {
 		std::ranges::any_of(both_removers,rule_removes)
 	);
 
-	if( !use_dp ) throw Answer::MAYBE;
+	if( use_dp ) {
 
-	p.make_dps();
-	size_t target = 1;
-	auto dp_removes = [&]( pair<int,unique_ptr<TrsOrder>>& pair ){
-		auto& [stage,ord] = pair;
-		cerr << "; trying " << ord->print_name() << "... " << endl;
-		for( ; stage <= target; stage++ ) {
-			ord->extend_sig(p.systems[stage].sig);
+		p.make_dps();
+		size_t target = 1;
+		auto dp_removes = [&]( pair<int,unique_ptr<TrsOrder>>& pair ){
+			auto& [stage,ord] = pair;
+			cerr << "; trying " << ord->print_name() << "... " << endl;
+			for( ; stage <= target; stage++ ) {
+				ord->extend_sig(p.systems[stage].sig);
+			}
+			return order_some_dp(*ord,p.systems[0].rules,p.systems[target].rules,[&]( auto&& rem ){
+				cerr << "(remove-dp\n  (" << ord->print_name();
+				auto pr_sym = [&]( auto const& f ) {
+					cerr << "\n    (" << f << ' ' << ord->print_sym_info(f) << ')';
+				};
+				for( size_t i = 0; i <= target; i++ ) {
+					for( auto [f,rank] : p.systems[i].sig ) pr_sym(f);
+				}
+				cerr << ")\n  ";
+				for( size_t i : rem ) {
+					cerr << ' ' << i;
+					p.systems[target].rules.erase(i);
+				}
+				cerr << ')' << endl;
+			});
+		};
+
+		vector<pair<int,unique_ptr<TrsOrder>>> dp_removers;
+		for( auto x : dprem_specs ) {
+			dp_removers.emplace_back(0,TrsOrder::of(TermOrder::of(x,default_smt,Smt::INT,default_log)));
 		}
-		return order_some_dp(*ord,p.systems[0].rules,p.systems[target].rules,[&]( auto&& rem ){
-			cerr << "(remove-dp\n  (" << ord->print_name();
-			auto pr_sym = [&]( auto const& f ) {
-				cerr << "\n    (" << f << ' ' << ord->print_sym_info(f) << ')';
-			};
-			for( size_t i = 0; i <= target; i++ ) {
-				for( auto [f,rank] : p.systems[i].sig ) pr_sym(f);
-			}
-			cerr << ")\n  ";
-			for( size_t i : rem ) {
-				cerr << ' ' << i;
-				p.systems[target].rules.erase(i);
-			}
-			cerr << ')' << endl;
-		});
-	};
 
-	vector<pair<int,unique_ptr<TrsOrder>>> dp_removers;
-	for( auto x : dprem_specs ) {
-		dp_removers.emplace_back(0,TrsOrder::of(TermOrder::of(x,default_smt,Smt::INT,default_log)));
+		if( use_unmarked_dprem ) {
+			cerr << "(make_dp" << p.systems[1].rules << ')' << endl;
+			// DP removal loop
+			do {
+				if( p.systems[1].rules.empty() ) throw Answer::YES;
+			} while(
+				std::ranges::any_of(both_removers,dp_removes) ||
+				std::ranges::any_of(dp_removers,dp_removes)
+			);
+		}
+		if( use_marked_dprem ) {
+			p.mark_dps();
+			cerr << "(mark_dp" << p.systems[2].rules << ')' << endl;
+			target = 2;
+			do {
+				if( p.systems[2].rules.empty() ) throw Answer::YES;
+			} while(
+				std::ranges::any_of(both_removers,dp_removes) ||
+				std::ranges::any_of(dp_removers,dp_removes)
+			);
+		}
 	}
-
-	if( use_unmarked_dprem ) {
-		cerr << "(make_dp" << p.systems[1].rules << ')' << endl;
-		// DP removal loop
-		do {
-			if( p.systems[1].rules.empty() ) throw Answer::YES;
-		} while(
-			std::ranges::any_of(both_removers,dp_removes) ||
-			std::ranges::any_of(dp_removers,dp_removes)
-		);
-	}
-	if( use_marked_dprem ) {
-		p.mark_dps();
-		cerr << "(mark_dp" << p.systems[2].rules << ')' << endl;
-		target = 2;
-		do {
-			if( p.systems[2].rules.empty() ) throw Answer::YES;
-		} while(
-			std::ranges::any_of(both_removers,dp_removes) ||
-			std::ranges::any_of(dp_removers,dp_removes)
-		);
-	}
+	cerr << p << endl;
 	throw Answer::MAYBE;
 } catch( Answer a ) {
 	if( a == Answer::YES ) {

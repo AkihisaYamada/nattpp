@@ -165,7 +165,7 @@ ostream& Problem::print( ostream& os ) const& {
 	os << "(problem";
 	switch( mode ) {
 		case SN: os << " termination"; break;
-		case DP: os << " DP-termination"; break;
+		case DP: os << " dp"; break;
 		default: assert(false);
 	}
 	os << flush;
@@ -180,12 +180,14 @@ ostream& Problem::print( ostream& os ) const& {
 	while( sysno < systems.size() ) {
 		auto const& [sig,rules] = systems[sysno];
 		sysno++;
-		for( auto const& [f,rank] : systems[0].sig ) {
-			os << "\n  (fun " << f << ' ' << rank << " :index" << sysno << ')' << flush;
+		os << "\n  (set-n " << sysno;
+		for( auto const& [f,rank] : sig ) {
+			os << "\n    (fun " << f << ' ' << rank << ')' << flush;
 		}
 		for( auto const& [n,rule] : rules ) {
-			os << "\n  (rule-n " << rule.print_content() << " :index " << sysno << ')' << flush;
+			os << "\n    (rule-n " << rule.print_content() << ')' << flush;
 		}
+		os << ')' << flush;
 	}
 	return os << ')';
 }

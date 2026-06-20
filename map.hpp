@@ -2,10 +2,44 @@
 #define _MAP_HPP
 
 #include<map>
+#include<unordered_map>
 #include"opt.hpp"
 
 template<typename K, typename T>
-class Map : std::map<K,T,std::less<>> {
+class Map : std::unordered_map<K,T> {
+	using M = std::unordered_map<K,T>;
+public:
+	using typename M::value_type, typename M::iterator, typename M::const_iterator;
+	using M::M, M::begin, M::end, M::size, M::empty, M::erase;
+	/**
+	 * @brief emplaces a key-value pair.
+	 */
+	template<typename... Ts>
+		requires std::is_constructible_v<value_type,Ts&&...>
+	std::pair<T&,bool> emplace( Ts&&... args ) {
+		auto [it,f] = M::emplace(std::forward<Ts>(args)...);
+		return {it->second,f};
+	}
+	template<typename L>
+	Opt<T&> find( L&& k ) & {
+		if( auto it = M::find(std::forward<L>(k)); it != end() ) {
+			return it->second;
+		}
+		return {};
+	}
+	template<typename L>
+	Opt<T const&> find( L&& k ) const & {
+		if( auto it = M::find(std::forward<L>(k)); it != end() ) {
+			return it->second;
+		}
+		return {};
+	}
+	Opt<T&> find( K const& k ) & { return find<K const&>(k); }
+	Opt<T const&> find( K const& k ) const & { return find<K const&>(k); }
+};
+
+template<typename K, typename T>
+class OrdMap : std::map<K,T,std::less<>> {
 	using M = std::map<K,T,std::less<>>;
 public:
 	using typename M::value_type, typename M::iterator, typename M::const_iterator;
@@ -20,27 +54,21 @@ public:
 		return {it->second,f};
 	}
 	template<typename L>
-	Opt<T&> find( L const& k ) & {
-		auto it = M::find(k);
-		if( it == end() ) {
-			return {};
+	Opt<T&> find( L&& k ) & {
+		if( auto it = M::find(std::forward<L>(k)); it != end() ) {
+			return it->second;
 		}
-		return it->second;
-	}
-	Opt<T&> find( K const& k ) & {
-		return find<K>(k);
+		return {};
 	}
 	template<typename L>
-	Opt<T const&> find( L const& k ) const & {
-		auto it = M::find(k);
-		if( it == end() ) {
-			return {};
+	Opt<T const&> find( L&& k ) const & {
+		if( auto it = M::find(std::forward<L>(k)); it != end() ) {
+			return it->second;
 		}
-		return it->second;
+		return {};
 	}
-	Opt<T const&> find( K const& k ) const & {
-		return find<K>(k);
-	}
+	Opt<T&> find( K const& k ) & { return find<K const&>(k); }
+	Opt<T const&> find( K const& k ) const & { return find<K const&>(k); }
 };
 
 #endif

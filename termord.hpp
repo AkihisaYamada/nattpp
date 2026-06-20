@@ -54,7 +54,7 @@ struct TermOrder {
 
 struct MemoizedTermOrder : TermOrder {
 protected:
-	Map<std::pair<Term<std::string>,Term<std::string>>,Smt::Compare> _table;
+	OrdMap<std::pair<Term<std::string>,Term<std::string>>,Smt::Compare> _table;
 	virtual Smt::Compare compare_inner( Exp const& l, Exp const& r ) = 0;
 public:
 	Smt::Compare compare( Exp const& l, Exp const& r ) final override {

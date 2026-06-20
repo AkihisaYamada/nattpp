@@ -66,13 +66,13 @@ struct Poly {
 		friend Poly;
 	};
 private:
-	Map<Vars,Smt::PreExp> _map;
+	OrdMap<Vars,Smt::PreExp> _map;
 public:
 	Poly() {}
 	template<typename T> requires std::is_constructible_v<Smt::PreExp,T>
 	Poly( T&& c ) : _map{{{},Smt::PreExp(std::forward<T>(c))}} {}
 	Poly( Var const& v ) : _map{{v,Smt::PreExp(1)}} {}
-	Map<Vars,Smt::PreExp> const& map() const & {
+	OrdMap<Vars,Smt::PreExp> const& map() const & {
 		return _map;
 	}
 	Smt::PreExp operator[]( Vars const& vars ) const& {

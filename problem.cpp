@@ -15,13 +15,12 @@ static void _switch(
 		it->second();
 	}
 }
-void Problem::add_rule( size_t index, Trs::Rule const& rule ) & {
-	assert( index < systems.size() );
-	systems[index].rules.emplace(last_rule,rule);
-	last_rule++;
+void Problem::insert_rule( Trs::Rules& rules, Trs::Rule const& rule ) & {
+	rules.emplace(next_rule,rule);
+	next_rule++;
 }
 
-Problem::Problem( istream& is ) : last_rule(0) {
+Problem::Problem( istream& is ) : next_rule(0) {
 	auto eis = Reader(is);
 	eis.open();
 	eis.read_sym("format");
@@ -30,6 +29,7 @@ Problem::Problem( istream& is ) : last_rule(0) {
 		Opt<int> number;
 		while( auto key = eis.reads_key() ) {
 			if( *key == ":number" ) {
+				throw eis.error("#unsupported",*key);
 				if( number ) throw eis.error("#duplicate-number");
 				number = {eis.read_nat([](auto n){ return n < 10; })};
 			} else {
@@ -37,9 +37,8 @@ Problem::Problem( istream& is ) : last_rule(0) {
 			}
 		}
 		eis.close();// of format
-		systems = vector<System>( number ? *number : 1 );
-		auto& sig_map = systems[0].sig;// TODO: multiple signature?
-		Trs::SigFun sig_fun = [&](string const& sym ){ return sig_map.find(sym); };
+		auto& [sig,rules] = systems.emplace_back();
+		Trs::SigFun sig_fun = [&](string const& sym ){ return sig.find(sym); };
 		auto tis = Trs::Reader(eis,sig_fun);
 		while( eis.opens() ) {
 			if( eis.reads_sym("fun") ) {
@@ -61,7 +60,7 @@ Problem::Problem( istream& is ) : last_rule(0) {
 					}
 					arity = *num;
 				}
-				if( auto [prev,suc] = sig_map.emplace(fun,Trs::Rank{arity,false}); !suc ) {
+				if( auto [prev,suc] = sig.emplace(fun,Trs::Rank{arity,false}); !suc ) {
 					throw Error{"#duplicate-fun",fun,to_string(prev.arity),to_string(arity)};
 				}
 			} else if( eis.reads_sym("rule") ) {
@@ -71,7 +70,7 @@ Problem::Problem( istream& is ) : last_rule(0) {
 				});
 				auto r = tis.read([&]( auto const& var ){
 					if( !vars.contains(var) ) {
-						extra_var.emplace(last_rule,var);
+						extra_var.emplace(next_rule,var);
 					}
 				});
 				Opt<int> weight;
@@ -89,10 +88,10 @@ Problem::Problem( istream& is ) : last_rule(0) {
 						throw Error{"#unknown-key",*key};
 					}
 				}
-				if( auto rank = sig_map.find(l.fun()) ) {
+				if( auto rank = sig.find(l.fun()) ) {
 					rank->defined = true;
 				}
-				add_rule( index.value_or(0), Trs::Rule(l,r,weight.value_or(1)) );
+				insert_rule( systems.back().rules, Trs::Rule(l,r,weight.value_or(1)) );
 			} else {
 				throw Error{"#unknown-command",eis.read_exp()};
 			};
@@ -106,19 +105,18 @@ Problem::Problem( istream& is ) : last_rule(0) {
 
 
 static void collect_dps(
-	Trs::Sig const& sig, size_t org, Trs::Term const& l, Trs::Term const& r,
-	Problem& p, Pos& rpos, size_t depth
+	Trs::Sig& sig, Trs::Rules& rules,
+	Trs::Term const& l, Trs::Rank& lrank, Trs::Term const& r,
+	Problem& p
 ) {
-	if( auto rank = sig.find(r.fun()) )
-		if( rank->defined ) {
-			p.add_rule(1,Trs::Rule(l,r));
+	if( auto rrank = sig.find(r.fun()) )
+		if( rrank->defined ) {
+			lrank.depends.emplace(p.next_rule);
+			p.insert_rule(rules,Trs::Rule(l,r));
 		}
-	rpos.emplace_back(0);
 	for( auto const& a : r.args() ) {
-		collect_dps(sig,org,l,a,p,rpos,depth+1);
-		rpos[depth]++;
+		collect_dps(sig,rules,l,lrank,a,p);
 	}
-	rpos.pop_back();
 }
 
 void Problem::make_dps() & {
@@ -126,15 +124,16 @@ void Problem::make_dps() & {
 	assert( mode == SN );
 	auto& [dpsig,dps] = systems.emplace_back();
 	mode = DP;
-	auto const& [sig,rules] = systems[0];
+	auto& [sig,rules] = systems.front();
 	Pos pos;
 	for( auto const& [org,rule] : rules ) {
 		auto const& l = rule.first;
-		if( l.unapplied() && [&]( string const& v ){ return !sig.find(v); } ) {
+		auto lrank = sig.find(l.fun());
+		if( !lrank ) {
 			cerr << "(var-lhs " << org << ')' << endl;
 			throw Answer::NO;
 		}
-		collect_dps(sig,org,l,rule.second,*this,pos,0);
+		collect_dps(sig,dps,l,*lrank,rule.second,*this);
 	}
 }
 string mark_sym( string const& sym ) {
@@ -151,14 +150,15 @@ Trs::Rule mark_dp( Trs::Sig const& sig, Trs::Sig& extra_sig, Trs::Rule const& dp
 	}
 	return Trs::Rule(app(lfm,l.args()),app(rfm,r.args()));
 }
-void Problem::mark_dps() & {
-	assert( systems.size() == 2 );
-	auto& [msig,mdps] = systems.emplace_back();
-	auto const& sig = systems[0].sig;
-	auto& udps = systems[1].rules;
-	for( auto it = udps.begin(); it != udps.end(); it = udps.erase(it) ) {// iterate while removing
-		add_rule(2,mark_dp(sig,msig,it->second));
+void Problem::mark_dps( SysIt const& it ) & {
+	auto mdps = Trs::Rules();
+	auto& [msig,udps] = *it;
+	auto const& sig = systems.front().sig;
+	assert(msig.empty());
+	for( auto uit = udps.begin(); uit != udps.end(); uit = udps.erase(uit) ) {// iterate while removing
+		insert_rule(mdps,mark_dp(sig,msig,uit->second));
 	}
+	swap(mdps,udps);
 }
 
 ostream& Problem::print( ostream& os ) const& {
@@ -170,15 +170,16 @@ ostream& Problem::print( ostream& os ) const& {
 	}
 	os << flush;
 	if( systems.empty() ) return os;
-	for( auto const& [f,rank] : systems[0].sig ) {
+	auto it = systems.begin();
+	for( auto const& [f,rank] : it->sig ) {
 		os << "\n  (fun " << f << ' ' << rank << ')' << flush;
 	}
-	for( auto const& [n,rule] : systems[0].rules ) {
+	for( auto const& [n,rule] : it->rules ) {
 		os << "\n  (rule-n " << n << ' ' << rule.print_content() << ')' << flush;
 	}
 	int sysno = 1;
-	while( sysno < systems.size() ) {
-		auto const& [sig,rules] = systems[sysno];
+	while( it++, it != systems.end() ) {
+		auto const& [sig,rules] = *it;
 		sysno++;
 		os << "\n  (set-n " << sysno;
 		for( auto const& [f,rank] : sig ) {

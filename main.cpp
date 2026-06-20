@@ -4,6 +4,7 @@
 #include"problem.hpp"
 #include"termord.hpp"
 #include"deprem.hpp"
+#include"graph.hpp"
 
 using namespace std;
 
@@ -99,7 +100,7 @@ int main( int argc, char* argv[] ) try {
 	}
 	auto p = Problem( ois ? *ois : cin );
 	cerr << p << endl;
-	auto const& [sig,rules] = p.systems[0];
+	auto const& [sig,rules] = p.systems.front();
 	switch( mode ) {
 	case UNSET: case SN:
 		if( default_strategy ) {
@@ -130,52 +131,79 @@ int main( int argc, char* argv[] ) try {
 		both_removers.emplace_back(0,TrsOrder::of(TermOrder::of(x,default_smt,Smt::INT,default_log)));
 	}
 
-	// rule removal loop
-	auto rule_removes = [&]( pair<int,unique_ptr<TrsOrder>>& pair ) {
-		auto& [stage,ord] = pair;
-		cerr << "; trying " << ord->print_name() << "... " << endl;
-		if( stage < 1 ) {// initialize for signature
-			ord->extend_sig(sig);
-			stage = 1;
-		}
-		return order_some_rule(*ord,p.systems[0].rules,[&](auto&&rem){
-			cerr << "(remove-rule\n  " << ord->print(p.systems[0].sig) << "\n ";
-			for( size_t i : rem ) {
-				cerr << ' ' << i;
-				p.systems[0].rules.erase(i);
-			}
-			cerr << ")" << endl;
-		});
-	};
-	do {
-		if( p.systems[0].rules.empty() ) throw Answer::YES;
-	} while(
-		std::ranges::any_of(rule_removers,rule_removes) ||
-		std::ranges::any_of(both_removers,rule_removes)
-	);
+	try {
+		Problem::SysIt target = p.systems.begin();
+		auto& [sig,rules] = *target;
 
-	if( use_dp ) {
-
-		p.make_dps();
-		size_t target = 1;
-		auto dp_removes = [&]( pair<int,unique_ptr<TrsOrder>>& pair ){
+		// rule removal loop
+		auto rule_removes = [&]( pair<int,unique_ptr<TrsOrder>>& pair ) {
 			auto& [stage,ord] = pair;
 			cerr << "; trying " << ord->print_name() << "... " << endl;
-			for( ; stage <= target; stage++ ) {
-				ord->extend_sig(p.systems[stage].sig);
+			if( stage < 1 ) {// initialize for signature
+				ord->extend_sig(sig);
+				stage = 1;
 			}
-			return order_some_dp(*ord,p.systems[0].rules,p.systems[target].rules,[&]( auto&& rem ){
+			return order_some_rule(*ord,rules,[&](auto&&rem){
+				cerr << "(remove-rule\n  " << ord->print(sig) << "\n ";
+				for( size_t i : rem ) {
+					cerr << ' ' << i;
+					p.systems.front().rules.erase(i);
+				}
+				cerr << ")" << endl;
+			});
+		};
+		do {
+			if( rules.empty() ) throw Answer::YES;
+		} while(
+			std::ranges::any_of(rule_removers,rule_removes) ||
+			std::ranges::any_of(both_removers,rule_removes)
+		);
+
+		if( !use_dp ) throw Answer::MAYBE;
+
+		cerr << "; taking DPs" << endl;
+		p.make_dps();// compute DPs
+		target++;
+		// SCC decomposition
+		auto dps = Trs::Rules();
+		swap(dps,target->rules);
+		Graph dg;
+		for( auto const& [i,dp] : dps ) {
+			auto const& l = dp.first, &r = dp.second;
+			dg.map.emplace(i,ASSERTED(sig.find(r.fun()))->depends);
+		}
+		for( auto const& scc : dg.sccs() ) {
+			auto& back = p.systems.emplace_back();
+			for( auto const& i : scc ) {
+				back.rules.emplace(i,*ASSERTED(dps.find(i)));
+			}
+		}
+		size_t target_ind = 1;
+		bool marked = false;
+
+		auto dp_removes = [&]( pair<int,unique_ptr<TrsOrder>>& pair ){
+			auto& [subsig,subcomp] = *target;
+			auto& [stage,ord] = pair;
+			cerr << "; trying " << ord->print_name() << "... " << endl;
+			if( stage == 0 ) {
+				ord->extend_sig(sig);
+				stage = 1;
+			}
+			if( marked && stage < target_ind ) {
+				ord->extend_sig(subsig);
+				stage = target_ind;
+			}
+			return order_some_dp(*ord,rules,subcomp,[&]( auto&& rem ){
 				cerr << "(remove-dp\n  (" << ord->print_name();
 				auto pr_sym = [&]( auto const& f ) {
 					cerr << "\n    (" << f << ' ' << ord->print_sym_info(f) << ')';
 				};
-				for( size_t i = 0; i <= target; i++ ) {
-					for( auto [f,rank] : p.systems[i].sig ) pr_sym(f);
-				}
+				for( auto [f,rank] : sig ) pr_sym(f);
+				for( auto [f,rank] : subsig ) pr_sym(f);
 				cerr << ")\n  ";
 				for( size_t i : rem ) {
 					cerr << ' ' << i;
-					p.systems[target].rules.erase(i);
+					subcomp.erase(i);
 				}
 				cerr << ')' << endl;
 			});
@@ -185,44 +213,47 @@ int main( int argc, char* argv[] ) try {
 		for( auto x : dprem_specs ) {
 			dp_removers.emplace_back(0,TrsOrder::of(TermOrder::of(x,default_smt,Smt::INT,default_log)));
 		}
-
-		if( use_unmarked_dprem ) {
-			cerr << "(make_dp" << p.systems[1].rules << ')' << endl;
-			// DP removal loop
-			do {
-				if( p.systems[1].rules.empty() ) throw Answer::YES;
-			} while(
-				std::ranges::any_of(both_removers,dp_removes) ||
-				std::ranges::any_of(dp_removers,dp_removes)
-			);
+		for(;;) {
+			if( target->rules.empty() ) {
+				target++;
+				if( target == p.systems.end() ) throw Answer::YES;
+				target_ind++;
+				marked = false;
+				cerr << "(scc" << target->rules << ')' << endl;
+				continue;
+			}
+			if( !marked ) {
+				if( use_unmarked_dprem ) {
+					if( std::ranges::any_of(both_removers,dp_removes) ) continue;
+					if( std::ranges::any_of(dp_removers,dp_removes) ) continue;
+				}
+				if( use_marked_dprem ) {
+					p.mark_dps(target);
+					cerr << "(mark_dp" << target->rules << ')' << endl;
+					marked = true;
+					continue;
+				}
+			} else {
+				if( std::ranges::any_of(both_removers,dp_removes) ) continue;
+				if( std::ranges::any_of(dp_removers,dp_removes) ) continue;
+			}
+			throw Answer::MAYBE;
 		}
-		if( use_marked_dprem ) {
-			p.mark_dps();
-			cerr << "(mark_dp" << p.systems[2].rules << ')' << endl;
-			target = 2;
-			do {
-				if( p.systems[2].rules.empty() ) throw Answer::YES;
-			} while(
-				std::ranges::any_of(both_removers,dp_removes) ||
-				std::ranges::any_of(dp_removers,dp_removes)
-			);
+	} catch( Answer a ) {
+		if( a == Answer::YES ) {
+			cout << "YES" << endl;
+			exit(0);
+		} else if( a == Answer::NO ) {
+			cout << "NO" << endl;
+			exit(1);
+		} else if( a == Answer::MAYBE ) {
+			cerr << p << endl;
+			cout << "MAYBE" << endl;
+			exit(2);
+		} else {
+			assert(false);
 		}
-	}
-	cerr << p << endl;
-	throw Answer::MAYBE;
-} catch( Answer a ) {
-	if( a == Answer::YES ) {
-		cout << "YES" << endl;
-		exit(0);
-	} else if( a == Answer::NO ) {
-		cout << "NO" << endl;
-		exit(1);
-	} else if( a == Answer::MAYBE ) {
-		cout << "MAYBE" << endl;
-		exit(2);
-	} else {
-		assert(false);
-	}
+	} 
 } catch( Error const& e ) {
 	cerr << e << endl;
 	exit(-1);

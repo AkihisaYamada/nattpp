@@ -2,6 +2,7 @@
 #define TRS_HPP_
 #include"util.hpp"
 #include"map.hpp"
+#include"set.hpp"
 #include"exp.hpp"
 
 class Trs {
@@ -16,6 +17,7 @@ public:
 	struct Rank {
 		unsigned char arity;
 		bool defined;
+		Set<size_t> depends;// dependency pairs 
 	};
 	using SigFun = std::function<Opt<Rank const&>(std::string const&)>;
 	using Sig = Map<std::string,Rank>;
@@ -43,9 +45,7 @@ inline std::ostream& operator<<( std::ostream& os, Trs::Rules const& rules ) {
 	return os;
 }
 inline std::ostream& operator<<( std::ostream& os, Trs::Rank const& rank ) {
-	os << (int)rank.arity;
-	if( rank.defined ) os << " defined";
-	return os;
+	return os << (int)rank.arity;
 }
 
 class Trs::Reader {

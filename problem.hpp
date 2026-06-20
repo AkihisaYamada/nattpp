@@ -1,6 +1,7 @@
 #ifndef PROBLEM_HPP_
 #define PROBLEM_HPP_
 
+#include<list>
 #include"trs.hpp"
 
 struct Problem {
@@ -15,8 +16,9 @@ struct Problem {
 		Trs::Sig sig;// additional signature
 		Trs::Rules rules;// additional rules
 	};
-	std::vector<System> systems;
-	size_t last_rule;
+	std::list<System> systems;
+	using SysIt = std::list<System>::iterator;
+	size_t next_rule;
 	enum {
 		SN,// termination
 		DP,// DP problem
@@ -26,9 +28,9 @@ private:
 	Problem() = delete;
 public:
 	Problem( std::istream& is );
-	void add_rule( size_t index, Trs::Rule const& rule ) &;
+	void insert_rule( Trs::Rules& rules, Trs::Rule const& rule ) &;
 	void make_dps() &;
-	void mark_dps() &;
+	void mark_dps( SysIt const& it ) &;
 	std::ostream& print( std::ostream& os ) const &;
 	static bool test();
 };

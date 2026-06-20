@@ -99,8 +99,7 @@ int main( int argc, char* argv[] ) try {
 	}
 	auto p = Problem( ois ? *ois : cin );
 	cerr << p << endl;
-	auto const& sig = p.sig;
-	auto const& trs = p.systems[0];
+	auto const& [sig,rules] = p.systems[0];
 	switch( mode ) {
 	case UNSET: case SN:
 		if( default_strategy ) {
@@ -139,17 +138,17 @@ int main( int argc, char* argv[] ) try {
 			ord->extend_sig(sig);
 			stage = 1;
 		}
-		return order_some_rule(*ord,p.systems[0],[&](auto&&rem){
-			cerr << "(remove-rule\n  " << ord->print(p.sig) << "\n ";
+		return order_some_rule(*ord,p.systems[0].rules,[&](auto&&rem){
+			cerr << "(remove-rule\n  " << ord->print(p.systems[0].sig) << "\n ";
 			for( size_t i : rem ) {
 				cerr << ' ' << i;
-				p.systems[0].erase(i);
+				p.systems[0].rules.erase(i);
 			}
 			cerr << ")" << endl;
 		});
 	};
 	do {
-		if( p.systems[0].empty() ) throw Answer::YES;
+		if( p.systems[0].rules.empty() ) throw Answer::YES;
 	} while(
 		std::ranges::any_of(rule_removers,rule_removes) ||
 		std::ranges::any_of(both_removers,rule_removes)
@@ -157,30 +156,26 @@ int main( int argc, char* argv[] ) try {
 
 	if( !use_dp ) throw Answer::MAYBE;
 
-	Dps dps = make_dps(p.sig,p.systems[0],p.last_ind);
-	bool marked = false;
+	p.make_dps();
+	size_t target = 1;
 	auto dp_removes = [&]( pair<int,unique_ptr<TrsOrder>>& pair ){
 		auto& [stage,ord] = pair;
 		cerr << "; trying " << ord->print_name() << "... " << endl;
-		if( stage < 1 ) {
-			ord->extend_sig(sig);
-			stage = 1;
+		for( ; stage <= target; stage++ ) {
+			ord->extend_sig(p.systems[stage].sig);
 		}
-		if( marked && stage < 2 ) {// extend for marked signature
-			ord->extend_sig(dps.extra_sig);
-			stage = 2;
-		}
-		return order_some_dp(*ord,p.systems[0],dps,[&]( auto&& rem ){
+		return order_some_dp(*ord,p.systems[0].rules,p.systems[target].rules,[&]( auto&& rem ){
 			cerr << "(remove-dp\n  (" << ord->print_name();
 			auto pr_sym = [&]( auto const& f ) {
 				cerr << "\n    (" << f << ' ' << ord->print_sym_info(f) << ')';
 			};
-			for( auto [f,rank] : sig ) pr_sym(f);
-			for( auto [f,rank] : dps.extra_sig ) pr_sym(f);
+			for( size_t i = 0; i <= target; i++ ) {
+				for( auto [f,rank] : p.systems[i].sig ) pr_sym(f);
+			}
 			cerr << ")\n  ";
 			for( size_t i : rem ) {
 				cerr << ' ' << i;
-				dps.map.erase(i);
+				p.systems[target].rules.erase(i);
 			}
 			cerr << ')' << endl;
 		});
@@ -192,22 +187,21 @@ int main( int argc, char* argv[] ) try {
 	}
 
 	if( use_unmarked_dprem ) {
-		cerr << dps << endl;
+		cerr << "(make_dp" << p.systems[1].rules << ')' << endl;
 		// DP removal loop
 		do {
-			if( dps.map.empty() ) throw Answer::YES;
+			if( p.systems[1].rules.empty() ) throw Answer::YES;
 		} while(
 			std::ranges::any_of(both_removers,dp_removes) ||
 			std::ranges::any_of(dp_removers,dp_removes)
 		);
 	}
 	if( use_marked_dprem ) {
-		cerr << "; marking DPs" << endl;
-		mark_dps(sig,dps);
-		cerr << dps << endl;
-		marked = true;
+		p.mark_dps();
+		cerr << "(mark_dp" << p.systems[2].rules << ')' << endl;
+		target = 2;
 		do {
-			if( dps.map.empty() ) throw Answer::YES;
+			if( p.systems[2].rules.empty() ) throw Answer::YES;
 		} while(
 			std::ranges::any_of(both_removers,dp_removes) ||
 			std::ranges::any_of(dp_removers,dp_removes)

@@ -12,7 +12,7 @@ std::ostream& Trs::Rule::print_content( std::ostream& os ) const& {
 
 Opt<Trs::Term> Trs::Reader::reads( function<void(string const&)> const& var ) {
 	if( auto sym = _reader.reads_sym() ) {
-		if( auto info = _sig.find(*sym) ) {
+		if( auto info = _sig(*sym) ) {
 			if( info->arity != 0 ) {
 				throw _reader.error("#unapplied-fun",std::move(*sym));
 			}
@@ -26,7 +26,7 @@ Opt<Trs::Term> Trs::Reader::reads( function<void(string const&)> const& var ) {
 		if( !fun ) {
 			throw _reader.error("#nil");
 		}
-		auto const& info = _sig.find(*fun);
+		auto const& info = _sig(*fun);
 		if( !info ) {
 			throw _reader.error("#applied-var",*fun);
 		}

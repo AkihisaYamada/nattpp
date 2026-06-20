@@ -17,6 +17,7 @@ public:
 		unsigned char arity;
 		bool defined;
 	};
+	using SigFun = std::function<Opt<Rank const&>(std::string const&)>;
 	using Sig = Map<std::string,Rank>;
 	class Reader;
 	struct Rule {
@@ -37,7 +38,7 @@ inline std::ostream& operator<<( std::ostream& os, Trs::Rule const& rule ) {
 }
 inline std::ostream& operator<<( std::ostream& os, Trs::Rules const& rules ) {
 	for( auto const& [n,rule] : rules ) {
-		os << rule << std::endl;
+		os << "\n  (rule-n " << n << ' ' << rule.print_content() << ')' << std::flush;
 	}
 	return os;
 }
@@ -48,17 +49,17 @@ inline std::ostream& operator<<( std::ostream& os, Trs::Rank const& rank ) {
 }
 
 class Trs::Reader {
-	Sig const& _sig;
+	SigFun const& _sig;
 	::Reader& _reader;
 	/**
-	 * @brief Do not construct with rvalue Sig
+	 * @brief Do not construct with rvalue SigFun
 	 */
-	Reader(::Reader&,Sig&&) = delete;
+	Reader(::Reader&,SigFun&&) = delete;
 public:
 	struct Error : ::Error {
 		using ::Error::Error;
 	};
-	Reader( ::Reader& reader, Sig const& sig ) : _reader(reader), _sig(sig) {}
+	Reader( ::Reader& reader, SigFun const& sig ) : _reader(reader), _sig(sig) {}
 	Opt<Term> reads( std::function<void(std::string const&)> const& var = [](auto){} );
 	Term read( std::function<void(std::string const&)> const& var = [](auto){} ) {
 		auto t = reads(var);

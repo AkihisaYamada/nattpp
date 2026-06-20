@@ -1,7 +1,7 @@
 #ifndef DP_HPP
 #define DP_HPP
 
-#include"trs.hpp"
+#include"problem.hpp"
 
 struct Dp {
 	Exp first;
@@ -26,7 +26,7 @@ struct Dps {
 	}
 };
 
-Dps make_dps( Trs::Sig const& sig, Trs::Rules const& rules, size_t max_ind );
+void make_dps( Problem& p );
 
 void mark_dps( Trs::Sig const& sig, Dps& dps );
 

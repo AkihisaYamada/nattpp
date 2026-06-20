@@ -142,41 +142,6 @@ std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sy
 	return os << _weight->print_sym_info(sym);
 }
 
-
-bool order_some_rule(
-	TrsOrder& order,
-	Trs::Rules const& rules,
-	std::function<void(std::vector<size_t>&&)> f
-) {
-	auto& solver = order.solver();
-	vector<pair<size_t,Smt::PostExp>> gts;
-	Smt::PostExp all_ge = true;
-	for( auto const& [i,rule] : rules ) {
-		if( order.log() & TermOrder::RULE ) {
-			cerr << "; " << rule << endl;
-		}
-		auto const& [ge,gt] = order.order_rule(rule.first,rule.second,i);
-		all_ge = all_ge && ge;
-		gts.emplace_back(i,gt);
-	}
-	solver.push();
-	solver.ass( order.mono() && all_ge && Smt::disj(gts,[]( auto const& gt ){ return gt.second; }) );
-	solver.check_sat();
-	if( solver.result().is_sat() ) {
-		std::vector<size_t> ret;
-		for( auto [i,gt] : gts ) {
-			if( solver.get_value(gt) == Smt::TRUE ) {
-				ret.push_back(i);
-			}
-		}
-		f(std::move(ret));
-		solver.pop();
-		return true;
-	}
-	solver.pop();
-	return false;
-}
-
 PathOrder::StatusFun PathOrder::StatusFun::of( Exp const& x ) {
 	size_t n = 0;
 	if( x.fun() == "straight" ) {

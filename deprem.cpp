@@ -1,9 +1,45 @@
 #include "deprem.hpp"
 
+using namespace std;
+
+bool order_some_rule(
+	TrsOrder& order,
+	Trs::Rules const& rules,
+	std::function<void(std::vector<size_t>&&)> f
+) {
+	auto& solver = order.solver();
+	vector<pair<size_t,Smt::PostExp>> gts;
+	Smt::PostExp all_ge = true;
+	for( auto const& [i,rule] : rules ) {
+		if( order.log() & TermOrder::RULE ) {
+			cerr << "; " << rule << endl;
+		}
+		auto const& [ge,gt] = order.order_rule(rule.first,rule.second,i);
+		all_ge = all_ge && ge;
+		gts.emplace_back(i,gt);
+	}
+	solver.push();
+	solver.ass( order.mono() && all_ge && Smt::disj(gts,[]( auto const& gt ){ return gt.second; }) );
+	solver.check_sat();
+	if( solver.result().is_sat() ) {
+		std::vector<size_t> ret;
+		for( auto [i,gt] : gts ) {
+			if( solver.get_value(gt) == Smt::TRUE ) {
+				ret.push_back(i);
+			}
+		}
+		f(std::move(ret));
+		solver.pop();
+		return true;
+	}
+	solver.pop();
+	return false;
+}
+
 bool order_some_dp(
 	TrsOrder& order,
 	Trs::Rules const& rules,
-	Dps const& dps,
+	Trs::Rules const& dps,
 	std::function<void(std::vector<size_t>&&)> const& f
 ) {
 	auto& solver = order.solver();
@@ -17,7 +53,7 @@ bool order_some_dp(
 		}
 		all_ge = all_ge && ge;
 	}
-	for( auto const& [i,dp] : dps.map ) {
+	for( auto const& [i,dp] : dps ) {
 		auto const& [ge,gt] = order.compare(dp.first,dp.second);
 		all_ge = all_ge && ge;
 		some_gt = some_gt || gt;

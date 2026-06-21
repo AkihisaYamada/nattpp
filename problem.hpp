@@ -12,12 +12,9 @@ struct Problem {
 		TRS,
 		SRS,
 	} format;
-	struct System {
-		Trs::Sig sig;// additional signature
-		Trs::Rules rules;// additional rules
-	};
-	std::list<System> systems;
-	using SysIt = std::list<System>::iterator;
+	Trs main;
+	std::list<Trs> subtrss;
+	using SubIt = std::list<Trs>::iterator;
 	size_t next_rule;
 	enum {
 		SN,// termination
@@ -30,7 +27,7 @@ public:
 	Problem( std::istream& is );
 	void insert_rule( Trs::Rules& rules, Trs::Rule const& rule ) &;
 	void make_dps() &;
-	void mark_dps( SysIt const& it ) &;
+	void mark_dps( SubIt const& it ) &;
 	std::ostream& print( std::ostream& os ) const &;
 	static bool test();
 };

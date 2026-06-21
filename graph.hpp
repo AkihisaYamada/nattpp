@@ -17,7 +17,9 @@ public:
 	Set<size_t> const& nexts( size_t src ) const& { return _fun(src); }
 	std::vector<Set<size_t>> sccs() const;
 	static void test();
+	/** Turn an adjacency map into a graph. */
 	Graph( Map<size_t,Set<size_t>>&& map );
+	/** Wrap an adjacency map as a graph.   */
 	Graph( Map<size_t,Set<size_t>>const& map );
 };
 

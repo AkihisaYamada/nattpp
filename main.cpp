@@ -100,7 +100,6 @@ int main( int argc, char* argv[] ) try {
 	}
 	auto p = Problem( ois ? *ois : cin );
 	cerr << p << endl;
-	auto const& [sig,rules] = p.systems.front();
 	switch( mode ) {
 	case UNSET: case SN:
 		if( default_strategy ) {
@@ -132,28 +131,25 @@ int main( int argc, char* argv[] ) try {
 	}
 
 	try {
-		Problem::SysIt target = p.systems.begin();
-		auto& [sig,rules] = *target;
-
 		// rule removal loop
 		auto rule_removes = [&]( pair<int,unique_ptr<TrsOrder>>& pair ) {
 			auto& [stage,ord] = pair;
 			cerr << "; trying " << ord->print_name() << "... " << endl;
 			if( stage < 1 ) {// initialize for signature
-				ord->extend_sig(sig);
+				ord->extend_sig(p.main.sig);
 				stage = 1;
 			}
-			return order_some_rule(*ord,rules,[&](auto&&rem){
-				cerr << "(remove-rule\n  " << ord->print(sig) << "\n ";
+			return order_some_rule(*ord,p.main.rules,[&](auto&&rem){
+				cerr << "(remove-rule\n  " << ord->print(p.main.sig) << "\n ";
 				for( size_t i : rem ) {
 					cerr << ' ' << i;
-					p.systems.front().rules.erase(i);
+					p.main.rules.erase(i);
 				}
 				cerr << ")" << endl;
 			});
 		};
 		do {
-			if( rules.empty() ) throw Answer::YES;
+			if( p.main.rules.empty() ) throw Answer::YES;
 		} while(
 			std::ranges::any_of(rule_removers,rule_removes) ||
 			std::ranges::any_of(both_removers,rule_removes)
@@ -163,17 +159,17 @@ int main( int argc, char* argv[] ) try {
 
 		cerr << "; taking DPs" << endl;
 		p.make_dps();// compute DPs
-		target++;
+		auto target = p.subtrss.begin();
 		// SCC decomposition
 		auto dps = Trs::Rules();
 		swap(dps,target->rules);
-		Graph dg;
+		Map<size_t,Set<size_t>> dg;
 		for( auto const& [i,dp] : dps ) {
 			auto const& l = dp.first, &r = dp.second;
-			dg.map.emplace(i,ASSERTED(sig.find(r.fun()))->depends);
+			dg.emplace(i,ASSERTED(p.main.sig.find(r.fun()))->depends);
 		}
-		for( auto const& scc : dg.sccs() ) {
-			auto& back = p.systems.emplace_back();
+		for( auto const& scc : Graph(dg).sccs() ) {
+			auto& back = p.subtrss.emplace_back();
 			for( auto const& i : scc ) {
 				back.rules.emplace(i,*ASSERTED(dps.find(i)));
 			}
@@ -186,19 +182,19 @@ int main( int argc, char* argv[] ) try {
 			auto& [stage,ord] = pair;
 			cerr << "; trying " << ord->print_name() << "... " << endl;
 			if( stage == 0 ) {
-				ord->extend_sig(sig);
+				ord->extend_sig(p.main.sig);
 				stage = 1;
 			}
 			if( marked && stage < target_ind ) {
 				ord->extend_sig(subsig);
 				stage = target_ind;
 			}
-			return order_some_dp(*ord,rules,subcomp,[&]( auto&& rem ){
+			return order_some_dp(*ord,p.main.rules,subcomp,[&]( auto&& rem ){
 				cerr << "(remove-dp\n  (" << ord->print_name();
 				auto pr_sym = [&]( auto const& f ) {
 					cerr << "\n    (" << f << ' ' << ord->print_sym_info(f) << ')';
 				};
-				for( auto [f,rank] : sig ) pr_sym(f);
+				for( auto [f,rank] : p.main.sig ) pr_sym(f);
 				for( auto [f,rank] : subsig ) pr_sym(f);
 				cerr << ")\n  ";
 				for( size_t i : rem ) {
@@ -216,7 +212,7 @@ int main( int argc, char* argv[] ) try {
 		for(;;) {
 			if( target->rules.empty() ) {
 				target++;
-				if( target == p.systems.end() ) throw Answer::YES;
+				if( target == p.subtrss.end() ) throw Answer::YES;
 				target_ind++;
 				marked = false;
 				cerr << "(scc" << target->rules << ')' << endl;

@@ -5,10 +5,7 @@
 #include"set.hpp"
 #include"exp.hpp"
 
-class Trs {
-	/** @brief No object in this class */
-	Trs() = delete;
-public:
+struct Trs {
 	class Term : public ::Exp {
 		friend Trs;
 		friend class Srs;
@@ -33,6 +30,8 @@ public:
 		}
 	};
 	using Rules = Map<size_t,Rule>;
+	Sig sig;
+	Rules rules;
 };
 
 inline std::ostream& operator<<( std::ostream& os, Trs::Rule const& rule ) {

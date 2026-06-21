@@ -158,22 +158,12 @@ public:
 		return *this && **this == other;
 	}
 	/** @brief Returns a copy of the value or moves the given default. */
-	T value_or( T&& def ) && {
+	T value_or( T&& def ) {
 		if(_ptr) return *_ptr;
 		return std::move(def);
 	}
-	/** @brief Returns a copy of the value or given default. */
-	T value_or( T const& def ) && {
-		if(_ptr) return *_ptr;
-		return def;
-	}
-	/** @brief Returns a copy the value or moves the default. */
-	T value_or( T&& def ) const & {
-		if(_ptr) return *_ptr;
-		return std::move(def);
-	}
-	/** @brief Refers to the value or the default. */
-	T const& value_or( T const& def ) const & {
+	/** @brief Returns a reference to the value or given default. */
+	T const& value_or( T const& def ) {
 		if(_ptr) return *_ptr;
 		return def;
 	}

@@ -3,13 +3,22 @@
 
 #include<vector>
 #include<iostream>
-#include"map.hpp"
 #include"set.hpp"
+#include"map.hpp"
+#include<memory>
 
 struct Graph {
-	Map<size_t,Set<size_t>const&> map;
+private:
+	using _Fun = std::function<Set<size_t>const&(size_t)>;
+	_Fun _fun;
+	Graph( _Fun&& fun ) : _fun(std::move(fun)) {}
+public:
+	Set<size_t> nodes;
+	Set<size_t> const& nexts( size_t src ) const& { return _fun(src); }
 	std::vector<Set<size_t>> sccs() const;
 	static void test();
+	Graph( Map<size_t,Set<size_t>>&& map );
+	Graph( Map<size_t,Set<size_t>>const& map );
 };
 
 std::ostream& operator<<( std::ostream& os, Graph const& g );

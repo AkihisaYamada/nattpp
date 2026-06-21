@@ -89,7 +89,7 @@ Problem::Problem( istream& is ) : next_rule(0) {
 					}
 				}
 				if( auto rank = sig.find(l.fun()) ) {
-					rank->defined = true;
+					rank->defined_by.emplace(next_rule);
 				}
 				insert_rule( systems.back().rules, Trs::Rule(l,r,weight.value_or(1)) );
 			} else {
@@ -110,7 +110,7 @@ static void collect_dps(
 	Problem& p
 ) {
 	if( auto rrank = sig.find(r.fun()) )
-		if( rrank->defined ) {
+		if( !rrank->defined_by.empty() ) {
 			lrank.depends.emplace(p.next_rule);
 			p.insert_rule(rules,Trs::Rule(l,r));
 		}

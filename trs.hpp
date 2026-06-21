@@ -16,7 +16,7 @@ public:
 	};
 	struct Rank {
 		unsigned char arity;
-		bool defined;
+		Set<size_t> defined_by;
 		Set<size_t> depends;// dependency pairs 
 	};
 	using SigFun = std::function<Opt<Rank const&>(std::string const&)>;

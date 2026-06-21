@@ -1,9 +1,29 @@
 #include<vector>
 #include<limits>
+#include"map.hpp"
 #include"graph.hpp"
 #include"util.hpp"
 
 using namespace std;
+
+static Set<size_t> const EMPTY = {};
+
+template<typename M>
+auto key_set( M const& map ) {
+	Set<typename M::key_type> ret;
+	for( auto const& [k,v] : map ) ret.emplace(k);
+	return std::move(ret);
+}
+
+Graph::Graph( Map<size_t,Set<size_t>>const& map ) :
+	nodes(key_set(map)),
+	_fun( [&map]( size_t src )->auto&{ return map.find(src).value_or(EMPTY); } )
+{}
+
+Graph::Graph( Map<size_t,Set<size_t>>&& map ) :
+	nodes(key_set(map)),
+	_fun( [map=std::move(map)]( size_t src )->auto&{ return map.find(src).value_or(EMPTY); } )
+{}
 
 static size_t const MAX = std::numeric_limits<size_t>::max();
 
@@ -16,14 +36,14 @@ struct _SccMaker {
 	Map<size_t,NodeInfo> table;
 	size_t clock;
 	std::vector<Set<size_t>> ret;
-	Map<size_t,Set<size_t>const&> const& adj;
+	Graph const& g;
 	size_t visit( size_t u ) {
 		auto [info,fl] = table.emplace(u,NodeInfo{});
 		if( !fl ) return info.number;// already visited -- report that the caller can go back to u
 		info.number = clock;
 		info.low = MAX;// `= clock` will and `= MAX` won't count trivial SCCs.
 		clock++;
-		for( size_t v : *ASSERTED(adj.find(u)) ) {
+		for( size_t v : g.nexts(u) ) {
 			info.low = std::min(info.low,visit(v));// u can go as far as its adjacents can
 		}
 		if( info.low < info.number ) {// u constitute a member of a broader SCC.
@@ -39,10 +59,10 @@ struct _SccMaker {
 		}
 		return info.number = MAX;
 	}
-	_SccMaker( Graph const& g ) : clock(0), adj(g.map) {
+	_SccMaker( Graph const& g ) : clock(0), g(g) {
 		ret.emplace_back();// empty slot
-		for( auto const& [src,tgts] : adj ) {
-			visit(src);
+		for( auto const& node : g.nodes ) {
+			visit(node);
 		}
 		ret.pop_back();
 	}
@@ -54,8 +74,8 @@ std::vector<Set<size_t>> Graph::sccs() const {
 
 std::ostream& operator<<( std::ostream& os, Graph const& g ) {
 	os << "(graph";
-	for( auto const& [src,tgts] : g.map ) {
-		os << "\n  (" << src << " (" << print_list(tgts) << "))" << flush;
+	for( auto const& src : g.nodes ) {
+		os << "\n  (" << src << " (" << print_list(g.nexts(src)) << "))" << flush;
 	}
 	return os << ')';
 }

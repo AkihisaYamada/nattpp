@@ -9,7 +9,7 @@ template<typename K, typename T>
 class Map : std::unordered_map<K,T> {
 	using M = std::unordered_map<K,T>;
 public:
-	using typename M::value_type, typename M::iterator, typename M::const_iterator;
+	using typename M::key_type, typename M::value_type, typename M::iterator, typename M::const_iterator;
 	using M::M, M::begin, M::end, M::size, M::empty, M::erase;
 	/**
 	 * @brief emplaces a key-value pair.

@@ -7,24 +7,32 @@
 #include"map.hpp"
 #include<memory>
 
-struct Graph {
-	Set<size_t> nodes;
+
+struct GraphInterface {
+	virtual Set<size_t> const& nodes() const& = 0;
+	virtual Set<size_t> const& nexts( size_t src ) const& = 0;
+	struct Asyclic;
+};
+
+struct GraphInterface::Asyclic : GraphInterface {
+};
+
+struct Graph final : GraphInterface {
 private:
-	using _Fun = std::function<Set<size_t>const&(size_t)>;
-	_Fun _fun;
-	Graph( _Fun&& fun ) : _fun(std::move(fun)) {}
+	std::unique_ptr<GraphInterface> _ptr;
 public:
 	/** Turn an adjacency map into a graph. */
 	Graph( Map<size_t,Set<size_t>>&& map );
 	/** Wrap an adjacency map as a graph. */
 	Graph( Map<size_t,Set<size_t>>const& map );
 	struct Acyclic;
-	Set<size_t> const& nexts( size_t src ) const& { return _fun(src); }
+	Set<size_t> const& nodes() const& override { return _ptr->nodes(); }
+	Set<size_t> const& nexts( size_t src ) const& override { return _ptr->nexts(src); }
 	std::vector<Set<size_t>> sccs() const;
 	static void test();
 };
 
-struct Graph::Acyclic : Graph {
+struct Graph::Acyclic final : GraphInterface::Asyclic {
 	
 };
 

@@ -18,15 +18,37 @@ auto key_set( M const& map ) {
 	return std::move(ret);
 }
 
+struct _MapConstRefGraph final : GraphInterface {
+private:
+	Set<size_t> _nodes;
+	Map<size_t,Set<size_t>>const& _map;
+public:
+	_MapConstRefGraph( Map<size_t,Set<size_t>>const& map ) :
+		_nodes(key_set(map)), _map(map) {}
+	Set<size_t>const& nodes() const& override { return _nodes; }
+	Set<size_t>const& nexts( size_t src ) const& override {
+		return _map.find(src).value_or(EMPTY);
+	}
+};
+
 Graph::Graph( Map<size_t,Set<size_t>>const& map ) :
-	nodes(key_set(map)),
-	_fun( [&map]( size_t src )->auto&{ return map.find(src).value_or(EMPTY); } )
-{}
+	_ptr( std::make_unique<_MapConstRefGraph>(map) ) {}
+
+struct _MapGraph final : GraphInterface {
+private:
+	Set<size_t> _nodes;
+	Map<size_t,Set<size_t>> _map;
+public:
+	_MapGraph( Map<size_t,Set<size_t>>&& map ) :
+		_nodes(key_set(map)), _map(std::move(map)) {}
+	Set<size_t>const& nodes() const& override { return _nodes; }
+	Set<size_t>const& nexts( size_t src ) const& override {
+		return _map.find(src).value_or(EMPTY);
+	}
+};
 
 Graph::Graph( Map<size_t,Set<size_t>>&& map ) :
-	nodes(key_set(map)),
-	_fun( [map=std::move(map)]( size_t src )->auto&{ return map.find(src).value_or(EMPTY); } )
-{}
+	_ptr( std::make_unique<_MapGraph>(std::move(map)) ) {}
 
 static int const MAX = std::numeric_limits<int>::max();
 static int const MIN = std::numeric_limits<int>::min();
@@ -35,13 +57,14 @@ static int const MIN = std::numeric_limits<int>::min();
 struct _SccMaker {
 	Graph const& g;
 	/** States of nodes.
-	 * < 0: node is open, and holds the negated lowest reachable depth
+	 * < 0: holds node's depth or the highest reachable depth
 	 * >= 0: node is closed, and holds the index of the SCC 
 	 */
 	Map<size_t,int> table;
 	int depth;
 	std::stack<size_t> stack;
 	std::vector<Set<size_t>> sccs;
+	Map<size_t,Set<size_t>> scc_dag;
 	int visit( size_t u ) {
 		auto const [state,fl] = table.emplace(u,depth);
 		if( !fl ) {// already visited
@@ -81,7 +104,7 @@ struct _SccMaker {
 
 std::vector<Set<size_t>> Graph::sccs() const {
 	auto maker = _SccMaker(*this);
-	for( auto const& node : nodes ) {
+	for( auto const& node : nodes() ) {
 		maker.visit(node);
 	}
 	return std::move(maker.sccs);
@@ -89,7 +112,7 @@ std::vector<Set<size_t>> Graph::sccs() const {
 
 std::ostream& operator<<( std::ostream& os, Graph const& g ) {
 	os << "(graph";
-	for( auto const& src : g.nodes ) {
+	for( auto const& src : g.nodes() ) {
 		os << "\n  (" << src << " (" << print_list(g.nexts(src)) << "))" << flush;
 	}
 	return os << ')';

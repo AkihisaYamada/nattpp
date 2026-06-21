@@ -16,10 +16,9 @@ public:
 	Set( std::initializer_list<T> args ) : _set(args) {}
 	template<typename... Args>
 		requires std::is_constructible_v<T,Args...>
-	T const& emplace( Args&&... args ) & {
+	std::pair<T const&, bool> emplace( Args&&... args ) & {
 		auto [it,fl] = _set.emplace( std::forward<Args>(args)... );
-		assert(fl);
-		return *it;
+		return {*it,fl};
 	}
 	auto begin() & { return _set.begin(); }
 	auto begin() const& { return _set.begin(); }
@@ -48,10 +47,9 @@ public:
 	OrdSet( std::initializer_list<T> args ) : _set(args) {}
 	template<typename... Args>
 		requires std::is_constructible_v<T,Args...>
-	T const& emplace( Args&&... args ) & {
+	std::pair<T const&, bool> emplace( Args&&... args ) & {
 		auto [it,fl] = _set.emplace( std::forward<Args>(args)... );
-		assert(fl);
-		return *it;
+		return {*it,fl};
 	}
 	auto begin() & { return _set.begin(); }
 	auto begin() const& { return _set.begin(); }

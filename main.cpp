@@ -189,7 +189,7 @@ int main( int argc, char* argv[] ) try {
 				ord->extend_sig(subsig);
 				stage = target_ind;
 			}
-			return order_some_dp(*ord,p.main.rules,subcomp,[&]( auto&& rem ){
+			return order_some_dp(*ord,p,subcomp,[&]( auto&& rem ){
 				cerr << "(remove-dp\n  (" << ord->print_name();
 				auto pr_sym = [&]( auto const& f ) {
 					cerr << "\n    (" << f << ' ' << ord->print_sym_info(f) << ')';

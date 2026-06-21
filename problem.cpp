@@ -106,15 +106,25 @@ Problem::Problem( istream& is ) : next_rule(0) {
 static void collect_dps(
 	Trs::Sig& sig, Trs::Rules& rules,
 	Trs::Term const& l, Trs::Rank& lrank, Trs::Term const& r,
-	Problem& p
+	Problem& p, Set<size_t>& org_uses
 ) {
-	if( auto rrank = sig.find(r.fun()) )
-		if( !rrank->defined_by.empty() ) {
-			lrank.depends.emplace(p.next_rule);
+	if( auto rrank = sig.find(r.fun()) ) {// f(...) -> g(...)
+		if( !rrank->defined_by.empty() ) {// g is defined
+			Set<size_t> this_uses;// collect rules which this dp uses
+			for( auto const& a : r.args() ) {
+				collect_dps(sig,rules,l,lrank,a,p,this_uses);
+			}
+			lrank.depends.emplace(p.next_rule);// assign this dp to f
+			for( auto const& used : this_uses ) {
+				org_uses.emplace(used);// origin uses those rules which this dp uses
+			}
+			// register those this dp will use
+			p.static_usable.emplace(p.next_rule,std::move(this_uses));
 			p.insert_rule(rules,Trs::Rule(l,r));
+			for( size_t i : rrank->defined_by ) {// the origin also uses the rules that define g
+				org_uses.emplace(i);
+			}
 		}
-	for( auto const& a : r.args() ) {
-		collect_dps(sig,rules,l,lrank,a,p);
 	}
 }
 
@@ -130,7 +140,9 @@ void Problem::make_dps() & {
 			cerr << "(var-lhs " << org << ')' << endl;
 			throw Answer::NO;
 		}
-		collect_dps(main.sig,dps,l,*lrank,rule.second,*this);
+		Set<size_t> uses;
+		collect_dps(main.sig,dps,l,*lrank,rule.second,*this,uses);
+		static_usable.emplace(org,std::move(uses));// register rules that the original uses
 	}
 }
 string mark_sym( string const& sym ) {
@@ -152,7 +164,10 @@ void Problem::mark_dps( SubIt const& it ) & {
 	auto& [msig,udps] = *it;
 	assert(msig.empty());
 	for( auto uit = udps.begin(); uit != udps.end(); uit = udps.erase(uit) ) {// iterate while removing
-		insert_rule(mdps,mark_dp(main.sig,msig,uit->second));
+		auto [uind,udp] = *uit;
+		// marked dp will use what has been used by the unmarked one
+		static_usable.emplace( next_rule, ASSERTED(static_usable.extract(uind)).mapped() );
+		insert_rule(mdps,mark_dp(main.sig,msig,udp));
 	}
 	swap(mdps,udps);
 }

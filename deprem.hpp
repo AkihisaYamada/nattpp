@@ -2,6 +2,7 @@
 #define DEPREM_HPP
 
 #include "termord.hpp"
+#include "problem.hpp"
 
 bool order_some_rule(
 	TrsOrder& order,
@@ -11,7 +12,7 @@ bool order_some_rule(
 
 bool order_some_dp(
 	TrsOrder& order,
-	Trs::Rules const& rules,
+	Problem const& p,
 	Trs::Rules const& dps,
 	std::function<void(std::vector<size_t>&&)> const& f
 );

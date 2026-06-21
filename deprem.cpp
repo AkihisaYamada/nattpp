@@ -38,7 +38,7 @@ bool order_some_rule(
 
 bool order_some_dp(
 	TrsOrder& order,
-	Trs::Rules const& rules,
+	Problem const& p,
 	Trs::Rules const& dps,
 	std::function<void(std::vector<size_t>&&)> const& f
 ) {
@@ -46,7 +46,7 @@ bool order_some_dp(
 	Smt::PostExp some_gt = false;
 	Smt::PostExp all_ge = true;
 	std::vector<std::pair<size_t,Smt::PostExp>> gts;
-	for( auto const& [i,rule] : rules ) {
+	for( auto const& [i,rule] : p.main.rules ) {
 		auto const& [ge,gt] = order.order_rule(rule.first,rule.second,i);
 		if( order.log() & TermOrder::RULE ) {
 			std::cerr << "; " << rule << std::endl;

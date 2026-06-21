@@ -25,6 +25,7 @@ public:
 	auto begin() const& { return _set.begin(); }
 	auto end() const& { return _set.end(); }
 	bool empty() const& { return _set.empty(); }
+	void clear() & { _set.clear(); }
 	Opt<T const&> find( T const& x ) const& {
 		if( auto const& it = _set.find(x); it != _set.end() ) {
 			return {*it};
@@ -56,6 +57,7 @@ public:
 	auto begin() const& { return _set.begin(); }
 	auto end() const& { return _set.end(); }
 	bool empty() const& { return _set.empty(); }
+	void clear() & { _set.clear(); }
 	Opt<T const&> find( T const& x ) const& {
 		if( auto const& it = _set.find(x); it != _set.end() ) {
 			return {*it};

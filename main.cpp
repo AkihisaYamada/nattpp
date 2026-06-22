@@ -163,12 +163,15 @@ int main( int argc, char* argv[] ) try {
 		// SCC decomposition
 		auto dps = Trs::Rules();
 		swap(dps,target->rules);
-		Map<size_t,Set<size_t>> dg;
-		for( auto const& [i,dp] : dps ) {
-			auto const& l = dp.first, &r = dp.second;
-			dg.emplace(i,ASSERTED(p.main.sig.find(r.fun()))->depends);
-		}
-		auto [sccs,sccinds] = Graph(dg).sccs();
+		Graph dg = [&]{
+			Map<size_t,Set<size_t>> dgmap;
+			for( auto const& [i,dp] : dps ) {
+				auto const& l = dp.first, &r = dp.second;
+				dgmap.emplace(i,ASSERTED(p.main.sig.find(r.fun()))->depends);
+			}
+			return std::move(dgmap);
+		}();
+		auto sccs = dg.sccs();
 		for( auto const& scc : sccs ) {
 			auto& back = p.subtrss.emplace_back();
 			for( auto const& i : scc ) {

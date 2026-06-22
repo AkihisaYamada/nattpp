@@ -6,7 +6,7 @@
 #include"set.hpp"
 #include"map.hpp"
 #include "util.hpp"
-#include<memory>
+#include"ref.hpp"
 
 struct Graph;
 
@@ -20,6 +20,7 @@ struct GraphInterface {
 private:
 	friend class _SccMaker;
 	mutable Opt<SccInfo> _scc_info_opt;
+	mutable OptRef<GraphInterface> _trancl_opt;
 public:
 	virtual ~GraphInterface() {}
 	virtual void iter_nodes( NodeFun const& ) const& = 0;
@@ -36,8 +37,9 @@ public:
 
 struct Graph final : GraphInterface {
 private:
-	std::unique_ptr<GraphInterface> _ptr;
+	Ref<GraphInterface> _ptr;
 public:
+	Graph( Ref<GraphInterface>&& org ) : _ptr(std::move(org)) {}
 	/** turn node iterator function and adjacency function into a graph */
 	Graph(
 		std::function<void(NodeFun const&)>&&,

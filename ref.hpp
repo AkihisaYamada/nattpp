@@ -2,6 +2,7 @@
 #define _REF_HPP
 
 #include<memory>
+#include <type_traits>
 #include"opt.hpp"
 
 /**
@@ -14,6 +15,7 @@ class Ref {
 	std::shared_ptr<T> _ptr;
 	T& operator*() && = delete;
 	T* operator->() && = delete;
+	Ref( std::shared_ptr<T>const& ptr ) : _ptr(ptr) {}
 	Ref( std::shared_ptr<T>&& ptr ) : _ptr(std::move(ptr)) {}
 	template<typename S, bool n>
 	friend class Ref;
@@ -26,14 +28,21 @@ public:
 	 * @brief Non-null reference can be considered nullable
 	 */
 	Ref( Ref<T,false> const& org ) requires _nullable : _ptr(org._ptr) {}
-	Ref( Ref&& org ) = default;
-	Ref( Ref const& org ) = default;
+	template<typename S>
+		requires (std::convertible_to<S*,T*>)
+	Ref( Ref<S,_nullable>&& org ) : _ptr(std::move(org._ptr)) {}
+	template<typename S>
+		requires (std::convertible_to<S*,T*>)
+	Ref( Ref<S,_nullable>const& org ) : _ptr(org._ptr) {}
 	/** @brief Do not turn a constructed object into reference.
 	 * It would need a copy / move. Use Ref<T>::make( Args... ) instead.
 	 */
 	Ref(T const&) = delete;
 	operator bool() const requires _nullable {
 		return (bool)_ptr;
+	}
+	Ref<T,false> nonnull() const requires _nullable {
+		return _ptr;
 	}
 	Ref& operator=( Ref const& other ) & = default;
 	T& operator*() const & {

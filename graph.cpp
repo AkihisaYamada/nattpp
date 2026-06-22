@@ -26,7 +26,7 @@ public:
 	}
 };
 Graph::Graph( std::function<void(NodeFun const&)>&& node_iter, std::function<Set<size_t>const&(size_t)>&& nexts ) :
-	_ptr(std::make_unique<_FunGraph>(std::move(node_iter),std::move(nexts))) {}
+	_ptr(Ref<_FunGraph>::make(std::move(node_iter),std::move(nexts))) {}
 
 struct _MapConstRefGraph final : GraphInterface {
 	using Body = Map<size_t,Set<size_t>>;
@@ -44,7 +44,7 @@ public:
 	}
 };
 Graph::Graph( Map<size_t,Set<size_t>>const& map ) :
-	_ptr( std::make_unique<_MapConstRefGraph>(map) ) {}
+	_ptr( Ref<_MapConstRefGraph>::make(map) ) {}
 
 struct _MapGraph final : GraphInterface {
 	using Body = Map<size_t,Set<size_t>>;
@@ -62,7 +62,7 @@ public:
 	}
 };
 Graph::Graph( Map<size_t,Set<size_t>>&& map ) :
-	_ptr( std::make_unique<_MapGraph>(std::move(map)) ) {}
+	_ptr( Ref<_MapGraph>::make(std::move(map)) ) {}
 
 
 struct _AcyclicMapConstRefGraph final : GraphInterface::Acyclic {
@@ -254,6 +254,7 @@ static std::function<Set<size_t>const&(size_t)> trancl_nexts( GraphInterface con
 	};
 }
 Graph GraphInterface::trancl() const& {
+	if( _trancl_opt ) return Graph(_trancl_opt.nonnull());
 	return Graph( [this]( NodeFun const& f ){ iter_nodes(f); }, trancl_nexts(*this) );
 }
 

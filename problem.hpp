@@ -3,6 +3,7 @@
 
 #include<list>
 #include"trs.hpp"
+#include"graph.hpp"
 
 struct Problem {
 	enum class Answer {
@@ -13,7 +14,8 @@ struct Problem {
 		SRS,
 	} format;
 	Trs main;
-	Map<size_t,Set<size_t>> static_usable;// will be ready by make_dps
+	Map<size_t,Set<size_t>> usable_map;// will be ready by make_dps
+	Graph usable_graph;// will be ready by make_dps
 	std::list<Trs> subtrss;
 	using SubIt = std::list<Trs>::iterator;
 	size_t next_rule;

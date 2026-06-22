@@ -20,7 +20,7 @@ void Problem::insert_rule( Trs::Rules& rules, Trs::Rule const& rule ) & {
 	next_rule++;
 }
 
-Problem::Problem( istream& is ) : next_rule(0) {
+Problem::Problem( istream& is ) : next_rule(0), usable_graph(usable_map) {
 	auto eis = Reader(is);
 	eis.open();
 	eis.read_sym("format");
@@ -119,7 +119,7 @@ static void collect_dps(
 				org_uses.emplace(used);// origin uses those rules which this dp uses
 			}
 			// register those this dp will use
-			p.static_usable.emplace(p.next_rule,std::move(this_uses));
+			p.usable_map.emplace(p.next_rule,std::move(this_uses));
 			p.insert_rule(rules,Trs::Rule(l,r));
 			for( size_t i : rrank->defined_by ) {// the origin also uses the rules that define g
 				org_uses.emplace(i);
@@ -142,7 +142,7 @@ void Problem::make_dps() & {
 		}
 		Set<size_t> uses;
 		collect_dps(main.sig,dps,l,*lrank,rule.second,*this,uses);
-		static_usable.emplace(org,std::move(uses));// register rules that the original uses
+		usable_map.emplace(org,std::move(uses));// register rules that the original uses
 	}
 }
 string mark_sym( string const& sym ) {
@@ -166,7 +166,7 @@ void Problem::mark_dps( SubIt const& it ) & {
 	for( auto uit = udps.begin(); uit != udps.end(); uit = udps.erase(uit) ) {// iterate while removing
 		auto [uind,udp] = *uit;
 		// marked dp will use what has been used by the unmarked one
-		static_usable.emplace( next_rule, ASSERTED(static_usable.extract(uind)).mapped() );
+		usable_map.emplace( next_rule, ASSERTED(usable_map.extract(uind)).mapped() );
 		insert_rule(mdps,mark_dp(main.sig,msig,udp));
 	}
 	swap(mdps,udps);

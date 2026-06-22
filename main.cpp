@@ -100,7 +100,8 @@ int main( int argc, char* argv[] ) try {
 		default_log = TermOrder::NONE;
 	}
 	auto p = Problem( ois ? *ois : cin );
-	cerr << p << endl;
+	auto prf = OStream( oprf ? *oprf : cerr );
+	*prf << p << endl;
 	switch( mode ) {
 	case UNSET: case SN:
 		if( default_strategy ) {
@@ -119,7 +120,7 @@ int main( int argc, char* argv[] ) try {
 
 	if( auto it = p.extra_var.begin(); it != p.extra_var.end() ) {
 		auto const& [no,var] = *it;
-		cerr << "(extra-var " << var << " :rule " << no << ')' << endl;
+		*prf << "(extra-var " << var << " :rule " << no << ')' << endl;
 		throw Answer::NO;
 	}
 	vector<pair<int,unique_ptr<TrsOrder>>> rule_removers;
@@ -141,12 +142,12 @@ int main( int argc, char* argv[] ) try {
 				stage = 1;
 			}
 			return order_some_rule(*ord,p.main.rules,[&](auto&&rem){
-				cerr << "(remove-rule\n  " << ord->print(p.main.sig) << "\n ";
+				*prf << "(remove-rule\n  " << ord->print(p.main.sig) << "\n ";
 				for( size_t i : rem ) {
-					cerr << ' ' << i;
+					*prf << ' ' << i;
 					p.main.rules.erase(i);
 				}
-				cerr << ")" << endl;
+				*prf << ")" << endl;
 			});
 		};
 		do {
@@ -160,7 +161,8 @@ int main( int argc, char* argv[] ) try {
 
 		cerr << "; taking DPs" << endl;
 		p.make_dps();// compute DPs
-DEB(p);
+		*prf << "(make_dp)" << endl;
+		cerr << p << endl;
 		auto target = p.subtrss.begin();
 		// SCC decomposition
 		auto dps = Trs::Rules();
@@ -173,11 +175,17 @@ DEB(p);
 			}
 			return std::move(dgmap);
 		}();
+		cerr << "(dependency_graph" << dg.print_nodes() << ")" << endl;
+		cerr << "(usage_graph" << p.uses_graph.print_nodes() << ")" << endl;
+		cerr << "(rule_usables" << p.uses_graph.trancl().print_nodes() << ")" << endl;
+		cerr << "(dp_usables" << Graph(p.dp_usables).print_nodes() << ")" << endl;
 		auto sccs = dg.sccs();
 		for( auto const& scc : sccs ) {
-			auto& back = p.subtrss.emplace_back();
-			for( auto const& i : scc ) {
-				back.rules.emplace(i,*ASSERTED(dps.find(i)));
+			if( auto const& nodes = scc.ref<Set<size_t>>() ) {
+				auto& back = p.subtrss.emplace_back();
+				for( auto const& dp : *nodes ) {
+					back.rules.emplace(dp,*ASSERTED(dps.find(dp)));
+				}
 			}
 		}
 		size_t target_ind = 1;
@@ -194,19 +202,19 @@ DEB(p);
 				ord->extend_sig(subsig);
 				stage = target_ind;
 			}
-			return order_some_dp(*ord,p,subcomp,[&]( auto&& rem ){
-				cerr << "(remove-dp\n  (" << ord->print_name();
+			return order_some_dp(*ord,p,subcomp,[&]( auto&& rem, auto const& usables ){
+				*prf << "(remove-dp\n  (" << ord->print_name();
 				auto pr_sym = [&]( auto const& f ) {
-					cerr << "\n    (" << f << ord->print_sym_info(f) << ')';
+					*prf << "\n    (" << f << ord->print_sym_info(f) << ')';
 				};
 				for( auto [f,rank] : p.main.sig ) pr_sym(f);
 				for( auto [f,rank] : subsig ) pr_sym(f);
-				cerr << ")\n ";
+				*prf << ")\n ";
 				for( size_t i : rem ) {
-					cerr << ' ' << i;
+					*prf << ' ' << i;
 					subcomp.erase(i);
 				}
-				cerr << ')' << endl;
+				*prf << "\n  :usables (" << print_list(usables) << "))" << endl;
 			});
 		};
 
@@ -220,7 +228,7 @@ DEB(p);
 				if( target == p.subtrss.end() ) throw Answer::YES;
 				target_ind++;
 				marked = false;
-				cerr << "(scc" << target->rules << ')' << endl;
+				*prf << "(scc" << target->rules << ')' << endl;
 				continue;
 			}
 			if( !marked ) {
@@ -230,7 +238,7 @@ DEB(p);
 				}
 				if( use_marked_dprem ) {
 					p.mark_dps(target);
-					cerr << "(mark_dp" << target->rules << ')' << endl;
+					*prf << "(mark_dp" << target->rules << ')' << endl;
 					marked = true;
 					continue;
 				}

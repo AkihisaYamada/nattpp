@@ -7,12 +7,14 @@
 #include"map.hpp"
 #include "util.hpp"
 #include"ref.hpp"
+#include"sum.hpp"
 
 struct Graph;
 
 struct GraphInterface {
+	using Scc = Sum<Set<size_t>,size_t>;
 	struct SccInfo {
-		std::vector<Set<size_t>> sccs;
+		std::vector<Scc> sccs;
 		Map<size_t,int> scc_inds;
 		std::vector<Set<size_t>> scc_dag;
 	};
@@ -28,7 +30,7 @@ public:
 	virtual SccInfo const& scc_info() const&;
 	Graph trancl() && = delete;
 	Graph trancl() const&;
-	std::vector<Set<size_t>> const& sccs() const& {
+	std::vector<Scc> const& sccs() const& {
 		return scc_info().sccs;
 	}
 	struct Acyclic;

@@ -14,8 +14,8 @@ struct Problem {
 		SRS,
 	} format;
 	Trs main;
-	Map<size_t,Set<size_t>> usable_map;// will be ready by make_dps
-	Graph usable_graph;// will be ready by make_dps
+	Map<size_t,Set<size_t>> uses_map;// will be ready by make_dps
+	Graph uses_graph;// will be ready by make_dps
 	Map<size_t,Set<size_t>> dp_usables;
 	std::list<Trs> subtrss;
 	using SubIt = std::list<Trs>::iterator;
@@ -33,6 +33,8 @@ public:
 	void make_dps() &;
 	void mark_dps( SubIt const& it ) &;
 	std::ostream& print( std::ostream& os ) const &;
+	bool reads_sym_decl( Reader& eis ) &;
+	bool reads_rule_decl( Reader& eis, Trs::Reader& tis ) &;
 	static bool test();
 };
 

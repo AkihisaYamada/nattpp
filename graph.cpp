@@ -2,6 +2,7 @@
 #include<limits>
 #include<stack>
 #include"map.hpp"
+#include"sum.hpp"
 #include"graph.hpp"
 #include"util.hpp"
 
@@ -150,13 +151,11 @@ struct _SccMaker {
 	 * {..< 0}: represents the farthest depth the node can reach back
 	 */
 	Map<size_t,int>& table;
-	/**
-	 * {0..}: represents an SCC that is next to the current SCC
-	 * {..< 0}: represents a node that constitute the current SCC
-	 * MAX: acyclic
-	 */
-	std::stack<int> stack;
-	std::vector<Set<size_t>>& sccs;
+	/** Stack of nodes with backlinks */
+	std::stack<size_t> node_stack;
+	/** Stack containing adjacent SCCs */
+	std::stack<size_t> scc_stack;
+	std::vector<Graph::Scc>& sccs;
 	std::vector<Set<size_t>>& scc_dag;
 	int depth;
 
@@ -167,11 +166,13 @@ struct _SccMaker {
 		}
 		bool loop = false, back = false;
 		depth--;
-		size_t stack_size = stack.size();// remember how many nodes were stacked
+		// remember how many nodes were stacked
+		size_t node_stack_size = node_stack.size();
+		size_t scc_stack_size = scc_stack.size();
 		g.iter_nexts( u, [&]( auto v ){
 			auto vstate = visit(v);
 			if( vstate >= 0 ) {// v's SCC is known
-				stack.emplace(vstate);
+				scc_stack.emplace(vstate);// remember the SCC
 			} else if( state < vstate ) {// v goes further
 				state = vstate;// u can go back as far as v can
 				back = true;
@@ -180,27 +181,28 @@ struct _SccMaker {
 			}
 		} );
 		if( back ) {// u constitute a bigger SCC
-			stack.emplace( -(int)u - 1 );
+			node_stack.emplace(u);
 			return state;
 		}
 		// u was the entry point of the (possibly trivial) SCC
-		size_t scc_ind = sccs.size();// remember the SCC index
-		auto& scc = sccs.emplace_back();
+		state = sccs.size();// remember this SCC index
 		auto& scc_node = scc_dag.emplace_back();
-		if( loop ) {// nontrivial
-			scc.emplace(u);
+		while( scc_stack.size() != scc_stack_size ) {// connect SCCs
+			auto next = scc_stack.top();
+			scc_stack.pop();
+			scc_node.emplace(next);
 		}
-		state = scc_ind;
-		while( stack.size() != stack_size ) {// things pushed after u belongs to the SCC
-			auto top = stack.top();
-			stack.pop();
-			if( top < 0 ) {// node index
-				size_t v = -top - 1;
+		if( loop ) {// nontrivial
+			auto& scc = *sccs.emplace_back(Set<size_t>{}).ref<Set<size_t>>();
+			scc.emplace(u);
+			while( node_stack.size() != node_stack_size ) {// things pushed after u belongs to the SCC
+				auto v = node_stack.top();
+				node_stack.pop();
 				scc.emplace(v);
-				*ASSERTED(table.find(v)) = scc_ind;
-			} else {// SCC index
-				scc_node.emplace(top);
+				*ASSERTED(table.find(v)) = state;
 			}
+		} else {
+			sccs.emplace_back(u);// trivial SCC
 		}
 		return state;
 	}
@@ -208,7 +210,7 @@ struct _SccMaker {
 		sccs(g._scc_info_opt->sccs),
 		table(g._scc_info_opt->scc_inds),
 		scc_dag(g._scc_info_opt->scc_dag) {
-		stack.emplace(0);
+		node_stack.emplace(0);
 	}
 };
 
@@ -236,21 +238,55 @@ Graph::Acyclic GraphInterface::Acyclic::acyc_trancl() const {
 	return std::move(map);
 }
 
+Printable print_sccs( std::vector<Graph::Scc> const& sccs ){
+	return Printable([&]( ostream& os )->ostream&{
+		os << '(';
+		for( auto const& scc : sccs ) {
+			if( auto triv = scc.ref<size_t>() ) {
+				os << "\n  " << *triv << flush;
+			} else if( auto nodes = scc.ref<Set<size_t>>() ){
+				os << "\n  (" << print_list(*nodes) << ')' << flush;
+			}
+		}
+		return os << ')' << endl;
+	});
+}
+Printable print_map( auto const& map ){
+	return Printable([&]( ostream& os )->ostream&{
+		os << '(';
+		for( auto const& [k,v] : map ) {
+			os << "\n  (" << k << ' ' << v << ')' << flush;
+		}
+		return os << ')' << endl;
+	});	
+}
+
 static std::function<Set<size_t>const&(size_t)> trancl_nexts( GraphInterface const& g ) {
 	auto const& [sccs,scc_inds,scc_dag] = g.scc_info();
+DEB( "sccs" << print_sccs(sccs) );
+DEB( "scc_inds" << print_map(scc_inds) );
+DEB( "scc_dag" << Graph::Acyclic(scc_dag).print_nodes() );
 	auto scc_trancl = Graph::Acyclic(scc_dag).acyc_trancl();
+DEB( "scc_trancl" << scc_trancl.print_nodes() );
 	std::vector<Set<size_t>> scc_reachables;
-	scc_trancl.iter_nodes([&]( auto const& scc )->void{
+	scc_trancl.iter_nodes([&]( size_t scc )->void{
 		auto& reachables = scc_reachables.emplace_back();
 		scc_trancl.iter_nexts(scc,[&]( const auto& next_scc ){
 			for( auto const& node : scc_reachables[next_scc] ) {
 				reachables.emplace(node);
 			}
 		});
-		for( auto const& node : sccs[scc] ) {
-			reachables.emplace(node);
+		if( auto const& triv = sccs[scc].ref<size_t>() ) {
+			reachables.emplace(*triv);
+		} else if( auto const& nodes = sccs[scc].ref<Set<size_t>>() ) {
+			for( auto const& node : *nodes ) {
+				reachables.emplace(node);
+			}
+		} else {
+			assert(false);
 		}
 	});
+DEB( "scc_reachables" << Graph::Acyclic(scc_reachables).print_nodes() );
 	return [scc_reachables=std::move(scc_reachables),&scc_inds]( size_t src )->Set<size_t>const&{
 		if( auto const& scc_ind = scc_inds.find(src) ) {
 			return scc_reachables[*scc_ind];
@@ -281,13 +317,6 @@ Printable GraphInterface::print_nodes( std::string_view const& _pref ) const& {
 }
 
 void Graph::test() {
-	auto print_sccs = []( auto const& sccs ){
-		cout << "SCCs: (";
-		for( auto const& scc : sccs ) {
-			cout << "\n  (" << print_list(scc) << ')' << flush;
-		}
-		cout << ')' << endl;
-	};
 	auto g = Graph({
 		{0,{1}},
 		{1,{2}},
@@ -310,4 +339,5 @@ void Graph::test() {
 	});
 	cout << g2 << endl;
 	print_sccs(g2.sccs());
+	cout << "trancl: " << g2.trancl() << endl;
 }

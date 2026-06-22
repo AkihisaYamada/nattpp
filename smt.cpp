@@ -1,6 +1,5 @@
 #include<iostream>
 #include<cassert>
-#include"util.hpp"
 #include"smt.hpp"
 
 using namespace std;

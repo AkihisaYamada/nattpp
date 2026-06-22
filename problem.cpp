@@ -20,85 +20,97 @@ void Problem::insert_rule( Trs::Rules& rules, Trs::Rule const& rule ) & {
 	next_rule++;
 }
 
-Problem::Problem( istream& is ) : next_rule(0), usable_graph(usable_map) {
-	auto eis = Reader(is);
-	eis.open();
-	eis.read_sym("format");
-	if( eis.reads_sym("TRS") ) {
-		format = TRS;
-		Opt<int> number;
+bool Problem::reads_sym_decl( Reader& eis ) & {
+	if( eis.reads_sym("fun") ) {
+		string fun = eis.read_sym();
+		unsigned char arity = 255;
 		while( auto key = eis.reads_key() ) {
-			if( *key == ":number" ) {
-				throw eis.error("#unsupported",*key);
-				if( number ) throw eis.error("#duplicate-number");
-				number = {eis.read_nat([](auto n){ return n < 10; })};
+			if( *key == ":arity" ) {
+				if( arity != 255 ) {
+					throw Error{"#duplicate-arity",fun};
+				}
+				arity = eis.read_nat();
 			} else {
-				throw Error("#unknown-key",*key);
+				throw Error{"#unknown-key",*key};
 			}
 		}
-		eis.close();// of format
-		Trs::SigFun sig_fun = [&](string const& sym ){ return main.sig.find(sym); };
-		auto tis = Trs::Reader(eis,sig_fun);
-		while( eis.opens() ) {
-			if( eis.reads_sym("fun") ) {
-				string fun = eis.read_sym();
-				unsigned char arity = 255;
-				while( auto key = eis.reads_key() ) {
-					if( *key == ":arity" ) {
-						if( arity != 255 ) {
-							throw Error{"#duplicate-arity",fun};
-						}
-						arity = eis.read_nat();
-					} else {
-						throw Error{"#unknown-key",*key};
-					}
-				}
-				if( auto num = eis.reads_nat() ) {
-					if( arity != 255 ) {
-						throw Error("#duplicate-arity",fun,to_string(*num));
-					}
-					arity = *num;
-				}
-				if( auto [prev,suc] = main.sig.emplace(fun,Trs::Rank{arity,false}); !suc ) {
-					throw Error{"#duplicate-fun",fun,to_string(prev.arity),to_string(arity)};
-				}
-			} else if( eis.reads_sym("rule") ) {
-				std::set<std::string> vars;
-				auto l = tis.read([&]( auto const& var ){
-					vars.emplace(var);
-				});
-				auto r = tis.read([&]( auto const& var ){
-					if( !vars.contains(var) ) {
-						extra_var.emplace(next_rule,var);
-					}
-				});
-				Opt<int> weight;
-				Opt<int> index;
-				while( auto key = eis.reads_key() ) {
-					if( *key == ":cost" ) {
-						if( weight ) throw Error{"#duplicate-cost"};
-						int i = eis.read_int();
-						weight = {i};
-					} else if( *key == ":index" ) {
-						if( index ) throw Error{"#duplicate-index"};
-						int i = eis.read_nat([&](auto n){ return 0 < n && n <= subtrss.size()+1; });
-						index = {i};
-					} else {
-						throw Error{"#unknown-key",*key};
-					}
-				}
-				if( auto rank = main.sig.find(l.fun()) ) {
-					rank->defined_by.emplace(next_rule);
-				}
-				insert_rule( main.rules, Trs::Rule(l,r,weight.value_or(1)) );
-			} else {
-				throw Error{"#unknown-command",eis.read_exp()};
-			};
-			eis.close();
+		if( auto num = eis.reads_nat() ) {
+			if( arity != 255 ) {
+				throw Error("#duplicate-arity",fun,to_string(*num));
+			}
+			arity = *num;
 		}
-		mode = SN;
-	} else {
-		throw Error("#unsupported-format",eis.read_exp());
+		if( auto [prev,suc] = main.sig.emplace(fun,Trs::Rank{arity,false}); !suc ) {
+			throw Error{"#duplicate-fun",fun,to_string(prev.arity),to_string(arity)};
+		}
+		return true;
+	}
+	return false;
+}
+
+bool Problem::reads_rule_decl( Reader& eis, Trs::Reader& tis ) & {
+	if( eis.reads_sym("rule") ) {
+		std::set<std::string> vars;
+		auto l = tis.read([&]( auto const& var ){
+			vars.emplace(var);
+		});
+		auto r = tis.read([&]( auto const& var ){
+			if( !vars.contains(var) ) {
+				extra_var.emplace(next_rule,var);
+			}
+		});
+		Opt<int> weight;
+		Opt<int> index;
+		while( auto key = eis.reads_key() ) {
+			if( *key == ":cost" ) {
+				if( weight ) throw Error{"#duplicate-cost"};
+				int i = eis.read_int();
+				weight = {i};
+			} else if( *key == ":index" ) {
+				if( index ) throw Error{"#duplicate-index"};
+				int i = eis.read_nat([&](auto n){ return 0 < n && n <= subtrss.size()+1; });
+				index = {i};
+			} else {
+				throw Error{"#unknown-key",*key};
+			}
+		}
+		if( auto rank = main.sig.find(l.fun()) ) {
+			rank->defined_by.emplace(next_rule);
+		}
+		insert_rule( main.rules, Trs::Rule(l,r,weight.value_or(1)) );
+		return true;
+	}
+	return false;
+}
+Problem::Problem( istream& is ) : next_rule(0), uses_graph(uses_map) {
+	auto eis = Reader(is);
+	eis.open();
+	if( eis.reads_sym("format") ) {
+		if( eis.reads_sym("TRS") ) {
+			format = TRS;
+			Opt<int> number;
+			while( auto key = eis.reads_key() ) {
+				if( *key == ":number" ) {
+					throw eis.error("#unsupported",*key);
+					if( number ) throw eis.error("#duplicate-number");
+					number = {eis.read_nat([](auto n){ return n < 10; })};
+				} else {
+					throw Error("#unknown-key",*key);
+				}
+			}
+			eis.close();// of format
+			Trs::SigFun sig_fun = [&](string const& sym ){ return main.sig.find(sym); };
+			auto tis = Trs::Reader(eis,sig_fun);
+			while( eis.opens() ) {
+				if( !reads_sym_decl(eis) && !reads_rule_decl(eis,tis) ) {
+					throw Error{"#unknown-command",eis.read_exp()};
+				};
+				eis.close();
+			}
+			mode = SN;
+		} else {
+			throw Error("#unsupported-format",eis.read_exp());
+		}
 	}
 }
 
@@ -146,10 +158,10 @@ void Problem::make_dps() & {
 		}
 		Set<size_t> uses;
 		collect_dps(main.sig,dps,l,*lrank,rule.second,*this,uses,dp_uses);
-		usable_map.emplace(org,std::move(uses));// register rules that the original uses
+		uses_map.emplace(org,std::move(uses));// register rules that the original uses
 	}
 	// complete dp_usables
-	auto const& utr = usable_graph.trancl();// usability graph is completed
+	auto const& utr = uses_graph.trancl();// usability graph is completed
 	for( auto const& [dp,uses] : dp_uses ) {
 		auto [usables,fl] = dp_usables.emplace(dp,Set<size_t>());
 		assert(fl);

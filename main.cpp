@@ -168,7 +168,8 @@ int main( int argc, char* argv[] ) try {
 			auto const& l = dp.first, &r = dp.second;
 			dg.emplace(i,ASSERTED(p.main.sig.find(r.fun()))->depends);
 		}
-		for( auto const& scc : Graph(dg).sccs() ) {
+		auto [sccs,sccinds] = Graph(dg).sccs();
+		for( auto const& scc : sccs ) {
 			auto& back = p.subtrss.emplace_back();
 			for( auto const& i : scc ) {
 				back.rules.emplace(i,*ASSERTED(dps.find(i)));

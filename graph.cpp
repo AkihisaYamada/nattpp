@@ -263,11 +263,7 @@ Printable print_map( auto const& map ){
 
 static std::function<Set<size_t>const&(size_t)> trancl_nexts( GraphInterface const& g ) {
 	auto const& [sccs,scc_inds,scc_dag] = g.scc_info();
-DEB( "sccs" << print_sccs(sccs) );
-DEB( "scc_inds" << print_map(scc_inds) );
-DEB( "scc_dag" << Graph::Acyclic(scc_dag).print_nodes() );
 	auto scc_trancl = Graph::Acyclic(scc_dag).acyc_trancl();
-DEB( "scc_trancl" << scc_trancl.print_nodes() );
 	std::vector<Set<size_t>> scc_reachables;
 	scc_trancl.iter_nodes([&]( size_t scc )->void{
 		auto& reachables = scc_reachables.emplace_back();
@@ -286,7 +282,6 @@ DEB( "scc_trancl" << scc_trancl.print_nodes() );
 			assert(false);
 		}
 	});
-DEB( "scc_reachables" << Graph::Acyclic(scc_reachables).print_nodes() );
 	return [scc_reachables=std::move(scc_reachables),&scc_inds]( size_t src )->Set<size_t>const&{
 		if( auto const& scc_ind = scc_inds.find(src) ) {
 			return scc_reachables[*scc_ind];

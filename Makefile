@@ -69,6 +69,18 @@ $(DEBUG)/%.o: %.cpp
 	@mkdir -p $(@D)
 	${DEBUG_CPP} -c $< -o $@
 
+tpdb-negative: $(TGT)
+	TOOL="$(PWD)/natt++"; \
+	BENCH="$(PWD)/tpdb_neg.list"; \
+	cd ~/TPDB-ARI/TRS_Standard; \
+	if [ -e tmp_result ]; then rm tmp_result; fi; \
+	while read f; do \
+		timeout 60 $$TOOL $$f | tee -a tmp_result; \
+		if grep -q YES tmp_result; then echo WRONG!; exit 1; fi;\
+	done < $$BENCH; \
+	grep -c NO tmp_result; \
+	rm tmp_result
+
 .PHONY: clean test
 
 clean:

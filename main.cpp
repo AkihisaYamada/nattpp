@@ -12,13 +12,18 @@ int main( int argc, char* argv[] ) try {
 	Opt<ifstream> ois;
 	Opt<ofstream> oprf;
 	bool exit_on_error = false;
+	bool print_problem = true;
+	bool print_steps = true;
+	bool print_proofs = true;
+	bool print_dp = false;
+	bool print_on_fail = false;
 	enum { UNSET, SN, SOME } mode = UNSET;
 	Opt<Exp> default_smt_spec;
 	Opt<Smt::BaseSort> default_sort;
 	int default_log = -1;
 	bool default_strategy = true;
 	bool use_dp = true;
-	bool use_unmarked_dprem = false;
+	bool use_unmarked_dprem = true;
 	bool use_marked_dprem = true;
 	vector<Exp> rulerem_specs;
 	vector<Exp> rem_specs;
@@ -30,7 +35,9 @@ int main( int argc, char* argv[] ) try {
 				i++;
 				if( i == argc ) throw Error("#missing-arg",opt);
 			};
-			if( opt == "-some" ) {
+			if( opt == "-q" ) {
+				print_problem = print_proofs = print_steps = print_dp = print_on_fail = false;
+			} else if( opt == "-some" ) {
 				if( mode != UNSET ) throw Error("#duplicate-mode",opt);
 				mode = SOME;
 			} else if( opt == "-sort" ) {
@@ -48,6 +55,10 @@ int main( int argc, char* argv[] ) try {
 				if( default_log != -1 ) throw Error("#duplicate-log");
 				require_arg();
 				default_log = TermOrder::log_of(argv[i]);
+			} else if( opt == "-print-on-fail" ) {
+				print_on_fail = true;
+			} else if( opt == "-print-dp" ) {
+				print_dp = true;
 			} else if( opt == "-a" ) {// general remover
 				require_arg();
 				rem_specs.push_back(Exp::of(argv[i]));
@@ -101,7 +112,7 @@ int main( int argc, char* argv[] ) try {
 	}
 	auto p = Problem( ois ? *ois : cin );
 	auto prf = OStream( oprf ? *oprf : cerr );
-	*prf << p << endl;
+	if( print_problem ) cerr << p << endl;
 	switch( mode ) {
 	case UNSET: case SN:
 		if( default_strategy ) {
@@ -121,7 +132,7 @@ int main( int argc, char* argv[] ) try {
 	try {
 		if( auto it = p.extra_var.begin(); it != p.extra_var.end() ) {
 			auto const& [no,var] = *it;
-			*prf << "(extra-var " << var << " :rule " << no << ')' << endl;
+			if( print_proofs ) *prf << "(extra-var " << var << " :rule " << no << ')' << endl;
 			throw Answer::NO;
 		}
 		vector<pair<int,unique_ptr<TrsOrder>>> rule_removers;
@@ -135,18 +146,17 @@ int main( int argc, char* argv[] ) try {
 		// rule removal loop
 		auto rule_removes = [&]( pair<int,unique_ptr<TrsOrder>>& pair ) {
 			auto& [stage,ord] = pair;
-			cerr << "; trying " << ord->print_name() << "... " << endl;
+			if( print_steps ) cerr << "; trying " << ord->print_name() << "... " << endl;
 			if( stage < 1 ) {// initialize for signature
 				ord->extend_sig(p.main.sig);
 				stage = 1;
 			}
 			return order_some_rule(*ord,p.main.rules,[&](auto&&rem){
-				*prf << "(remove-rule\n  " << ord->print(p.main.sig) << "\n ";
+				if( print_proofs )
+					*prf << "(remove-rule\n  " << ord->print(p.main.sig) << "\n " << print_list(rem) << ')' << endl;
 				for( size_t i : rem ) {
-					*prf << ' ' << i;
 					p.main.rules.erase(i);
 				}
-				*prf << ")" << endl;
 			});
 		};
 		do {
@@ -158,10 +168,10 @@ int main( int argc, char* argv[] ) try {
 
 		if( !use_dp ) throw Answer::MAYBE;
 
-		cerr << "; taking DPs" << endl;
+		if( print_steps ) cerr << "; taking DPs" << endl;
 		p.make_dps();// compute DPs
-		*prf << "(make_dp)" << endl;
-		cerr << p << endl;
+		if( print_proofs ) *prf << "(make_dp)" << endl;
+		if( print_dp ) cerr << p << endl;
 		auto target = p.subtrss.begin();
 		// SCC decomposition
 		auto dps = Trs::Rules();
@@ -174,10 +184,6 @@ int main( int argc, char* argv[] ) try {
 			}
 			return std::move(dgmap);
 		}();
-		cerr << "(dependency_graph" << dg.print_nodes() << ")" << endl;
-		cerr << "(usage_graph" << p.uses_graph.print_nodes() << ")" << endl;
-		cerr << "(rule_usables" << p.uses_graph.trancl().print_nodes() << ")" << endl;
-		cerr << "(dp_usables" << Graph(p.dp_usables).print_nodes() << ")" << endl;
 		auto sccs = dg.sccs();
 		for( auto const& scc : sccs ) {
 			if( auto const& nodes = scc.ref<Set<size_t>>() ) {
@@ -192,7 +198,7 @@ int main( int argc, char* argv[] ) try {
 		auto dp_removes = [&]( pair<int,unique_ptr<TrsOrder>>& pair ){
 			auto& [subsig,subcomp] = *target;
 			auto& [stage,ord] = pair;
-			cerr << "; trying " << ord->print_name() << "... " << endl;
+			if( print_steps ) cerr << "; trying " << ord->print_name() << "... " << endl;
 			if( stage == 0 ) {
 				ord->extend_sig(p.main.sig);
 				stage = 1;
@@ -202,18 +208,18 @@ int main( int argc, char* argv[] ) try {
 				stage = target_ind;
 			}
 			return order_some_dp(*ord,p,subcomp,[&]( auto&& rem, auto const& usables ){
-				*prf << "(remove-dp\n  (" << ord->print_name();
-				auto pr_sym = [&]( auto const& f ) {
-					*prf << "\n    (" << f << ord->print_sym_info(f) << ')';
-				};
-				for( auto [f,rank] : p.main.sig ) pr_sym(f);
-				for( auto [f,rank] : subsig ) pr_sym(f);
-				*prf << ")\n ";
+				if( print_proofs ) {
+					*prf << "(remove-dp\n  (" << ord->print_name();
+					auto pr_sym = [&]( auto const& f ) {
+						*prf << "\n    (" << f << ord->print_sym_info(f) << ')';
+					};
+					for( auto [f,rank] : p.main.sig ) pr_sym(f);
+					for( auto [f,rank] : subsig ) pr_sym(f);
+					*prf << ")\n " << print_list(rem) << "\n  :usables (" << print_list(usables) << "))" << endl;
+				}
 				for( size_t i : rem ) {
-					*prf << ' ' << i;
 					subcomp.erase(i);
 				}
-				*prf << "\n  :usables (" << print_list(usables) << "))" << endl;
 			});
 		};
 
@@ -227,7 +233,7 @@ int main( int argc, char* argv[] ) try {
 				if( target == p.subtrss.end() ) throw Answer::YES;
 				target_ind++;
 				marked = false;
-				*prf << "(scc" << target->rules << ')' << endl;
+				if( print_proofs ) *prf << "(scc" << target->rules << ')' << endl;
 				continue;
 			}
 			if( !marked ) {
@@ -237,7 +243,7 @@ int main( int argc, char* argv[] ) try {
 				}
 				if( use_marked_dprem ) {
 					p.mark_dps(target);
-					*prf << "(mark_dp" << target->rules << ')' << endl;
+					if( print_proofs ) *prf << "(mark_dp" << target->rules << ')' << endl;
 					marked = true;
 					continue;
 				}
@@ -255,8 +261,8 @@ int main( int argc, char* argv[] ) try {
 			cout << "NO" << endl;
 			exit(1);
 		} else if( a == Answer::MAYBE ) {
-			cerr << p << endl;
 			cout << "MAYBE" << endl;
+			if( print_on_fail ) cerr << p << endl;
 			exit(2);
 		} else {
 			assert(false);

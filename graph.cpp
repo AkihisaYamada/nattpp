@@ -146,13 +146,13 @@ static auto const MIN = std::numeric_limits<int>::min();
 struct _SccMaker {
 	GraphInterface const& g;
 	/** Node status table
-	 * {..< 0}: represents the node's depth or the farthest depth it can reach back
-	 * {0..}: represents the SCC it constitutes
+	 * {0..}: represents the node's SCC, which is already closed
+	 * {..< 0}: represents the farthest depth the node can reach back
 	 */
 	Map<size_t,int>& table;
 	/**
+	 * {0..}: represents an SCC that is next to the current SCC
 	 * {..< 0}: represents a node that constitute the current SCC
-	 * {0..<MAX}: represents an SCC that is next to the current SCC
 	 * MAX: acyclic
 	 */
 	std::stack<int> stack;
@@ -165,34 +165,40 @@ struct _SccMaker {
 		if( !fl ) {// already visited
 			return state;
 		}
-		int entrance = depth;
+		bool loop = false, back = false;
 		depth--;
 		size_t stack_size = stack.size();// remember how many nodes were stacked
 		g.iter_nexts( u, [&]( auto v ){
 			auto vstate = visit(v);
-			if( vstate < 0 ) {// v has a backlink
-				state = std::max(state,vstate);// u can go back as far as v can
-			} else if( vstate < MAX ) {// v's SCC is known
+			if( vstate >= 0 ) {// v's SCC is known
 				stack.emplace(vstate);
+			} else if( state < vstate ) {// v goes further
+				state = vstate;// u can go back as far as v can
+				back = true;
+			} else if( state == vstate ) {
+				loop = true;
 			}
 		} );
-		if( entrance < state ) {// u constitute a bigger SCC
+		if( back ) {// u constitute a bigger SCC
 			stack.emplace( -(int)u - 1 );
 			return state;
 		}
-		// u was the entry point of the SCC
-		state = sccs.size();// remember the SCC index
+		// u was the entry point of the (possibly trivial) SCC
+		size_t scc_ind = sccs.size();// remember the SCC index
 		auto& scc = sccs.emplace_back();
 		auto& scc_node = scc_dag.emplace_back();
-		scc.emplace(u);
+		if( loop ) {// nontrivial
+			scc.emplace(u);
+		}
+		state = scc_ind;
 		while( stack.size() != stack_size ) {// things pushed after u belongs to the SCC
 			auto top = stack.top();
 			stack.pop();
 			if( top < 0 ) {// node index
 				size_t v = -top - 1;
 				scc.emplace(v);
-				*ASSERTED(table.find(v)) = state;
-			} else if( top < MAX ) {// SCC index
+				*ASSERTED(table.find(v)) = scc_ind;
+			} else {// SCC index
 				scc_node.emplace(top);
 			}
 		}

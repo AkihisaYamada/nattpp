@@ -160,8 +160,7 @@ int main( int argc, char* argv[] ) try {
 
 		cerr << "; taking DPs" << endl;
 		p.make_dps();// compute DPs
-		cerr << "(usage_graph" << p.usable_graph.print_nodes() << ')' << endl;
-		cerr << "(dp_usables" << Graph(p.dp_usables).print_nodes() << ')' << endl;
+DEB(p);
 		auto target = p.subtrss.begin();
 		// SCC decomposition
 		auto dps = Trs::Rules();
@@ -183,7 +182,6 @@ int main( int argc, char* argv[] ) try {
 		}
 		size_t target_ind = 1;
 		bool marked = false;
-
 		auto dp_removes = [&]( pair<int,unique_ptr<TrsOrder>>& pair ){
 			auto& [subsig,subcomp] = *target;
 			auto& [stage,ord] = pair;
@@ -218,7 +216,7 @@ int main( int argc, char* argv[] ) try {
 		}
 		for(;;) {
 			if( target->rules.empty() ) {
-				target++;
+				target = p.subtrss.erase(target);
 				if( target == p.subtrss.end() ) throw Answer::YES;
 				target_ind++;
 				marked = false;

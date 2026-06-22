@@ -108,7 +108,11 @@ static void collect_dps(
 	Problem& p, Set<size_t>& org_uses, Map<size_t,Set<size_t>>& dp_uses
 ) {
 	if( auto rrank = sig.find(r.fun()) ) {// f(...) -> g(...)
-		if( !rrank->defined_by.empty() ) {// g is defined
+		if( rrank->defined_by.empty() ) {// just look arguments
+			for( auto const& a : r.args() ) {
+				collect_dps(sig,rules,l,lrank,a,p,org_uses,dp_uses);
+			}
+		} else {// g is defined
 			Set<size_t> this_uses;// collect rules which this dp uses
 			for( auto const& a : r.args() ) {
 				collect_dps(sig,rules,l,lrank,a,p,this_uses,dp_uses);

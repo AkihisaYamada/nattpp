@@ -32,7 +32,7 @@ public:
 		return scc_info().sccs;
 	}
 	struct Acyclic;
-	Printable print_nodes( std::string_view const& prefix ) const&;
+	Printable print_nodes( std::string_view const& prefix = "\n  (" ) const&;
 };
 
 struct Graph final : GraphInterface {

@@ -66,6 +66,7 @@ int main( int argc, char* argv[] ) try {
 			} else if( opt == "-udp" ) {// unmarked dps only
 				use_dp = true;
 				use_unmarked_dprem = true;
+				use_marked_dprem = false;
 			} else if( opt == "-umdp" ) {// unmarked and marked dps
 				use_dp = true;
 				use_unmarked_dprem = true;
@@ -159,6 +160,8 @@ int main( int argc, char* argv[] ) try {
 
 		cerr << "; taking DPs" << endl;
 		p.make_dps();// compute DPs
+		cerr << "(usage_graph" << p.usable_graph.print_nodes() << ')' << endl;
+		cerr << "(dp_usables" << Graph(p.dp_usables).print_nodes() << ')' << endl;
 		auto target = p.subtrss.begin();
 		// SCC decomposition
 		auto dps = Trs::Rules();
@@ -196,11 +199,11 @@ int main( int argc, char* argv[] ) try {
 			return order_some_dp(*ord,p,subcomp,[&]( auto&& rem ){
 				cerr << "(remove-dp\n  (" << ord->print_name();
 				auto pr_sym = [&]( auto const& f ) {
-					cerr << "\n    (" << f << ' ' << ord->print_sym_info(f) << ')';
+					cerr << "\n    (" << f << ord->print_sym_info(f) << ')';
 				};
 				for( auto [f,rank] : p.main.sig ) pr_sym(f);
 				for( auto [f,rank] : subsig ) pr_sym(f);
-				cerr << ")\n  ";
+				cerr << ")\n ";
 				for( size_t i : rem ) {
 					cerr << ' ' << i;
 					subcomp.erase(i);

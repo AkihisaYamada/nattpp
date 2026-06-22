@@ -47,11 +47,10 @@ bool order_some_dp(
 	Smt::PostExp all_ge = true;
 	std::vector<std::pair<size_t,Smt::PostExp>> gts;
 	Set<size_t> usables;
-	auto const& utr = p.usable_graph.trancl();
 	for( auto const& [i,rule] : dps ) {
-		utr.iter_nexts(i,[&]( auto const& u )->void{
+		for( auto const& u : *ASSERTED(p.dp_usables.find(i)) ) {
 			usables.emplace(u);
-		});
+		};
 	}
 	for( auto const& i : usables ) {
 		if( auto const& rule = p.main.rules.find(i) ) {

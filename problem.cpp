@@ -105,20 +105,20 @@ Problem::Problem( istream& is ) : next_rule(0), usable_graph(usable_map) {
 static void collect_dps(
 	Trs::Sig& sig, Trs::Rules& rules,
 	Trs::Term const& l, Trs::Rank& lrank, Trs::Term const& r,
-	Problem& p, Set<size_t>& org_uses
+	Problem& p, Set<size_t>& org_uses, Map<size_t,Set<size_t>>& dp_uses
 ) {
 	if( auto rrank = sig.find(r.fun()) ) {// f(...) -> g(...)
 		if( !rrank->defined_by.empty() ) {// g is defined
 			Set<size_t> this_uses;// collect rules which this dp uses
 			for( auto const& a : r.args() ) {
-				collect_dps(sig,rules,l,lrank,a,p,this_uses);
+				collect_dps(sig,rules,l,lrank,a,p,this_uses,dp_uses);
 			}
 			lrank.depends.emplace(p.next_rule);// assign this dp to f
 			for( auto const& used : this_uses ) {
 				org_uses.emplace(used);// origin uses those rules which this dp uses
 			}
 			// register those this dp will use
-			p.usable_map.emplace(p.next_rule,std::move(this_uses));
+			dp_uses.emplace(p.next_rule,std::move(this_uses));
 			p.insert_rule(rules,Trs::Rule(l,r));
 			for( size_t i : rrank->defined_by ) {// the origin also uses the rules that define g
 				org_uses.emplace(i);
@@ -132,6 +132,7 @@ void Problem::make_dps() & {
 	auto& [dpsig,dps] = subtrss.emplace_back();
 	mode = DP;
 	Pos pos;
+	Map<size_t,Set<size_t>> dp_uses;
 	for( auto const& [org,rule] : main.rules ) {
 		auto const& l = rule.first;
 		auto lrank = main.sig.find(l.fun());
@@ -140,8 +141,20 @@ void Problem::make_dps() & {
 			throw Answer::NO;
 		}
 		Set<size_t> uses;
-		collect_dps(main.sig,dps,l,*lrank,rule.second,*this,uses);
+		collect_dps(main.sig,dps,l,*lrank,rule.second,*this,uses,dp_uses);
 		usable_map.emplace(org,std::move(uses));// register rules that the original uses
+	}
+	// complete dp_usables
+	auto const& utr = usable_graph.trancl();// usability graph is completed
+	for( auto const& [dp,uses] : dp_uses ) {
+		auto [usables,fl] = dp_usables.emplace(dp,Set<size_t>());
+		assert(fl);
+		for( auto const& use : uses ) {
+			utr.iter_nexts(use,[&]( auto const& x ){
+				usables.emplace(x);
+			});
+			usables.emplace(use);
+		}
 	}
 }
 string mark_sym( string const& sym ) {
@@ -165,7 +178,7 @@ void Problem::mark_dps( SubIt const& it ) & {
 	for( auto uit = udps.begin(); uit != udps.end(); uit = udps.erase(uit) ) {// iterate while removing
 		auto [uind,udp] = *uit;
 		// marked dp will use what has been used by the unmarked one
-		usable_map.emplace( next_rule, ASSERTED(usable_map.extract(uind)).mapped() );
+		dp_usables.emplace( next_rule, ASSERTED(dp_usables.extract(uind)).mapped() );
 		insert_rule(mdps,mark_dp(main.sig,msig,udp));
 	}
 	swap(mdps,udps);

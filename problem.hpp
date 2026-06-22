@@ -16,6 +16,7 @@ struct Problem {
 	Trs main;
 	Map<size_t,Set<size_t>> usable_map;// will be ready by make_dps
 	Graph usable_graph;// will be ready by make_dps
+	Map<size_t,Set<size_t>> dp_usables;
 	std::list<Trs> subtrss;
 	using SubIt = std::list<Trs>::iterator;
 	size_t next_rule;

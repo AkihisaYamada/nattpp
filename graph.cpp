@@ -213,7 +213,6 @@ GraphInterface::SccInfo const& GraphInterface::scc_info() const& {
 	iter_nodes([&]( auto const& node ){
 		maker.visit(node);
 	});
-	DEB(Graph::Acyclic(_scc_info_opt->scc_dag));
 	return *_scc_info_opt;
 }
 Graph::Acyclic GraphInterface::Acyclic::acyc_trancl() const {

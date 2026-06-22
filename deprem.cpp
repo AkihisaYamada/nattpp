@@ -46,12 +46,21 @@ bool order_some_dp(
 	Smt::PostExp some_gt = false;
 	Smt::PostExp all_ge = true;
 	std::vector<std::pair<size_t,Smt::PostExp>> gts;
-	for( auto const& [i,rule] : p.main.rules ) {
-		auto const& [ge,gt] = order.order_rule(rule.first,rule.second,i);
-		if( order.log() & TermOrder::RULE ) {
-			std::cerr << "; " << rule << std::endl;
+	Set<size_t> usables;
+	auto const& utr = p.usable_graph.trancl();
+	for( auto const& [i,rule] : dps ) {
+		utr.iter_nexts(i,[&]( auto const& u )->void{
+			usables.emplace(u);
+		});
+	}
+	for( auto const& i : usables ) {
+		if( auto const& rule = p.main.rules.find(i) ) {
+			auto const& [ge,gt] = order.order_rule(rule->first,rule->second,i);
+			if( order.log() & TermOrder::RULE ) {
+				std::cerr << "; " << *rule << std::endl;
+			}
+			all_ge = all_ge && ge;
 		}
-		all_ge = all_ge && ge;
 	}
 	for( auto const& [i,dp] : dps ) {
 		auto const& [ge,gt] = order.compare(dp.first,dp.second);

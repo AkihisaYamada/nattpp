@@ -102,7 +102,6 @@ Problem::Problem( istream& is ) : next_rule(0), usable_graph(usable_map) {
 	}
 }
 
-
 static void collect_dps(
 	Trs::Sig& sig, Trs::Rules& rules,
 	Trs::Term const& l, Trs::Rank& lrank, Trs::Term const& r,

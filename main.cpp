@@ -118,21 +118,20 @@ int main( int argc, char* argv[] ) try {
 		break;
 	}
 
-	if( auto it = p.extra_var.begin(); it != p.extra_var.end() ) {
-		auto const& [no,var] = *it;
-		*prf << "(extra-var " << var << " :rule " << no << ')' << endl;
-		throw Answer::NO;
-	}
-	vector<pair<int,unique_ptr<TrsOrder>>> rule_removers;
-	for( auto x : rulerem_specs ) {
-		rule_removers.emplace_back(0,TrsOrder::of(TermOrder::of(x,default_smt,Smt::INT,default_log)));
-	}
-	vector<pair<int,unique_ptr<TrsOrder>>> both_removers;
-	for( auto x : rem_specs ) {
-		both_removers.emplace_back(0,TrsOrder::of(TermOrder::of(x,default_smt,Smt::INT,default_log)));
-	}
-
 	try {
+		if( auto it = p.extra_var.begin(); it != p.extra_var.end() ) {
+			auto const& [no,var] = *it;
+			*prf << "(extra-var " << var << " :rule " << no << ')' << endl;
+			throw Answer::NO;
+		}
+		vector<pair<int,unique_ptr<TrsOrder>>> rule_removers;
+		for( auto x : rulerem_specs ) {
+			rule_removers.emplace_back(0,TrsOrder::of(TermOrder::of(x,default_smt,Smt::INT,default_log)));
+		}
+		vector<pair<int,unique_ptr<TrsOrder>>> both_removers;
+		for( auto x : rem_specs ) {
+			both_removers.emplace_back(0,TrsOrder::of(TermOrder::of(x,default_smt,Smt::INT,default_log)));
+		}
 		// rule removal loop
 		auto rule_removes = [&]( pair<int,unique_ptr<TrsOrder>>& pair ) {
 			auto& [stage,ord] = pair;

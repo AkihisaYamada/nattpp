@@ -267,9 +267,13 @@ static std::function<Set<size_t>const&(size_t)> trancl_nexts( GraphInterface con
 	std::vector<Set<size_t>> scc_reachables;
 	scc_trancl.iter_nodes([&]( size_t scc )->void{
 		auto& reachables = scc_reachables.emplace_back();
-		scc_trancl.iter_nexts(scc,[&]( const auto& next_scc ){
+		scc_trancl.iter_nexts(scc,[&]( size_t next_scc ){
 			for( auto const& node : scc_reachables[next_scc] ) {
 				reachables.emplace(node);
+			}
+			if( auto const& triv = sccs[next_scc].ref<size_t>() ) {
+				// if next is a trivial SCC, mark the node reachable as it is not from the SCC 
+				reachables.emplace(*triv);
 			}
 		});
 		if( auto const& nodes = sccs[scc].ref<Set<size_t>>() ) {

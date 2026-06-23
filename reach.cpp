@@ -21,8 +21,10 @@ bool may_reach( Trs const& trs, Exp const& s, Exp const& t, size_t fuel ) {
 	if( fuel == 0 ) return true;
 	fuel--;
 	for( auto const& i : frank->defined_by ) {
-		auto const& [l,r,w] = *ASSERTED(trs.rules.find(i));
-		if( may_reach(trs,s,l,fuel) && may_reach(trs,r,t,fuel) ) return true;
+		if( auto const& rule = trs.rules.find(i) ) {
+			auto const& [l,r,w] = *rule;
+			if( may_reach(trs,s,l,fuel) && may_reach(trs,r,t,fuel) ) return true;
+		}
 	}
 	return false;
 }

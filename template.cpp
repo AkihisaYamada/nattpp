@@ -3,8 +3,6 @@
 
 using namespace std;
 
-string const Template::MONO = "mono";
-
 ArgTerm<Template::Fun>& operator+=( ArgTerm<Template::Fun>& x, ArgTerm<Template::Fun> const& y ) {
 	auto xf = x.fun().ref<Template::Fun>();
 	auto yf = y.fun().ref<Template::Fun>();
@@ -154,12 +152,12 @@ Algebra<Sum<Template::Fun,Arg>,ArgTerm<Template::Fun>> Template::instantiator( S
 	};
 }
 
-static Term<Sum<Template::Fun,Arg>> _deriver_of(
+Term<Sum<Template::Fun,Arg>> Template::Deriver::_deriver_of(
 	Exp const& exp,
-	Smt::Solver& solver,
 	string const& f,
 	Trs::Rank const& rank,
-	int pos
+	int pos,
+	std::vector<ArgInfo> const& finfo
 ) {
 	auto const& fun = exp.fun();
 	size_t n = 0;
@@ -177,10 +175,16 @@ static Term<Sum<Template::Fun,Arg>> _deriver_of(
 			}
 			return false;
 		});
-		auto const& ret = solver.declare_fresh( sort ? *sort : solver.logic().base_sort() );
+		auto const& ret = _solver.declare_fresh( sort ? *sort : _solver.logic().base_sort() );
 		if( constrain ) {
-			auto subst = Subst<string>{{"_",ret.exp()}};
-			solver.ass(Smt::ALGEBRA(subst(*constrain)));
+			_solver.ass(
+				Smt::ALGEBRA.extend({
+					{"_",[&](auto){ return ret; }},
+					{"#mono",[&](auto){ return mono; }},
+					{"#infl",[&](auto){ return finfo[pos].inflationary; }},
+					{"#const",[&](auto){ return finfo[pos].constant; }},
+				})(*constrain)
+			);
 		}
 		return ret;
 	}
@@ -195,7 +199,7 @@ static Term<Sum<Template::Fun,Arg>> _deriver_of(
 		if( auto const& aggfun = agg.unapplied() ) {
 			auto args = vector<Term<Sum<Template::Fun,Arg>>>();
 			for( int i = 0; i < rank.arity; i++ ) {
-				args.emplace_back(_deriver_of(argexp,solver,f,rank,i));
+				args.emplace_back(_deriver_of(argexp,f,rank,i,finfo));
 			}
 			return app(*aggfun,std::move(args));
 		}
@@ -208,7 +212,7 @@ static Term<Sum<Template::Fun,Arg>> _deriver_of(
 				size_t j = 0;
 				auto const& aarg = arg->get_arg(j);
 				arg->get_end(j);
-				return _deriver_of(aarg,solver,f,rank,pos);
+				return _deriver_of(aarg,f,rank,pos,finfo);
 			}
 		}
 		throw Error{"#no-matching-arity",f};
@@ -219,44 +223,52 @@ static Term<Sum<Template::Fun,Arg>> _deriver_of(
 	}
 	auto args = vector<Term<Sum<Template::Fun,Arg>>>();
 	while( auto const& arg = exp.gets_arg(n) ) {
-		args.emplace_back(_deriver_of(*arg,solver,f,rank,pos));
+		args.emplace_back(_deriver_of(*arg,f,rank,pos,finfo));
 	}
 	exp.get_end(n);
 	return app(fun,std::move(args));
 }
 void Template::Deriver::extend_sig( std::string const& f, Trs::Rank const& rank ) & {
-	assign(f,_deriver_of(_template_exp,_solver,f,rank,0));
+	auto [finfo,fl] = sig.emplace(f,std::vector<ArgInfo>{});
+	for( size_t i = 0; i < rank.arity; i++ ) {
+		finfo.emplace_back(ArgInfo{_solver.declare_fresh(Smt::BOOL),_solver.declare_fresh(Smt::BOOL)});
+	}
+	assign(f,_deriver_of(_template_exp,f,rank,0,finfo));
 } 
 
-static Exp _posvar = Exp("var",":constrain",Exp(">=","_","0"));
-static Exp _1_or_2 = Exp("ite",Exp("var",":sort","Bool"),"2","1");
-static Exp _0_or_1 = Exp("ite",Exp("var",":sort","Bool"),"1","0");
-static Exp _bcoeff = Exp("ite",
-	Exp("var",":sort","Bool",
-		":constrain",Exp("=>",Template::MONO,"_")// monotonicity requires non-zero coefficient
-	),
-	"1","0");
+static Exp const _POSVAR = Exp("var",":constrain",Exp(">=","_","0"));
+static Exp const _1_OR_2 = Exp("ite",Exp("var",":sort","Bool"),"2","1");
+static Exp const _0_OR_1 = Exp("ite",Exp("var",":sort","Bool"),"1","0");
+Exp _0_or_1_constrain( Exp const& c ) {
+	return Exp("ite",Exp("var",":sort","Bool",":constrain",c),"1","0");
+}
+static Exp const _MONO = Exp("=>","#mono","_");// monotonicity requires non-zero coefficient
+static Exp const _CONST = Exp("=>","#const",Exp("not","_"));// constant position requires zero coefficient
+static Exp const _INFL = Exp("=>","#infl","_");// inflationary position requires non-zero coefficient (and more)
+
 Exp const Template::MONO_SUM = Exp{
-	Exp("+",Exp("args","+","arg"),_posvar)
+	Exp("+",Exp("args","+","arg"),_POSVAR)
 };
 Exp const Template::MONO_POLY2 = Exp("arity",
-	Exp("0",_posvar),
-	Exp("1",Exp("+", Exp("*",_1_or_2,"arg"), _posvar)),
-	Exp("otherwise",Exp("+",Exp("args","+",Exp("*",_1_or_2,"arg")),_posvar))
+	Exp("0",_POSVAR),
+	Exp("1",Exp("+", Exp("*",_1_OR_2,"arg"), _POSVAR)),
+	Exp("otherwise",Exp("+",Exp("args","+",Exp("*",_1_OR_2,"arg")),_POSVAR))
+);
+static Exp const _SUMCOEFF = _0_or_1_constrain(Exp("and",_MONO,_INFL,_CONST));
+Exp const Template::SUM = Exp("arity",
+	Exp("0",_POSVAR),
+	Exp("1",Exp("+",Exp("*",_SUMCOEFF,"arg"),_POSVAR)),
+	Exp("otherwise",Exp("+",Exp("args","+",Exp("*",_SUMCOEFF,"arg")),_POSVAR))
 );
 Exp const Template::SIMP_MAX = Exp("arity",
-	Exp("0",_posvar),
-	Exp("otherwise",Exp("args","max",Exp("+","arg",_posvar)))
+	Exp("0",_POSVAR),
+	Exp("otherwise",Exp("args","max",Exp("+","arg",_POSVAR)))
 );
+static Exp const _MAXCOEFF = _0_or_1_constrain(Exp("and",_INFL,_CONST));
 Exp const Template::MAX = Exp("arity",
-	Exp("0",_posvar),
-	Exp("1",Exp("+",Exp("*",_0_or_1,"arg"),_posvar)),
-	Exp("otherwise",Exp("args","max",Exp("*",_0_or_1,Exp("+","arg",_posvar))))
-);
-Exp const Template::SUM = Exp("arity",
-	Exp("0",_posvar),
-	Exp("1",Exp("+",Exp("*",_bcoeff,"arg"),_posvar)),
-	Exp("otherwise",Exp("+",Exp("args","+",Exp("*",_bcoeff,"arg")),_posvar))
+	Exp("0",_POSVAR),
+	Exp("1",Exp("+",Exp("*",_MAXCOEFF,"arg"),_POSVAR)),
+	Exp("otherwise",Exp("args","max",Exp("*",_MAXCOEFF,Exp("+","arg",_POSVAR))))
 );
 
 void Template::test() {

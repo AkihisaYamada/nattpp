@@ -118,6 +118,7 @@ int main( int argc, char* argv[] ) try {
 	auto prf = OStream( oprf ? *oprf : cerr );
 	if( print_problem ) cerr << p << endl;
 	if( mode == UNSET && p.mode == Problem::NONE ) {
+		p.mode = Problem::SN;
 		if( default_strategy ) {
 			rulerem_specs.emplace_back("mono-sum");
 			dprem_specs.emplace_back("sum");

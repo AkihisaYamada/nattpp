@@ -8,7 +8,6 @@
  */
 struct Template {
 	Template() = delete;
-	static std::string const MONO;
 	struct Fun {
 	private:
 		using _Sum = Sum<std::string,Smt::PreExp>;
@@ -32,19 +31,31 @@ struct Template {
 //		std::function<Smt::PostExp(std::string const&, size_t)> const simp;
 	public:
 		Smt::PostExp const mono;
+		struct ArgInfo {
+			Smt::PostExp inflationary, constant;
+		};
+		Map<std::string,std::vector<ArgInfo>> sig;
 		Deriver(
 			Exp const& e,
 			Smt::Solver& solver
 //			std::function<Smt::PostExp(std::string const&, size_t)>&& simp
 		) : _template_exp(e),
 			_solver(solver),
-			mono(solver.declare_const(MONO,Smt::BOOL)) {}
+			mono(solver.declare_fresh(Smt::BOOL)) {}
 		void extend_sig( std::string const& f, Trs::Rank const& rank ) &;
 		void extend_sig( Trs::Sig const& sig ) & {
 			for( auto [f,rank] : sig ) {
 				extend_sig(f,rank);
 			}
 		}
+	private:
+		Term<Sum<Fun,Arg>> _deriver_of(
+			Exp const& exp,
+			std::string const& f,
+			Trs::Rank const& rank,
+			int pos,
+			std::vector<ArgInfo> const& sig
+		);
 	};
 	/** instantiate SMT expressions in templates via get_value */
 	static Algebra<Sum<Fun,Arg>,ArgTerm<Fun>> instantiator( Smt::Solver& solver );

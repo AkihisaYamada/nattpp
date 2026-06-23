@@ -162,7 +162,6 @@ template<typename A>
 struct DerivedTermOrder final : MemoizedTermOrder {
 private:
 	Smt::Solver _solver;
-	Map<std::string,std::vector<Smt::PostExp>> _simple;
 	int _log;
 public:
 	Template::Deriver deriver;
@@ -178,15 +177,6 @@ public:
 	}
 	void extend_sig( std::string const& f, Trs::Rank const& rank ) override {
 		deriver.extend_sig(f,rank);
-		auto [vec,flag] = _simple.emplace(f,std::vector<Smt::PostExp>());
-		std::vector<Term<std::string>> is;
-		for( size_t i = 0; i < rank.arity; i++ ) {
-			is.emplace_back( std::string("#") + std::to_string(i) );
-		}
-		auto l = deriver.subst(app(f,is));
-		for( size_t i = 0; i < rank.arity; i++ ) {
-			vec.emplace_back(_solver.expand(A::ALGEBRA(l).ge(A::ALGEBRA(is[i].fun()))));
-		}
 	}
 
 	Smt::Compare compare_inner( Exp const& l, Exp const& r ) override {
@@ -208,7 +198,7 @@ public:
 		return deriver.mono;
 	}
 	Smt::PostExp simple( std::string const& f, size_t i ) override {
-		return (*_simple.find(f))[i];
+		return (*ASSERTED(deriver.sig.find(f)))[i].inflationary;
 	}
 };
 

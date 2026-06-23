@@ -40,6 +40,22 @@ public:
 		}
 		return _intp(e.fun(),std::move(vargs));
 	}
+	Algebra extend( Map<F,std::function<T(std::vector<T>&&)>>&& extra ) && {
+		return [_intp=std::move(_intp),extra=std::move(extra)]( F const& f, std::vector<T>&& args ){
+			if( auto const& fun = extra.find(f) ) {
+				return fun(std::move(args));
+			}
+			return _intp(f,std::move(args));
+		};
+	}
+	Algebra extend( Map<F,std::function<T(std::vector<T>&&)>>&& extra ) const& {
+		return [&,extra=std::move(extra)]( F const& f, std::vector<T>&& args ){
+			if( auto const& fun = extra.find(f) ) {
+				return (*fun)(std::move(args));
+			}
+			return _intp(f,std::move(args));
+		};
+	}
 	using ASig = std::pair<F,T>;
 	using ATerm = Term<ASig>;
 	/**

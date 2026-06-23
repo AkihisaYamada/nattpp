@@ -5,6 +5,7 @@
 #include"termord.hpp"
 #include"deprem.hpp"
 #include"graph.hpp"
+#include"reach.hpp"
 
 using namespace std;
 
@@ -16,6 +17,7 @@ int main( int argc, char* argv[] ) try {
 	bool print_steps = true;
 	bool print_proofs = true;
 	bool print_dp = false;
+	bool print_usables = false;
 	bool print_on_fail = false;
 	enum { UNSET, SN, SOME } mode = UNSET;
 	Opt<Exp> default_smt_spec;
@@ -37,7 +39,7 @@ int main( int argc, char* argv[] ) try {
 			};
 			if( opt == "-q" ) {
 				print_problem = print_proofs = print_steps = print_dp = print_on_fail = false;
-			} else if( opt == "-some" ) {
+			} else if( opt == "-order-some" ) {
 				if( mode != UNSET ) throw Error("#duplicate-mode",opt);
 				mode = SOME;
 			} else if( opt == "-sort" ) {
@@ -59,6 +61,8 @@ int main( int argc, char* argv[] ) try {
 				print_on_fail = true;
 			} else if( opt == "-print-dp" ) {
 				print_dp = true;
+			} else if( opt == "-print-usables" ) {
+				print_usables = true;
 			} else if( opt == "-a" ) {// general remover
 				require_arg();
 				rem_specs.push_back(Exp::of(argv[i]));
@@ -113,8 +117,7 @@ int main( int argc, char* argv[] ) try {
 	auto p = Problem( ois ? *ois : cin );
 	auto prf = OStream( oprf ? *oprf : cerr );
 	if( print_problem ) cerr << p << endl;
-	switch( mode ) {
-	case UNSET: case SN:
+	if( mode == UNSET && p.mode == Problem::NONE ) {
 		if( default_strategy ) {
 			rulerem_specs.emplace_back("mono-sum");
 			dprem_specs.emplace_back("sum");
@@ -123,10 +126,20 @@ int main( int argc, char* argv[] ) try {
 			dprem_specs.emplace_back(Exp{"path-order",":weight","max",":status","map"});
 			use_dp = true;
 		}
-		break;
-	case SOME:
+	} else if( mode == SOME ) {
 		use_dp = false;
-		break;
+	}
+	if( p.mode == Problem::SAT ) {
+		for( auto const& component : p.components ) {
+			for( auto const& [i,pair] : component.rules ) {
+				if( may_reach(p.main,pair.first,pair.second,8) ) {
+					cout << "unsat" << endl;
+					exit(1);
+				}
+			}
+		}
+		cout << "unknown" << endl;
+		exit(0);
 	}
 
 	try {
@@ -172,7 +185,12 @@ int main( int argc, char* argv[] ) try {
 		p.make_dps();// compute DPs
 		if( print_proofs ) *prf << "(make_dp)" << endl;
 		if( print_dp ) cerr << p << endl;
-		auto target = p.subtrss.begin();
+		if( print_usables) {
+			cerr << "(uses_graph" << p.uses_graph.print_nodes() << ')' << endl;
+			cerr << "(rule_usables" << p.uses_graph.trancl().print_nodes() << ')' << endl;
+			cerr << "(dp_usables" << Graph(p.dp_usables).print_nodes() << ')' << endl;
+		}
+		auto target = p.components.begin();
 		// SCC decomposition
 		auto dps = Trs::Rules();
 		swap(dps,target->rules);
@@ -187,7 +205,7 @@ int main( int argc, char* argv[] ) try {
 		auto sccs = dg.sccs();
 		for( auto const& scc : sccs ) {
 			if( auto const& nodes = scc.ref<Set<size_t>>() ) {
-				auto& back = p.subtrss.emplace_back();
+				auto& back = p.components.emplace_back();
 				for( auto const& dp : *nodes ) {
 					back.rules.emplace(dp,*ASSERTED(dps.find(dp)));
 				}
@@ -229,8 +247,8 @@ int main( int argc, char* argv[] ) try {
 		}
 		for(;;) {
 			if( target->rules.empty() ) {
-				target = p.subtrss.erase(target);
-				if( target == p.subtrss.end() ) throw Answer::YES;
+				target = p.components.erase(target);
+				if( target == p.components.end() ) throw Answer::YES;
 				target_ind++;
 				marked = false;
 				if( print_proofs ) *prf << "(scc" << target->rules << ')' << endl;

@@ -1,4 +1,4 @@
-SRCS=exp.cpp trs.cpp proc.cpp smt.cpp algebra.cpp template.cpp poly.cpp termord.cpp problem.cpp deprem.cpp graph.cpp
+SRCS=exp.cpp trs.cpp proc.cpp smt.cpp algebra.cpp template.cpp poly.cpp termord.cpp problem.cpp deprem.cpp graph.cpp reach.cpp
 MAIN_SRC=main.cpp
 TEST_SRC=test.cpp
 TGT=natt++
@@ -81,7 +81,7 @@ tpdb-negative: $(TGT)
 	grep -c NO tmp_result; \
 	rm tmp_result
 
-.PHONY: clean test
+.PHONY: clean test tpdb-negative
 
 clean:
 	rm -rf $(DEPEND) $(BUILD) $(SANITIZE) $(DEBUG)

@@ -17,6 +17,18 @@
     return f(std::forward<decltype(x)>(x),std::forward<decltype(y)>(y));\
 })
 
+template<typename I, typename E, typename F>
+bool for_all( I it, E const& end, F const& f ) {
+	for( ; it != end; it++ ) {
+		if( !f(*it) ) return false;
+	}
+	return true;
+}
+template<typename C, typename F>
+bool for_all( C const& c, F const& f ){
+	return chain(c.begin(),c.end(),f);
+}
+
 template<typename F, typename T, typename I, typename E>
 std::remove_cvref_t<T> chain( T&& x, F const& f, I it, E const& end ) {
 	std::remove_cvref_t<T> ret = std::forward<T>(x);

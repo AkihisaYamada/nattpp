@@ -1,7 +1,7 @@
 #ifndef PROBLEM_HPP_
 #define PROBLEM_HPP_
 
-#include<list>
+#include<deque>
 #include"trs.hpp"
 #include"graph.hpp"
 
@@ -17,12 +17,14 @@ struct Problem {
 	Map<size_t,Set<size_t>> uses_map;// will be ready by make_dps
 	Graph uses_graph;// will be ready by make_dps
 	Map<size_t,Set<size_t>> dp_usables;
-	std::list<Trs> subtrss;
-	using SubIt = std::list<Trs>::iterator;
+	std::deque<Trs> components;
+	using SubIt = std::deque<Trs>::iterator;
 	size_t next_rule;
 	enum {
+		NONE = 0,
 		SN,// termination
 		DP,// DP problem
+		SAT,// Satisfiability modulo rewriting
 	} mode;
 	std::set<std::pair<size_t,std::string>> extra_var;
 private:

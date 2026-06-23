@@ -1,5 +1,6 @@
 #include<fstream>
 #include"problem.hpp"
+#include"reach.hpp"
 
 using namespace std;
 
@@ -68,22 +69,28 @@ bool Problem::reads_rule_decl( Reader& eis, Trs::Reader& tis ) & {
 				weight = {i};
 			} else if( *key == ":index" ) {
 				if( index ) throw Error{"#duplicate-index"};
-				int i = eis.read_nat([&](auto n){ return 0 < n && n <= subtrss.size()+1; });
+				int i = eis.read_nat([&](auto n){ return 0 < n && n <= components.size()+1; });
 				index = {i};
 			} else {
 				throw Error{"#unknown-key",*key};
 			}
 		}
-		if( auto rank = main.sig.find(l.fun()) ) {
-			rank->defined_by.emplace(next_rule);
+		auto const& rule = Trs::Rule(l,r,weight.value_or(1));
+		if( !index || *index == 1 ) {// main rule
+			if( auto rank = main.sig.find(l.fun()) ) {
+				rank->defined_by.emplace(next_rule);
+			}
+			insert_rule(main.rules,std::move(rule));
+		} else {
+			insert_rule(components[*index-2].rules,std::move(rule));
 		}
-		insert_rule( main.rules, Trs::Rule(l,r,weight.value_or(1)) );
 		return true;
 	}
 	return false;
 }
 Problem::Problem( istream& is ) : next_rule(0), uses_graph(uses_map) {
 	auto eis = Reader(is);
+	mode = NONE;
 	eis.open();
 	if( eis.reads_sym("format") ) {
 		if( eis.reads_sym("TRS") ) {
@@ -91,15 +98,24 @@ Problem::Problem( istream& is ) : next_rule(0), uses_graph(uses_map) {
 			Opt<int> number;
 			while( auto key = eis.reads_key() ) {
 				if( *key == ":number" ) {
-					throw eis.error("#unsupported",*key);
 					if( number ) throw eis.error("#duplicate-number");
 					number = {eis.read_nat([](auto n){ return n < 10; })};
+				} else if( *key == ":problem" ) {
+					if( mode != NONE ) throw eis.error("#duplicate-problem");
+					if( eis.reads_sym("sat") ) {
+						mode = SAT;
+					} else {
+						throw eis.error("#unknown-problem");
+					}
 				} else {
 					throw Error("#unknown-key",*key);
 				}
 			}
 			eis.close();// of format
 			Trs::SigFun sig_fun = [&](string const& sym ){ return main.sig.find(sym); };
+			if( number && *number > 1 ) {
+				components = std::deque<Trs>(*number-1);
+			}
 			auto tis = Trs::Reader(eis,sig_fun);
 			while( eis.opens() ) {
 				if( !reads_sym_decl(eis) && !reads_rule_decl(eis,tis) ) {
@@ -107,7 +123,6 @@ Problem::Problem( istream& is ) : next_rule(0), uses_graph(uses_map) {
 				};
 				eis.close();
 			}
-			mode = SN;
 		} else {
 			throw Error("#unsupported-format",eis.read_exp());
 		}
@@ -115,19 +130,19 @@ Problem::Problem( istream& is ) : next_rule(0), uses_graph(uses_map) {
 }
 
 static void collect_dps(
-	Trs::Sig& sig, Trs::Rules& rules,
+	Trs::Sig& sig, Trs::Rules& dps,
 	Trs::Term const& l, Trs::Rank& lrank, Trs::Term const& r,
 	Problem& p, Set<size_t>& org_uses, Map<size_t,Set<size_t>>& dp_uses
 ) {
 	if( auto rrank = sig.find(r.fun()) ) {// f(...) -> g(...)
 		if( rrank->defined_by.empty() ) {// just look arguments
 			for( auto const& a : r.args() ) {
-				collect_dps(sig,rules,l,lrank,a,p,org_uses,dp_uses);
+				collect_dps(sig,dps,l,lrank,a,p,org_uses,dp_uses);
 			}
 		} else {// g is defined
 			Set<size_t> this_uses;// collect rules which this dp uses
 			for( auto const& a : r.args() ) {
-				collect_dps(sig,rules,l,lrank,a,p,this_uses,dp_uses);
+				collect_dps(sig,dps,l,lrank,a,p,this_uses,dp_uses);
 			}
 			lrank.depends.emplace(p.next_rule);// assign this dp to f
 			for( auto const& used : this_uses ) {
@@ -135,9 +150,14 @@ static void collect_dps(
 			}
 			// register those this dp will use
 			dp_uses.emplace(p.next_rule,std::move(this_uses));
-			p.insert_rule(rules,Trs::Rule(l,r));
+			p.insert_rule(dps,Trs::Rule(l,r));
 			for( size_t i : rrank->defined_by ) {// the origin also uses the rules that define g
-				org_uses.emplace(i);
+				if( auto const& rule = p.main.rules.find(i) ) {
+					auto const& [l2,r2,w] = *rule;
+					if( may_reach(p.main,r,l2,8) ) {
+						org_uses.emplace(i);
+					}
+				}
 			}
 		}
 	}
@@ -145,7 +165,7 @@ static void collect_dps(
 
 void Problem::make_dps() & {
 	assert( mode == SN );
-	auto& [dpsig,dps] = subtrss.emplace_back();
+	auto& [dpsig,dps] = components.emplace_back();
 	mode = DP;
 	Pos pos;
 	Map<size_t,Set<size_t>> dp_uses;
@@ -203,8 +223,9 @@ void Problem::mark_dps( SubIt const& it ) & {
 ostream& Problem::print( ostream& os ) const& {
 	os << "(problem";
 	switch( mode ) {
-		case SN: os << " termination"; break;
+		case SN: case NONE: os << " termination"; break;
 		case DP: os << " dp"; break;
+		case SAT: os << " sat"; break;
 		default: assert(false);
 	}
 	os << flush;
@@ -215,7 +236,7 @@ ostream& Problem::print( ostream& os ) const& {
 		os << "\n  (rule-n " << n << ' ' << rule.print_content() << ')' << flush;
 	}
 	int subno = 1;
-	for( auto it = subtrss.begin(); it != subtrss.end(); it++ ) {
+	for( auto it = components.begin(); it != components.end(); it++ ) {
 		auto const& [sig,rules] = *it;
 		subno++;
 		os << "\n  (set-n " << subno;

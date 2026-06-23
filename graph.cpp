@@ -272,14 +272,10 @@ static std::function<Set<size_t>const&(size_t)> trancl_nexts( GraphInterface con
 				reachables.emplace(node);
 			}
 		});
-		if( auto const& triv = sccs[scc].ref<size_t>() ) {
-			reachables.emplace(*triv);
-		} else if( auto const& nodes = sccs[scc].ref<Set<size_t>>() ) {
+		if( auto const& nodes = sccs[scc].ref<Set<size_t>>() ) {
 			for( auto const& node : *nodes ) {
 				reachables.emplace(node);
 			}
-		} else {
-			assert(false);
 		}
 	});
 	return [scc_reachables=std::move(scc_reachables),&scc_inds]( size_t src )->Set<size_t>const&{

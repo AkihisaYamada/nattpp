@@ -133,12 +133,12 @@ int main( int argc, char* argv[] ) try {
 		for( auto const& component : p.components ) {
 			for( auto const& [i,pair] : component.rules ) {
 				if( may_reach(p.main,pair.first,pair.second,8) ) {
-					cout << "unsat" << endl;
+					cout << "unknown" << endl;
 					exit(1);
 				}
 			}
 		}
-		cout << "unknown" << endl;
+		cout << "unsat" << endl;
 		exit(0);
 	}
 

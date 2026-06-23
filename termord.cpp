@@ -30,11 +30,15 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 	sol.ass( Smt::ge(info.prec,0) );
 	if( _log & DEBUG ) cerr << ";  prec: " << info.prec << endl;
 	std::vector<Smt::PostExp> mapped_tbl;
+	std::vector<Smt::PostExp> used_tbl;
 	auto set_mappedi = [&]( Smt::PostExp const& mappedi, size_t i ) {
 		// monotonicity requires mapped[i]
 		sol.ass( _mono.imp(mappedi) );
 		// mapped[i] requires weak simplicity of weight
 		sol.ass( mappedi.imp(_weight->simple(f,i)) );
+		used_tbl.emplace_back(
+			sol.let( Smt::BOOL, _weight->used(f,i) || mappedi )
+		);
 	};
 	if( auto post_arity = _status.fun(rank).post_arity() ) {
 		info.post_arity = *post_arity;
@@ -63,6 +67,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 		};
 	}
 	info.mapped = [mapped_tbl=std::move(mapped_tbl)]( size_t i ){ return mapped_tbl[i]; };
+	info.used = [used_tbl=std::move(used_tbl)]( size_t i ){ return used_tbl[i]; };
 }
 
 Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
@@ -258,6 +263,7 @@ std::unique_ptr<TermOrder> TermOrder::of(
 }
 
 std::unique_ptr<TrsOrder> TrsOrder::of(
+	Trs const& trs,
 	std::unique_ptr<TermOrder>&& p
 ) {
 	if( dynamic_cast<TrsOrder*>(p.get()) ) {
@@ -265,7 +271,7 @@ std::unique_ptr<TrsOrder> TrsOrder::of(
 			static_cast<TrsOrder*>(p.release())
 		);
 	}
-	return std::make_unique<_Wrapper>(std::move(p));
+	return std::make_unique<_Wrapper>(trs,std::move(p));
 }
 
 Exp const SUM_SPEC = Exp{"sum"};
@@ -281,16 +287,15 @@ void TermOrder::test() {
 	cout << lex_compare(order,vector{x,y},{x,z}).ge << endl;
 	cout << lex_compare(order,vector{x},{x,z}).ge << endl;
 
-	Trs::Sig sig = {{"+",{2}}};
+	auto trs = Trs({{"+",{2}}},{{0,{{"+","x","y"},{"x"}}}});
 
-	auto lpo = TrsOrder::of(
+	auto lpo = TrsOrder::of(trs,
 		std::make_unique<PathOrder>(
 			std::make_unique<TrivOrder>(Smt::Z3(Smt::LIA)),
 			PathOrder::StatusFun( [&](Trs::Rank const&){ return PathOrder::Status::Mapped(2); } ),
 			TermOrder::RULE
 		)
 	);
-	lpo->extend_sig(sig);
-	cout << lpo->order_rule({"+","x","y"},{"x"},0).gt << endl;
+	cout << lpo->order_rule(0).gt << endl;
 
 }

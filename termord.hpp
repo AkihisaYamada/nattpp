@@ -15,6 +15,7 @@ struct TermOrder {
 	virtual Smt::Compare compare( Exp const& l, Exp const& r ) = 0;
 	virtual Smt::PostExp mono() = 0;
 	virtual Smt::PostExp simple( std::string const& f, size_t i ) = 0;
+	virtual Smt::PostExp used( std::string const& f, size_t i ) = 0;
 	virtual void extend_sig( Trs::Sig const& sig ) {
 		for( auto const& [f,rank] : sig ) {
 			extend_sig(f,rank);
@@ -90,30 +91,40 @@ public:
 	}
 	Smt::PostExp mono() override { return _ptr->mono(); }
 	Smt::PostExp simple( std::string const& f, size_t i ) override { return _ptr->simple(f,i); }
+	Smt::PostExp used( std::string const& f, size_t i ) override { return _ptr->used(f,i); }
 };
 
 struct TrsOrder : TermOrder {
-	virtual Smt::Compare order_rule( Exp const& l, Exp const& r, size_t i ) = 0;
-	static std::unique_ptr<TrsOrder> of( std::unique_ptr<TermOrder>&& org );
+	virtual Smt::Compare order_rule( size_t i ) = 0;
+	virtual Smt::PostExp usable( size_t i ) = 0;
+	static auto of( Trs&&, std::unique_ptr<TermOrder> const& ) = delete;
+	static std::unique_ptr<TrsOrder> of( Trs const& trs, std::unique_ptr<TermOrder>&& org );
 private:
 	struct _Wrapper;
 };
 
 struct TrsOrder::_Wrapper final : TrsOrder {
 private:
+	Trs const& _trs;
 	std::unique_ptr<TermOrder> _ptr;
 	Map<size_t,Smt::Compare> _rule_order_table;
+	Map<size_t,Smt::PostExp> _usable_table;
 public:
-	_Wrapper( std::unique_ptr<TermOrder>&& org ) :
-		_ptr( std::move(org) ) {
+	_Wrapper( Trs const& trs, std::unique_ptr<TermOrder>&& org ) :
+		_trs(trs), _ptr( std::move(org) ) {
+		_ptr->extend_sig(trs.sig);
 	}
-	Smt::Compare order_rule( Exp const& l, Exp const& r, size_t i ) override {
+	Smt::Compare order_rule( size_t i ) override {
 		if( auto const& opt = _rule_order_table.find(i) ) return *opt;
 		Smt::Solver& sol = _ptr->solver();
+		auto [l,r,w] = *ASSERTED(_trs.rules.find(i));
 		auto [ge,gt] = _ptr->compare(l,r);
 		Smt::Compare ret = {sol.let(Smt::BOOL,ge),sol.let(Smt::BOOL,gt)};
 		_rule_order_table.emplace(i,ret);
 		return ret;
+	}
+	Smt::PostExp usable( size_t i ) override {
+		return _usable_table.find(i).value_or(false);
 	}
 	int log() final override { return _ptr->log(); }
 	void extend_sig( std::string const& f, Trs::Rank const& rank ) override {
@@ -127,6 +138,7 @@ public:
 	Smt::Compare compare( Exp const& l, Exp const& r ) final override { return _ptr->compare(l,r); }
 	Smt::PostExp mono() final override { return _ptr->mono(); }
 	Smt::PostExp simple( std::string const& f, size_t i ) final override { return _ptr->simple(f,i); }
+	Smt::PostExp used( std::string const& f, size_t i ) final override { return _ptr->used(f,i); }
 };
 
 struct TrivOrder final : TrsOrder {
@@ -153,8 +165,14 @@ public:
 	Smt::PostExp simple( std::string const& f, size_t i ) override {
 		return true;
 	}
-	Smt::Compare order_rule( Exp const&, Exp const&, size_t ) override {
+	Smt::PostExp used( std::string const& f, size_t i ) override {
+		return true;
+	}
+	Smt::Compare order_rule( size_t ) override {
 		return {true,false};
+	}
+	Smt::PostExp usable( size_t i ) override {
+		return false;
 	}
 };
 
@@ -200,6 +218,9 @@ public:
 	Smt::PostExp simple( std::string const& f, size_t i ) override {
 		return (*ASSERTED(deriver.sig.find(f)))[i].inflationary;
 	}
+	Smt::PostExp used( std::string const& f, size_t i ) override {
+		return (*ASSERTED(deriver.sig.find(f)))[i].used;
+	}
 };
 
 struct PathOrder final : MemoizedTermOrder {
@@ -210,6 +231,7 @@ private:
 		size_t post_arity;// arity after argument rearrangement
 		std::function<Smt::PostExp(size_t,size_t)> map;// map(i,j) i-th argument is mapped to j-th position
 		std::function<Smt::PostExp(size_t)> mapped;// flags if the corresponding argument is mapped
+		std::function<Smt::PostExp(size_t)> used;// flags if the corresponding argument is used
 	};
 	std::unique_ptr<TermOrder> _weight;
 	Map<std::string,_SymInfo> _info;
@@ -256,7 +278,10 @@ public:
 	int log() override { return _log; }
 	Smt::PostExp mono() override { return _mono; }
 	Smt::PostExp simple( std::string const& f, size_t i ) override {
-		return _weight->simple(f,i);
+		return ASSERTED(_info.find(f))->mapped(i);
+	}
+	Smt::PostExp used( std::string const& f, size_t i ) override {
+		return ASSERTED(_info.find(f))->used(i);
 	}
 };
 

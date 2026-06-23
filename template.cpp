@@ -182,7 +182,7 @@ Term<Sum<Template::Fun,Arg>> Template::Deriver::_deriver_of(
 					{"_",[&](auto){ return ret; }},
 					{"#mono",[&](auto){ return mono; }},
 					{"#infl",[&](auto){ return finfo[pos].inflationary; }},
-					{"#const",[&](auto){ return finfo[pos].constant; }},
+					{"#used",[&](auto){ return finfo[pos].used; }},
 				})(*constrain)
 			);
 		}
@@ -243,7 +243,7 @@ Exp _0_or_1_constrain( Exp const& c ) {
 	return Exp("ite",Exp("var",":sort","Bool",":constrain",c),"1","0");
 }
 static Exp const _MONO = Exp("=>","#mono","_");// monotonicity requires non-zero coefficient
-static Exp const _CONST = Exp("=>","#const",Exp("not","_"));// constant position requires zero coefficient
+static Exp const _CONST = Exp("=>","_","#used");// non-zero coefficient implies used
 static Exp const _INFL = Exp("=>","#infl","_");// inflationary position requires non-zero coefficient (and more)
 
 Exp const Template::MONO_SUM = Exp{

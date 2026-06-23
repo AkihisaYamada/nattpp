@@ -14,7 +14,7 @@ bool order_some_rule(
 		if( order.log() & TermOrder::RULE ) {
 			cerr << "; " << rule << endl;
 		}
-		auto const& [ge,gt] = order.order_rule(rule.first,rule.second,i);
+		auto const& [ge,gt] = order.order_rule(i);
 		all_ge = all_ge && ge;
 		gts.emplace_back(i,gt);
 	}
@@ -54,7 +54,7 @@ bool order_some_dp(
 	}
 	for( auto const& i : usables ) {
 		if( auto const& rule = p.main.rules.find(i) ) {
-			auto const& [ge,gt] = order.order_rule(rule->first,rule->second,i);
+			auto const& [ge,gt] = order.order_rule(i);
 			if( order.log() & TermOrder::RULE ) {
 				std::cerr << "; " << *rule << std::endl;
 			}

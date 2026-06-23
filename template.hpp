@@ -32,7 +32,7 @@ struct Template {
 	public:
 		Smt::PostExp const mono;
 		struct ArgInfo {
-			Smt::PostExp inflationary, constant;
+			Smt::PostExp inflationary, used;
 		};
 		Map<std::string,std::vector<ArgInfo>> sig;
 		Deriver(

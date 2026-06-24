@@ -28,14 +28,15 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 	auto [info,suc] = _info.emplace(f,_SymInfo{sol.declare_fresh(sort),rank.arity});
 	assert(suc);
 	sol.ass( Smt::ge(info.prec,0) );
-	if( _log & DEBUG ) cerr << ";  prec: " << info.prec << endl;
+	if( _log & DEBUG ) cerr << "; prec " << f << ": " << info.prec << endl;
 	std::vector<Smt::PostExp> mapped_tbl;
 	std::vector<Smt::PostExp> used_tbl;
 	auto set_mappedi = [&]( Smt::PostExp const& mappedi, size_t i ) {
-		// monotonicity requires mapped[i]
+		if( _log & DEBUG ) cerr << "; monotonicity => mapped[" << f << ',' << i << "]" << endl;
 		sol.ass( _mono.imp(mappedi) );
-		// mapped[i] requires weak simplicity of weight
+		if( _log & DEBUG ) cerr << "; mapped[" << f << ',' << i << "] => weak simplicity" << endl;
 		sol.ass( mappedi.imp(_weight->arg_infl(f,i)) );
+		if( _log & DEBUG ) cerr << "; used[" << f << ',' << i << "] := weight uses or mapped[" << i << "]" << endl;
 		used_tbl.emplace_back(
 			sol.let( Smt::BOOL, _weight->arg_used(f,i) || mappedi )
 		);
@@ -51,7 +52,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 					sol.ass( !map_tbl[i][k] || !map_tbl[j][k] );
 				}
 			}
-			if( _log & DEBUG ) cerr << ";  map[" << i << "] = " << print_list(mapi) << std::endl;
+			if( _log & DEBUG ) cerr << ";  map[" << f << ',' << i << "] = " << print_list(mapi) << std::endl;
 			// mapped[i] means i-th argument survives mapping
 			auto const& mappedi = mapped_tbl.emplace_back( sol.let(Smt::BOOL,Smt::disj(mapi)) );
 			set_mappedi(mappedi,i);

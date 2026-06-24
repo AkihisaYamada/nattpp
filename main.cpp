@@ -25,7 +25,7 @@ int main( int argc, char* argv[] ) try {
 	int default_log = -1;
 	bool default_strategy = true;
 	bool use_dp = true;
-	bool use_unmarked_dprem = true;
+	bool use_unmarked_dprem = false;
 	bool use_marked_dprem = true;
 	vector<Exp> rulerem_specs;
 	vector<Exp> rem_specs;

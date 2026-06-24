@@ -204,13 +204,14 @@ public:
 	}
 	void extend_sig( std::string const& f, Trs::Rank const& rank ) override {
 		deriver.extend_sig(f,rank);
+		if( _log & DEBUG ) std::cerr << "; template " << f << ": " << *deriver.find(f) << std::endl;
 	}
 
 	Smt::Compare compare_inner( Exp const& l, Exp const& r ) override {
 		return order(intp(l),intp(r),_solver);
 	}
 	std::ostream& print_name( std::ostream& os ) override {
-		return os << "derived-order";
+		return os << "interpretation-order";
 	};
 	Smt::Solver& solver() override {
 		return _solver;
@@ -331,14 +332,18 @@ Smt::Compare mapped_lex_compare(
 	auto lin = ls.size();
 	auto rin = rs.size();
 	for( size_t k = 0;; k++ ) {
-		if( k == lpar ) {
-			if( k == rpar ) {
-				return { gt || all_ge, gt };
-			} else {
-				return { gt, gt };
-			}
+		if( k == lpar ) {// lhs has no more post arguments
+			// Check if any of r's remaining post-arguments survives
+			auto rsurvive = Smt::disj( k, rpar, [&]( size_t n ){
+				return Smt::disj( 0, rin, [&]( size_t j ){ return rmap(j,n); } ); 
+			});
+			return { gt || !rsurvive && all_ge, gt };
 		} else if( k == rpar ) {
-			return { gt || all_ge, gt || all_ge };
+			// Check if l's remaining post-arguments are survives
+			auto lsurvive = Smt::disj( k, lpar, [&]( size_t n ){
+				return Smt::disj( 0, lin, [&]( size_t i ){ return lmap(i,n); } );
+			});
+			return { gt || all_ge, gt || lsurvive && all_ge };
 		}
 		auto ige = Smt::disj( 0, lin, [&]( size_t const& i ){
 			return lmap(i,k) && Smt::disj( 0, rin, [&]( size_t const& j ){

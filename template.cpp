@@ -243,7 +243,7 @@ Exp _0_or_1_constrain( Exp const& c ) {
 	return Exp("ite",Exp("var",":sort","Bool",":constrain",c),"1","0");
 }
 static Exp const _MONO = Exp("=>","#mono","_");// monotonicity requires non-zero coefficient
-static Exp const _CONST = Exp("=>","_","#used");// non-zero coefficient implies used
+static Exp const _USED = Exp("=>","_","#used");// non-zero coefficient implies used
 static Exp const _INFL = Exp("=>","#infl","_");// inflationary position requires non-zero coefficient (and more)
 
 Exp const Template::MONO_SUM = Exp{
@@ -254,7 +254,7 @@ Exp const Template::MONO_POLY2 = Exp("arity",
 	Exp("1",Exp("+", Exp("*",_1_OR_2,"arg"), _POSVAR)),
 	Exp("otherwise",Exp("+",Exp("args","+",Exp("*",_1_OR_2,"arg")),_POSVAR))
 );
-static Exp const _SUMCOEFF = _0_or_1_constrain(Exp("and",_MONO,_INFL,_CONST));
+static Exp const _SUMCOEFF = _0_or_1_constrain(Exp("and",_MONO,_INFL,_USED));
 Exp const Template::SUM = Exp("arity",
 	Exp("0",_POSVAR),
 	Exp("1",Exp("+",Exp("*",_SUMCOEFF,"arg"),_POSVAR)),
@@ -264,7 +264,7 @@ Exp const Template::SIMP_MAX = Exp("arity",
 	Exp("0",_POSVAR),
 	Exp("otherwise",Exp("args","max",Exp("+","arg",_POSVAR)))
 );
-static Exp const _MAXCOEFF = _0_or_1_constrain(Exp("and",_INFL,_CONST));
+static Exp const _MAXCOEFF = _0_or_1_constrain(Exp("and",_INFL,_USED));
 Exp const Template::MAX = Exp("arity",
 	Exp("0",_POSVAR),
 	Exp("1",Exp("+",Exp("*",_MAXCOEFF,"arg"),_POSVAR)),

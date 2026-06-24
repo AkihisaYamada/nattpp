@@ -14,7 +14,7 @@ bool order_some_rule(
 		if( order.log() & TermOrder::RULE ) {
 			cerr << "; " << rule << endl;
 		}
-		auto const& [ge,gt] = order.order_rule(i);
+		auto const& [ge,gt] = order.rule_compare(i,rule.first,rule.second);
 		all_ge = all_ge && ge;
 		gts.emplace_back(i,gt);
 	}
@@ -37,7 +37,7 @@ bool order_some_rule(
 }
 
 bool order_some_dp(
-	TrsOrder& order,
+	UsableRuleOrder& order,
 	Problem const& p,
 	Trs::Rules const& dps,
 	std::function<void(std::vector<size_t>&&,Set<size_t>const&)> const& f
@@ -46,7 +46,7 @@ bool order_some_dp(
 	Smt::PostExp some_gt = false;
 	Smt::PostExp all_ge = true;
 	std::vector<std::pair<size_t,Smt::PostExp>> gts;
-	Set<size_t> usables;
+	Set<size_t> usables;// collect potential usable rules
 	for( auto const& [i,rule] : dps ) {
 		for( auto const& u : *ASSERTED(p.dp_usables.find(i)) ) {
 			usables.emplace(u);
@@ -54,16 +54,18 @@ bool order_some_dp(
 	}
 	for( auto const& i : usables ) {
 		if( auto const& rule = p.main.rules.find(i) ) {
-			auto const& [ge,gt] = order.order_rule(i);
+			auto const& [l,r,w] = *rule;
+			auto const& [ge,gt] = order.rule_compare(i,l,r);
 			if( order.log() & TermOrder::RULE ) {
 				std::cerr << "; " << *rule << std::endl;
 			}
-			all_ge = all_ge && ge;
+			all_ge = all_ge && order.rule_used(i).imp(ge);// if the rule is used, then it should be weakly oriented
 		}
 	}
 	for( auto const& [i,dp] : dps ) {
-		auto const& [ge,gt] = order.compare(dp.first,dp.second);
-		all_ge = all_ge && ge;
+		auto const& [l,r,w] = dp;
+		auto const& [ge,gt] = order.rule_compare(i,l,r);
+		all_ge = all_ge && ge && order.term_used(r);// rhs of DP should be marked used
 		some_gt = some_gt || gt;
 		gts.emplace_back(i,gt);
 	}

@@ -151,16 +151,20 @@ int main( int argc, char* argv[] ) try {
 		}
 		vector<pair<int,unique_ptr<TrsOrder>>> rule_removers;
 		for( auto x : rulerem_specs ) {
-			rule_removers.emplace_back(0,TrsOrder::of(p.main,TermOrder::of(x,default_smt,Smt::INT,default_log)));
+			rule_removers.emplace_back(0,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log)));
 		}
-		vector<pair<int,unique_ptr<TrsOrder>>> both_removers;
+		vector<pair<int,unique_ptr<UsableRuleOrder>>> both_removers;
 		for( auto x : rem_specs ) {
-			both_removers.emplace_back(0,TrsOrder::of(p.main,TermOrder::of(x,default_smt,Smt::INT,default_log)));
+			both_removers.emplace_back(0,UsableRuleOrder::make(p.main,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log))));
 		}
 		// rule removal loop
-		auto rule_removes = [&]( pair<int,unique_ptr<TrsOrder>>& pair ) {
+		auto rule_removes = [&]( auto& pair ) {
 			auto& [stage,ord] = pair;
 			if( print_steps ) cerr << "; trying " << ord->print_name() << "... " << endl;
+			if( stage < 1 ) {// initialize for signature
+				ord->extend_sig(p.main.sig);
+				stage = 1;
+			}
 			return order_some_rule(*ord,p.main.rules,[&](auto&&rem){
 				if( print_proofs )
 					*prf << "(remove-rule\n  " << ord->print(p.main.sig) << "\n " << print_list(rem) << ')' << endl;
@@ -210,10 +214,14 @@ int main( int argc, char* argv[] ) try {
 		}
 		size_t target_ind = 1;
 		bool marked = false;
-		auto dp_removes = [&]( pair<int,unique_ptr<TrsOrder>>& pair ){
+		auto dp_removes = [&]( pair<int,unique_ptr<UsableRuleOrder>>& pair ){
 			auto& [subsig,subcomp] = *target;
 			auto& [stage,ord] = pair;
 			if( print_steps ) cerr << "; trying " << ord->print_name() << "... " << endl;
+			if( stage == 0 ) {
+				ord->extend_sig(p.main.sig);
+				stage = 1;
+			}
 			if( marked && stage < target_ind ) {
 				ord->extend_sig(subsig);
 				stage = target_ind;
@@ -234,9 +242,9 @@ int main( int argc, char* argv[] ) try {
 			});
 		};
 
-		vector<pair<int,unique_ptr<TrsOrder>>> dp_removers;
+		vector<pair<int,unique_ptr<UsableRuleOrder>>> dp_removers;
 		for( auto x : dprem_specs ) {
-			dp_removers.emplace_back(0,TrsOrder::of(p.main,TermOrder::of(x,default_smt,Smt::INT,default_log)));
+			dp_removers.emplace_back(0,UsableRuleOrder::make(p.main,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log))));
 		}
 		for(;;) {
 			if( target->rules.empty() ) {

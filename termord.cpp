@@ -35,9 +35,9 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 		// monotonicity requires mapped[i]
 		sol.ass( _mono.imp(mappedi) );
 		// mapped[i] requires weak simplicity of weight
-		sol.ass( mappedi.imp(_weight->simple(f,i)) );
+		sol.ass( mappedi.imp(_weight->arg_infl(f,i)) );
 		used_tbl.emplace_back(
-			sol.let( Smt::BOOL, _weight->used(f,i) || mappedi )
+			sol.let( Smt::BOOL, _weight->arg_used(f,i) || mappedi )
 		);
 	};
 	if( auto post_arity = _status.fun(rank).post_arity() ) {
@@ -178,7 +178,34 @@ int TermOrder::log_of( Exp const& x ) {
 	}
 }
 
-std::unique_ptr<TermOrder> TermOrder::of(
+Smt::Compare TrsOrder::_Wrapper::rule_compare( size_t i, Trs::Term const& l, Trs::Term const& r ) {
+	if( auto const& opt = _rule_order_table.find(i) ) return *opt;
+	Smt::Solver& sol = _ref->solver();
+	auto [ge,gt] = _ref->compare(l,r);
+	Smt::Compare ret = {sol.let(Smt::BOOL,ge),sol.let(Smt::BOOL,gt)};
+	_rule_order_table.emplace(i,ret);
+	return ret;
+}
+
+Smt::PostExp UsableRuleOrder::_Wrapper::term_used( Trs::Term const& r ) & {
+	auto const& [g,rs] = *r;
+	auto const& ginfo = _trs.sig.find(g);
+	if( !ginfo ) return true;
+	return Smt::conj( ginfo->defined_by, [&]( size_t i ){ return rule_used(i); } ) &&
+		Smt::conj(0,rs.size(),[&]( size_t p ){ return arg_used(g,p).imp(term_used(rs[p])); } );
+}
+Smt::PostExp UsableRuleOrder::_Wrapper::rule_used( size_t i ) & {
+	if( auto const& ret = _usable_table.find(i) ) {
+		return *ret;
+	}
+	auto const& [l,r,w] = *ASSERTED(_trs.rules.find(i));
+	auto& sol = _ref->solver();
+	auto const& ret = _usable_table.emplace(i,sol.declare_fresh(Smt::BOOL)).first;
+	sol.ass(ret.imp(term_used(r)));
+	return ret;
+}
+
+std::unique_ptr<TermOrder> TermOrder::make(
 	Exp const& x,
 	std::function<Smt::Solver()> const& default_smt,
 	Smt::Sort const& default_sort,
@@ -250,7 +277,7 @@ std::unique_ptr<TermOrder> TermOrder::of(
 		x.get_end(n);
 		set_log();
 		std::unique_ptr<TermOrder> weight;
-		if( w ) weight = std::make_unique<MemoizeTermOrder>(of(*w,default_smt,default_sort,log));
+		if( w ) weight = MemoizedTermOrder::make(make(*w,default_smt,default_sort,log));
 		else weight = std::make_unique<TrivOrder>(mk_smt());
 		return std::make_unique<PathOrder>(
 			std::move(weight),
@@ -262,16 +289,29 @@ std::unique_ptr<TermOrder> TermOrder::of(
 	}
 }
 
-std::unique_ptr<TrsOrder> TrsOrder::of(
-	Trs const& trs,
-	std::unique_ptr<TermOrder>&& p
-) {
-	if( dynamic_cast<TrsOrder*>(p.get()) ) {
-		return std::unique_ptr<TrsOrder>(
-			static_cast<TrsOrder*>(p.release())
+std::unique_ptr<MemoizedTermOrder> MemoizedTermOrder::make( std::unique_ptr<TermOrder>&& ref ) {
+	if( dynamic_cast<MemoizedTermOrder*>(ref.get()) ) {// do not wrap if origin is already memoized
+		return std::unique_ptr<MemoizedTermOrder>(
+			static_cast<MemoizedTermOrder*>(ref.release())
 		);
 	}
-	return std::make_unique<_Wrapper>(trs,std::move(p));
+	return std::make_unique<_Wrapper>(std::move(ref));
+}
+std::unique_ptr<TrsOrder> TrsOrder::make( std::unique_ptr<TermOrder>&& ref ) {
+	if( dynamic_cast<TrsOrder*>(ref.get()) ) {
+		return std::unique_ptr<TrsOrder>(
+			static_cast<TrsOrder*>(ref.release())
+		);
+	}
+	return std::make_unique<_Wrapper>(std::move(ref));
+}
+std::unique_ptr<UsableRuleOrder> UsableRuleOrder::make( Trs const& trs, std::unique_ptr<TrsOrder>&& ref ) {
+	if( dynamic_cast<UsableRuleOrder*>(ref.get()) ) {
+		return std::unique_ptr<UsableRuleOrder>(
+			static_cast<UsableRuleOrder*>(ref.release())
+		);
+	}
+	return std::make_unique<_Wrapper>(trs,std::move(ref));
 }
 
 Exp const SUM_SPEC = Exp{"sum"};
@@ -287,15 +327,16 @@ void TermOrder::test() {
 	cout << lex_compare(order,vector{x,y},{x,z}).ge << endl;
 	cout << lex_compare(order,vector{x},{x,z}).ge << endl;
 
-	auto trs = Trs({{"+",{2}}},{{0,{{"+","x","y"},{"x"}}}});
+	Trs::Sig sig = {{"+",{2}}};
 
-	auto lpo = TrsOrder::of(trs,
+	auto lpo = TrsOrder::make(
 		std::make_unique<PathOrder>(
 			std::make_unique<TrivOrder>(Smt::Z3(Smt::LIA)),
 			PathOrder::StatusFun( [&](Trs::Rank const&){ return PathOrder::Status::Mapped(2); } ),
 			TermOrder::RULE
 		)
 	);
-	cout << lpo->order_rule(0).gt << endl;
+	lpo->extend_sig(sig);
+	cout << lpo->rule_compare(0,{"+","x","y"},{"x"}).gt << endl;
 
 }

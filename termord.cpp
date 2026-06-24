@@ -1,6 +1,7 @@
 #include "termord.hpp"
 #include "template.hpp"
 #include "poly.hpp"
+#include "reach.hpp"
 
 using namespace std;
 
@@ -191,11 +192,16 @@ Smt::Compare TrsOrder::_Wrapper::rule_compare( size_t i, Trs::Term const& l, Trs
 
 Smt::PostExp UsableRuleOrder::_Wrapper::term_used( Trs::Term const& r ) & {
 	auto const& [g,rs] = *r;
-	auto args_used = Smt::conj(0,rs.size(),[&]( size_t p ){ return arg_used(g,p).imp(term_used(rs[p])); } );
+	auto ret = Smt::conj(0,rs.size(),[&]( size_t p ){ return arg_used(g,p).imp(term_used(rs[p])); } );
 	if( auto const& ginfo = _trs.sig.find(g) ) {
-		return args_used && Smt::conj( ginfo->defined_by, [&]( size_t i ){ return rule_used(i); } );
+		return ret && Smt::conj( ginfo->defined_by, [&]( size_t i )->Smt::PostExp{
+			if( auto const& rule = _trs.rules.find(i) )
+				if( may_reach(_trs,r,rule->first,8,false) )//TODO
+					return rule_used(i);
+			return true;
+		} );
 	} else {
-		return args_used;
+		return ret;
 	}
 }
 Smt::PostExp UsableRuleOrder::_Wrapper::rule_used( size_t i ) & {

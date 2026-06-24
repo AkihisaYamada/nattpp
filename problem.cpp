@@ -154,7 +154,7 @@ static void collect_dps(
 			for( size_t i : rrank->defined_by ) {// the origin also uses the rules that define g
 				if( auto const& rule = p.main.rules.find(i) ) {
 					auto const& [l2,r2,w] = *rule;
-					if( may_reach(p.main,r,l2,8) ) {
+					if( may_reach(p.main,r,l2,8,false) ) {
 						org_uses.emplace(i);
 					}
 				}

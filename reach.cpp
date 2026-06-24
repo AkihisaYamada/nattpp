@@ -1,6 +1,6 @@
 #include"reach.hpp"
 
-bool may_reach( Trs const& trs, Exp const& s, Exp const& t, size_t fuel ) {
+bool may_reach( Trs const& trs, Exp const& s, Exp const& t, size_t fuel, bool root ) {
 	auto const& [f,ss] = *s;
 	auto const& frank = trs.sig.find(f);
 	if( !frank ) return true;// x ↠ _
@@ -14,16 +14,17 @@ bool may_reach( Trs const& trs, Exp const& s, Exp const& t, size_t fuel ) {
 				break;
 			}
 			if( tit == ts.end() ) break;
-			if( !may_reach(trs,*sit,*tit,fuel) ) break;
+			if( !may_reach(trs,*sit,*tit,fuel,true) ) break;
 		}
 	}
 	// otherwise, a root rewrite step must be involved
+	if( !root ) return false;
 	if( fuel == 0 ) return true;
 	fuel--;
 	for( auto const& i : frank->defined_by ) {
 		if( auto const& rule = trs.rules.find(i) ) {
 			auto const& [l,r,w] = *rule;
-			if( may_reach(trs,s,l,fuel) && may_reach(trs,r,t,fuel) ) return true;
+			if( may_reach(trs,s,l,fuel,false) && may_reach(trs,r,t,fuel,root) ) return true;
 		}
 	}
 	return false;

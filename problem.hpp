@@ -33,7 +33,7 @@ public:
 	Problem( std::istream& is );
 	void insert_rule( Trs::Rules& rules, Trs::Rule const& rule ) &;
 	void make_dps() &;
-	void mark_dps( SubIt const& it ) &;
+	void mark_dps() &;
 	std::ostream& print( std::ostream& os ) const &;
 	bool reads_sym_decl( Reader& eis ) &;
 	bool reads_rule_decl( Reader& eis, Trs::Reader& tis ) &;

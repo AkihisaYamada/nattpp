@@ -207,9 +207,9 @@ Trs::Rule mark_dp( Trs::Sig const& sig, Trs::Sig& extra_sig, Trs::Rule const& dp
 	}
 	return Trs::Rule(app(lfm,l.args()),app(rfm,r.args()));
 }
-void Problem::mark_dps( SubIt const& it ) & {
+void Problem::mark_dps() & {
 	auto mdps = Trs::Rules();
-	auto& [msig,udps] = *it;
+	auto& [msig,udps] = components.front();
 	assert(msig.empty());
 	for( auto uit = udps.begin(); uit != udps.end(); uit = udps.erase(uit) ) {// iterate while removing
 		auto [uind,udp] = *uit;

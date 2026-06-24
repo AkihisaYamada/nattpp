@@ -191,10 +191,9 @@ int main( int argc, char* argv[] ) try {
 			cerr << "(rule_usables" << p.uses_graph.trancl().print_nodes() << ')' << endl;
 			cerr << "(dp_usables" << Graph(p.dp_usables).print_nodes() << ')' << endl;
 		}
-		auto target = p.components.begin();
 		// SCC decomposition
-		auto dps = Trs::Rules();
-		swap(dps,target->rules);
+		auto dps = std::move(p.components.front().rules);
+		p.components.pop_front();
 		Graph dg = [&]{
 			Map<size_t,Set<size_t>> dgmap;
 			for( auto const& [i,dp] : dps ) {
@@ -212,10 +211,10 @@ int main( int argc, char* argv[] ) try {
 				}
 			}
 		}
-		size_t target_ind = 1;
+		size_t target_ind = 2;
 		bool marked = false;
 		auto dp_removes = [&]( pair<int,unique_ptr<UsableRuleOrder>>& pair ){
-			auto& [subsig,subcomp] = *target;
+			auto& [subsig,subcomp] = p.components.front();
 			auto& [stage,ord] = pair;
 			if( print_steps ) cerr << "; trying " << ord->print_name() << "... " << endl;
 			if( stage == 0 ) {
@@ -247,12 +246,12 @@ int main( int argc, char* argv[] ) try {
 			dp_removers.emplace_back(0,UsableRuleOrder::make(p.main,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log))));
 		}
 		for(;;) {
-			if( target->rules.empty() ) {
-				target = p.components.erase(target);
-				if( target == p.components.end() ) throw Answer::YES;
+			if( p.components.empty() ) throw Answer::YES;
+			if( p.components.front().rules.empty() ) {
+				p.components.pop_front();
 				target_ind++;
 				marked = false;
-				if( print_proofs ) *prf << "(scc" << target->rules << ')' << endl;
+				if( print_proofs ) *prf << "(scc" << p.components.front().rules << ')' << endl;
 				continue;
 			}
 			if( !marked ) {
@@ -261,8 +260,8 @@ int main( int argc, char* argv[] ) try {
 					if( std::ranges::any_of(dp_removers,dp_removes) ) continue;
 				}
 				if( use_marked_dprem ) {
-					p.mark_dps(target);
-					if( print_proofs ) *prf << "(mark_dp" << target->rules << ')' << endl;
+					p.mark_dps();
+					if( print_proofs ) *prf << "(mark_dp" << p.components.front().rules << ')' << endl;
 					marked = true;
 					continue;
 				}

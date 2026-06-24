@@ -9,7 +9,7 @@ GPP=g++ -std=c++20 -Wfatal-errors
 CPP=${GPP}
 BUILD_CPP=${CPP} -O3
 SANITIZE_CPP=${CPP} -O1 -fsanitize=address,alignment,undefined -fno-omit-frame-pointer
-DEBUG_CPP=${CPP} -O0 -ggdb3
+DEBUG_CPP=${CPP} -O0 -ggdb3 -fsanitize=address
 
 DEPEND=_depend
 BUILD=_build
@@ -71,18 +71,27 @@ $(DEBUG)/%.o: %.cpp
 
 # TPDB 
 TPDB=~/TPDB-ARI
+TIMEOUT=3
 
 tpdb_result: $(TGT) $(TPDB)
-	echo > $@
-	for f in $(TPDB)/TRS_Standard/*/*.ari;\
-	do echo -n $$f:\ ; timeout 60 $(TGT) -q $$f | tee -a $@; done
-	grep -c 'YES|NO' $@
+	rm -f $@
+	time sh -c '\
+		out=$(abspath $@);\
+		cd $(TPDB)/TRS_Standard;\
+		for f in */*.ari;\
+		do\
+			(echo -n $$f:\ ; timeout $(TIMEOUT) $(TGT) -q $$f; if [ $$? -eq 124 ]; then echo TIMEOUT; fi) | tee -a $$out;\
+		done'
+	grep -c 'YES\\|NO' $@
 
 tpdb_negative: $(TGT)
-	echo > $@
+	rm -f $@
+	out=$(abspath $@);\
+	cd $(TPDB)/TRS_Standard;\
 	while read f; do \
-		echo -n $$f:\ ; timeout 60 $(TGT) -q "$(TPDB)/TRS_Standard/$$f" | tee -a $@; \
-		if grep -q YES tmp_result; then echo WRONG!; exit 1; fi;\
+		echo -n $$f:\ ;\
+		(timeout $(TIMEOUT) $(TGT) -q $$f; if [ $$? -eq 124 ]; then echo TIMEOUT; fi) | tee -a $$out;\
+		if grep -q YES $$out; then echo WRONG!; exit 1; fi;\
 	done < "$(PWD)/tpdb_neg.list"
 	grep -c NO $@
 

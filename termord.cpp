@@ -198,7 +198,11 @@ Smt::PostExp UsableRuleOrder::_Wrapper::rule_used( size_t i ) & {
 	if( auto const& ret = _usable_table.find(i) ) {
 		return *ret;
 	}
-	auto const& [l,r,w] = *ASSERTED(_trs.rules.find(i));
+	auto rule = _trs.rules.find(i);
+	if( !rule ) {// already removed
+		return _usable_table.emplace(i,true).first;
+	}
+	auto const& [l,r,w] = *rule;
 	auto& sol = _ref->solver();
 	auto const& ret = _usable_table.emplace(i,sol.declare_fresh(Smt::BOOL)).first;
 	sol.ass(ret.imp(term_used(r)));

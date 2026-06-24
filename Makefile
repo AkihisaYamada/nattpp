@@ -1,7 +1,7 @@
 SRCS=exp.cpp trs.cpp proc.cpp smt.cpp algebra.cpp template.cpp poly.cpp termord.cpp problem.cpp deprem.cpp graph.cpp reach.cpp
 MAIN_SRC=main.cpp
 TEST_SRC=test.cpp
-TGT=natt++
+TGT=$(PWD)/natt++
 
 CLANGPP=clang++ -std=c++20 -Wfatal-errors -ftemplate-backtrace-limit=0 -Wno-switch
 GPP=g++ -std=c++20 -Wfatal-errors
@@ -69,17 +69,22 @@ $(DEBUG)/%.o: %.cpp
 	@mkdir -p $(@D)
 	${DEBUG_CPP} -c $< -o $@
 
-tpdb-negative: $(TGT)
-	TOOL="$(PWD)/natt++ -q"; \
-	BENCH="$(PWD)/tpdb_neg.list"; \
-	cd ~/TPDB-ARI/TRS_Standard; \
-	if [ -e tmp_result ]; then rm tmp_result; fi; \
+# TPDB 
+TPDB=~/TPDB-ARI
+
+tpdb_result: $(TGT) $(TPDB)
+	echo > $@
+	for f in $(TPDB)/TRS_Standard/*/*.ari;\
+	do echo -n $$f:\ ; timeout 60 $(TGT) -q $$f | tee -a $@; done
+	grep -c 'YES|NO' $@
+
+tpdb_negative: $(TGT)
+	echo > $@
 	while read f; do \
-		echo -n $$f:\ ; timeout 60 $$TOOL $$f | tee -a tmp_result; \
+		echo -n $$f:\ ; timeout 60 $(TGT) -q "$(TPDB)/TRS_Standard/$$f" | tee -a $@; \
 		if grep -q YES tmp_result; then echo WRONG!; exit 1; fi;\
-	done < $$BENCH; \
-	grep -c NO tmp_result; \
-	rm tmp_result
+	done < "$(PWD)/tpdb_neg.list"
+	grep -c NO $@
 
 .PHONY: clean test tpdb-negative
 

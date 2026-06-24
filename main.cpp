@@ -17,6 +17,7 @@ int main( int argc, char* argv[] ) try {
 	bool print_steps = true;
 	bool print_proofs = true;
 	bool print_dp = false;
+	bool print_dg = false;
 	bool print_usables = false;
 	bool print_on_fail = false;
 	enum { UNSET, SN, SOME } mode = UNSET;
@@ -61,6 +62,8 @@ int main( int argc, char* argv[] ) try {
 				print_on_fail = true;
 			} else if( opt == "-print-dp" ) {
 				print_dp = true;
+			} else if( opt == "-print-dg" ) {
+				print_dg = true;
 			} else if( opt == "-print-usables" ) {
 				print_usables = true;
 			} else if( opt == "-a" ) {// general remover
@@ -186,7 +189,7 @@ int main( int argc, char* argv[] ) try {
 		p.make_dps();// compute DPs
 		if( print_proofs ) *prf << "(make_dp)" << endl;
 		if( print_dp ) cerr << p << endl;
-		if( print_usables) {
+		if( print_usables ) {
 			cerr << "(uses_graph" << p.uses_graph.print_nodes() << ')' << endl;
 			cerr << "(rule_usables" << p.uses_graph.trancl().print_nodes() << ')' << endl;
 			cerr << "(dp_usables" << Graph(p.dp_usables).print_nodes() << ')' << endl;
@@ -197,11 +200,18 @@ int main( int argc, char* argv[] ) try {
 		Graph dg = [&]{
 			Map<size_t,Set<size_t>> dgmap;
 			for( auto const& [i,dp] : dps ) {
-				auto const& l = dp.first, &r = dp.second;
-				dgmap.emplace(i,ASSERTED(p.main.sig.find(r.fun()))->depends);
+				auto const& [l1,r1,w] = dp;
+				auto [nexts,fl] = dgmap.emplace(i,Set<size_t>{});
+				for( auto const& j : ASSERTED(p.main.sig.find(r1.fun()))->depends ) {
+					auto const& [l2,r2,w2] = *ASSERTED(dps.find(j));
+					if( may_reach(p.main,r1,l2,8,false) ) {
+						nexts.emplace(j);
+					}
+				}
 			}
 			return std::move(dgmap);
 		}();
+		if( print_dg ) cerr << "(dependency-graph " << dg.print_nodes() << ')' << endl;
 		auto sccs = dg.sccs();
 		for( auto const& scc : sccs ) {
 			if( auto const& nodes = scc.ref<Set<size_t>>() ) {

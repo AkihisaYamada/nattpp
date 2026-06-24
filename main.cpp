@@ -155,7 +155,7 @@ int main( int argc, char* argv[] ) try {
 		}
 		vector<pair<int,unique_ptr<UsableRuleOrder>>> both_removers;
 		for( auto x : rem_specs ) {
-			both_removers.emplace_back(0,UsableRuleOrder::make(p.main,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log))));
+			both_removers.emplace_back(0,UsableRuleOrder::make_triv(TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log))));
 		}
 		// rule removal loop
 		auto rule_removes = [&]( auto& pair ) {

@@ -56,9 +56,6 @@ bool order_some_dp(
 		if( auto const& rule = p.main.rules.find(i) ) {
 			auto const& [l,r,w] = *rule;
 			auto const& [ge,gt] = order.rule_compare(i,l,r);
-			if( order.log() & TermOrder::RULE ) {
-				std::cerr << "; " << *rule << std::endl;
-			}
 			all_ge = all_ge && order.rule_used(i).imp(ge);// if the rule is used, then it should be weakly oriented
 		}
 	}

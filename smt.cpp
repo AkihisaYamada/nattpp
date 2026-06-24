@@ -182,27 +182,72 @@ Smt::PostExp Smt::PostExp::imp( Smt::PostExp const& y ) const {
 }
 
 Smt::PostExp Smt::eq( PostExp const& x, PostExp const& y ) {
-	if( auto xi = x.is_val() )
-		if( auto yi = y.is_val() ) {
-			return *xi == *yi;
+	if( x._term.args().empty() ) {
+		if( auto xi = x.is_val() ) {
+			if( auto yi = y.is_val() ) {
+				return *xi == *yi;
+			}
 		}
+		if( x == y ) {
+			return true;
+		}
+		if( auto iteo = y.is_ite() ) {
+			auto const& [i,t,e] = *iteo;
+			return ite(i,eq(x,t),eq(x,e));
+		}
+	} else if( y._term.args().empty() ) {
+		if( auto const& iteo = x.is_ite() ) {
+			auto const& [i,t,e] = *iteo;
+			return ite(i,eq(t,y),eq(e,y));
+		}
+	}
 	return Term<Fun>(EQ,x,y);
 }
 
 Smt::PostExp Smt::ge( PostExp const& x, PostExp const& y ) {
-	if( auto xi = x.is_val() )
-		if( auto yi = y.is_val() ) {
-			return *xi >= *yi;
+	if( x._term.args().empty() ) {
+		if( auto xi = x.is_val() ) {
+			if( auto yi = y.is_val() ) {
+				return *xi >= *yi;
+			}
 		}
+		if( x == y ) {
+			return true;
+		}
+		if( auto iteo = y.is_ite() ) {
+			auto const& [i,t,e] = *iteo;
+			return ite(i,ge(x,t),ge(x,e));
+		}
+	} else if( y._term.args().empty() ) {
+		if( auto const& iteo = x.is_ite() ) {
+			auto const& [i,t,e] = *iteo;
+			return ite(i,ge(t,y),ge(e,y));
+		}
+	}
 	return Term<Fun>(GE,x,y);
 }
 
 Smt::PostExp Smt::le( PostExp const& x, PostExp const& y ) {
-	if( auto xi = x.is_val() )
-		if( auto yi = y.is_val() ) {
-			return *xi <= *yi;
+	if( x._term.args().empty() ) {
+		if( auto xi = x.is_val() ) {
+			if( auto yi = y.is_val() ) {
+				return *xi <= *yi;
+			}
 		}
-	return Term<Fun>(LE,x,y);
+		if( x == y ) {
+			return true;
+		}
+		if( auto iteo = y.is_ite() ) {
+			auto const& [i,t,e] = *iteo;
+			return ite(i,le(x,t),le(x,e));
+		}
+	} else if( y._term.args().empty() ) {
+		if( auto const& iteo = x.is_ite() ) {
+			auto const& [i,t,e] = *iteo;
+			return ite(i,le(t,y),le(e,y));
+		}
+	}
+	return Term<Fun>(GE,x,y);
 }
 
 Smt::PostExp Smt::gt( PostExp const& x, PostExp const& y ) {
@@ -220,6 +265,18 @@ Smt::PostExp Smt::ite( PostExp const& i, PostExp const& t, PostExp const& e ) {
 	}
 	if( i == FALSE ) {
 		return e;
+	}
+	if( t == TRUE ) {
+		return i || e;
+	}
+	if( t == FALSE ) {
+		return !i && e;
+	}
+	if( e == TRUE ) {
+		return i.imp(t);
+	}
+	if( e == FALSE ) {
+		return i && t;
 	}
 	return Term<Fun>(ITE,i,t,e);
 }
@@ -518,9 +575,11 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 			eargs.push_back(expand(args[2]));
 		} else if( fun == EQ ) {
 			assert( args.size() == 2 );
-			return eq(expand(args[0]),expand(args[1]));
+			auto earg1 = expand(args[0]), earg2 = expand(args[1]);
+			return eq(earg1,earg2);
 		} else if( fun == GE ) {
 			assert( args.size() == 2 );
+			auto earg1 = expand(args[0]), earg2 = expand(args[1]);
 			return ge(expand(args[0]),expand(args[1]));
 		} else if( fun == LE ) {
 			assert( args.size() == 2 );

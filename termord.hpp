@@ -66,7 +66,7 @@ public:
 		auto [ge,gt] = compare_inner(l,r);
 		auto ret = Smt::Compare(solver().let(Smt::BOOL,ge),solver().let(Smt::BOOL,gt));
 		if( log() & PAIR ) {
-			std::cerr << "; " << l << " <=> " << r << " = " << ret << std::endl;
+			std::cerr << "; " << print_name() << ": " << l << " <=> " << r << " = " << ret << std::endl;
 		}
 		_table.emplace(std::pair{l,r},ret);
 		return ret;
@@ -123,8 +123,10 @@ struct UsableRuleOrder : TrsOrder {
 	virtual Smt::PostExp rule_used( size_t i ) & = 0;
 	static std::unique_ptr<UsableRuleOrder> make( Trs&& trs, std::unique_ptr<TrsOrder> const& org ) = delete;
 	static std::unique_ptr<UsableRuleOrder> make( Trs const& trs, std::unique_ptr<TrsOrder>&& org );
+	static std::unique_ptr<UsableRuleOrder> make_triv( std::unique_ptr<TrsOrder>&& org );
 private:
 	struct _Wrapper;
+	struct _Trivial;
 };
 struct UsableRuleOrder::_Wrapper final : UsableRuleOrder {
 private:
@@ -146,6 +148,31 @@ public:
 	Smt::PostExp arg_infl( std::string const& f, size_t i ) final override { return _ref->arg_infl(f,i); }
 	Smt::PostExp arg_used( std::string const& f, size_t i ) final override { return _ref->arg_used(f,i); }
 };
+struct UsableRuleOrder::_Trivial final : UsableRuleOrder {
+private:
+	std::unique_ptr<TrsOrder> _ref;
+public:
+	_Trivial( std::unique_ptr<TrsOrder> && org ) : _ref(std::move(org)) {}
+	Smt::PostExp term_used( Trs::Term const& t ) & override {
+		return true;
+	}
+	Smt::PostExp rule_used( size_t i ) & override {
+		return true;
+	}
+	Smt::Compare rule_compare( size_t i, Trs::Term const& l, Trs::Term const& r ) override { return _ref->rule_compare(i,l,r); }
+	int log() final override { return _ref->log(); }
+	void extend_sig( std::string const& f, Trs::Rank const& rank ) override { _ref->extend_sig(f,rank); }
+	Smt::Solver& solver() final override { return _ref->solver(); }
+	std::ostream& print_name( std::ostream& os ) final override { return _ref->print_name(os); }
+	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) final override { return _ref->print_sym_info(os,f); }
+	Smt::Compare compare( Exp const& l, Exp const& r ) final override { return _ref->compare(l,r); }
+	Smt::PostExp mono() final override { return _ref->mono(); }
+	Smt::PostExp arg_infl( std::string const& f, size_t i ) final override { return _ref->arg_infl(f,i); }
+	Smt::PostExp arg_used( std::string const& f, size_t i ) final override { return _ref->arg_used(f,i); }
+};
+inline std::unique_ptr<UsableRuleOrder> UsableRuleOrder::make_triv( std::unique_ptr<TrsOrder>&& org ) {
+	return std::make_unique<_Trivial>(std::move(org));
+}
 
 struct TrivOrder final : UsableRuleOrder {
 private:
@@ -189,10 +216,11 @@ template<typename A>
 struct DerivedTermOrder final : MemoizedTermOrder {
 private:
 	Smt::Solver _solver;
+	OrdMap<Trs::Term,A> _evals;
 	int _log;
+	Algebra<std::string,A> const _intp;
 public:
 	Template::Deriver deriver;
-	Algebra<std::string,A> const intp;
 	DerivedTermOrder(
 		Exp const& temp,
 		Smt::Solver&& sol_,
@@ -200,13 +228,17 @@ public:
 	) : _solver(std::move(sol_)),
 		_log(log_),
 		deriver(temp,_solver),
-		intp(deriver.derive(A::ALGEBRA)) {
+		_intp(deriver.derive(A::ALGEBRA)) {
 	}
 	void extend_sig( std::string const& f, Trs::Rank const& rank ) override {
 		deriver.extend_sig(f,rank);
 		if( _log & DEBUG ) std::cerr << "; template " << f << ": " << *deriver.find(f) << std::endl;
 	}
-
+	A const& intp( Trs::Term const& s ) & {
+		auto [ret,fl] = _evals.emplace(s,_intp(s));
+		ret.memoize(_solver);
+		return ret;
+	}
 	Smt::Compare compare_inner( Exp const& l, Exp const& r ) override {
 		return order(intp(l),intp(r),_solver);
 	}

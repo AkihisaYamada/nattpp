@@ -34,7 +34,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 	auto set_mappedi = [&]( Smt::PostExp const& mappedi, size_t i ) {
 		if( _log & DEBUG ) cerr << "; monotonicity => mapped[" << f << ',' << i << "]" << endl;
 		sol.ass( _mono.imp(mappedi) );
-		if( _log & DEBUG ) cerr << "; mapped[" << f << ',' << i << "] => weak simplicity" << endl;
+		if( _log & DEBUG ) cerr << "; mapped[" << f << ',' << i << "] => weight weak simple" << endl;
 		sol.ass( mappedi.imp(_weight->arg_infl(f,i)) );
 		if( _log & DEBUG ) cerr << "; used[" << f << ',' << i << "] := weight uses or mapped[" << i << "]" << endl;
 		used_tbl.emplace_back(
@@ -105,8 +105,8 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 		[&]( auto const& x, auto const& y ){ return compare(x,y); },
 		linfo->post_arity, rinfo->post_arity, linfo->map, rinfo->map, largs, rargs
 	);
-	if( false && _log & DEBUG ) {
-		cerr << "; [" << print_list(largs) << "] <=> [" << print_list(rargs) << "] = {" << args_ge << ", " << args_gt << '}' << endl;
+	if( _log & DEBUG ) {
+		cerr << "; path_order: arguments [" << print_list(largs) << "] <=> [" << print_list(rargs) << "] = {" << args_ge << ", " << args_gt << '}' << endl;
 	}
 	auto const& [pge,pgt] = order(linfo->prec,rinfo->prec);
 	auto const& gt = solver().let(
@@ -182,6 +182,7 @@ int TermOrder::log_of( Exp const& x ) {
 Smt::Compare TrsOrder::_Wrapper::rule_compare( size_t i, Trs::Term const& l, Trs::Term const& r ) {
 	if( auto const& opt = _rule_order_table.find(i) ) return *opt;
 	Smt::Solver& sol = _ref->solver();
+	if( log() & RULE ) cerr << "; " << _ref->print_name() << ": rule-n " << i << ' ' << l << " <=> " << r << endl;
 	auto [ge,gt] = _ref->compare(l,r);
 	Smt::Compare ret = {sol.let(Smt::BOOL,ge),sol.let(Smt::BOOL,gt)};
 	_rule_order_table.emplace(i,ret);
@@ -207,6 +208,7 @@ Smt::PostExp UsableRuleOrder::_Wrapper::rule_used( size_t i ) & {
 	}
 	auto const& [l,r,w] = *rule;
 	auto& sol = _ref->solver();
+	if( log() & DEBUG ) cerr << "; rule used i => term used " << r << endl;
 	auto const& ret = _usable_table.emplace(i,sol.declare_fresh(Smt::BOOL)).first;
 	sol.ass(ret.imp(term_used(r)));
 	return ret;

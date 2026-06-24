@@ -4,6 +4,12 @@
 #include"smt.hpp"
 #include"template.hpp"
 
+struct Poly;
+struct MPoly;
+
+std::ostream& operator<<( std::ostream& os, Poly const& p );
+std::ostream& operator<<( std::ostream& os, MPoly const& p );
+
 struct Poly {
 	struct Error : ::Error {
 		using ::Error::Error;
@@ -81,6 +87,11 @@ public:
 		}
 		return Smt::PreExp(0);
 	}
+	void memoize( Smt::Solver& solver )& {
+		for( auto [vs,coeff] : _map ) {
+//			coeff = solver.let(coeff);
+		}
+	}
 	friend Poly operator+( Poly const& p1, Poly const& p2 );
 	friend Poly& operator+=( Poly& p1, Poly const& p2 );
 	Poly monom_mult( Smt::PreExp const& c, Vars const& vs ) const;
@@ -112,6 +123,11 @@ public:
 	friend MPoly& max_eq( MPoly& x, MPoly const& y );
 	Smt::PreExp ge( MPoly const& p2 ) const;
 	friend Smt::Compare order( MPoly const& x, MPoly const& y, Smt::Solver& solver );
+	void memoize( Smt::Solver& solver )& {
+		for( auto& p : _set ) {
+			p.memoize(solver);
+		}
+	}
 };
 MPoly operator+( MPoly const& x, MPoly const& y );
 inline MPoly& operator+=( MPoly& x, MPoly const& y ) {
@@ -135,9 +151,5 @@ std::ostream& operator<<( std::ostream& os, Poly::Range const& r );
 std::ostream& operator<<( std::ostream& os, Poly::Var const& v );
 
 std::ostream& operator<<( std::ostream& os, Poly::Vars const& vs );
-
-std::ostream& operator<<( std::ostream& os, Poly const& p );
-
-std::ostream& operator<<( std::ostream& os, MPoly const& p );
 
 #endif

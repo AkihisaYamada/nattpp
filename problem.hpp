@@ -16,7 +16,6 @@ struct Problem {
 	Trs main;
 	Map<size_t,Set<size_t>> uses_map;// will be ready by make_dps
 	Graph uses_graph;// will be ready by make_dps
-	Map<size_t,Set<size_t>> dp_usables;
 	std::deque<Trs> components;
 	using SubIt = std::deque<Trs>::iterator;
 	size_t next_rule;
@@ -31,12 +30,14 @@ private:
 	Problem() = delete;
 public:
 	Problem( std::istream& is );
+	void insert_rule( Trs::Rules& rules, Trs::Rule const& rule, size_t rule_ind ) &;
 	void insert_rule( Trs::Rules& rules, Trs::Rule const& rule ) &;
 	void make_dps() &;
+	void init_uses() &;
 	void mark_dps() &;
 	std::ostream& print( std::ostream& os ) const &;
 	bool reads_sym_decl( Reader& eis ) &;
-	bool reads_rule_decl( Reader& eis, Trs::Reader& tis ) &;
+	void read_rule_decl( Reader& eis, Trs::Reader& tis, Opt<size_t> ind ) &;
 	static bool test();
 };
 

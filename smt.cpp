@@ -1,6 +1,7 @@
 #include<iostream>
 #include<cassert>
 #include"smt.hpp"
+#include"util.hpp"
 
 using namespace std;
 
@@ -304,8 +305,8 @@ Algebra<string,Smt::PreExp> const Smt::ALGEBRA = []( string const& fun, vector<S
 	return Smt::PreExp(fun,std::move(args));
 };
 
-Smt::Solver::Solver( unique_ptr<Proc>&& proc, Logic const& logic ) :
-	_status(UNKNOWN), _proc(std::move(proc)), _reader(_proc->from), _var_count(0), _logic(logic)
+Smt::Solver::Solver( unique_ptr<Proc>&& proc, Logic const& logic, bool use_let ) :
+	_status(UNKNOWN), _proc(std::move(proc)), _reader(_proc->from), _var_count(0), _logic(logic), _use_let(use_let)
 {
 	_proc->to << "(set-logic " << logic._str << ')' << endl;
 }
@@ -656,7 +657,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 	assert(false);
 };
 Smt::PostExp Smt::Solver::let( Sort const& sort, PostExp const& val ) & {
-	if( val.is_val() ) {
+	if( !_use_let || val.is_val() ) {
 		return val;
 	}
 	auto vfun = *val.is_app();
@@ -723,22 +724,31 @@ Smt::Sort Smt::Sort::of( Exp const& x ) {
 Smt::Solver Smt::Solver::of( Exp const& x ) {
 	size_t n = 0;
 	Opt<OStream> tee;
-	auto proc_tee_key = [&]( auto key, auto val ){
+	Opt<bool> let;
+	Exp::KeyValProc proc_tee_key = [&]( auto key, auto val ){
 		if( key == "tee" ) {
 			tee.emplace(OStream::of(val));
 			return true;
 		}
 		return false;
 	};
+	Exp::KeyValProc proc_let_key = [&]( auto key, auto val ){
+		if( key == "let" ) {
+			if( let ) throw Error("#duplicate-key",key);
+			let = {val.as_bool()};
+			return true;
+		}
+		return false;
+	};
 	if( x.fun() == "z3" ) {
 		auto logic = Logic::of(x.get_arg(n));
-		x.process_keys(n,proc_tee_key);
-		return Z3(logic,std::move(tee));
+		x.process_keys( n, proc_tee_key || proc_let_key );
+		return Z3(logic,std::move(tee),let.value_or(true));
 	}
 	if( x.fun() == "cvc5" ) {
 		auto logic = Logic::of(x.get_arg(n));
-		x.process_keys(n,proc_tee_key);
-		return CVC5(logic,std::move(tee));
+		x.process_keys( n, proc_tee_key || proc_let_key );
+		return CVC5(logic,std::move(tee),let.value_or(true));
 	}
 	throw Error("#malformed-smt-solver",x);
 }

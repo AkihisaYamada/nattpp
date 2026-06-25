@@ -147,11 +147,6 @@ int main( int argc, char* argv[] ) try {
 	}
 
 	try {
-		if( auto it = p.extra_var.begin(); it != p.extra_var.end() ) {
-			auto const& [no,var] = *it;
-			if( print_proofs ) *prf << "(extra-var " << var << " :rule " << no << ')' << endl;
-			throw Answer::NO;
-		}
 		vector<pair<int,unique_ptr<TrsOrder>>> rule_removers;
 		for( auto x : rulerem_specs ) {
 			rule_removers.emplace_back(0,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log)));
@@ -160,69 +155,83 @@ int main( int argc, char* argv[] ) try {
 		for( auto x : rem_specs ) {
 			both_removers.emplace_back(0,UsableRuleOrder::make_triv(TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log))));
 		}
-		// rule removal loop
-		auto rule_removes = [&]( auto& pair ) {
-			auto& [stage,ord] = pair;
-			if( print_steps ) cerr << "; trying " << ord->print_name() << "... " << endl;
-			if( stage < 1 ) {// initialize for signature
-				ord->extend_sig(p.main.sig);
-				stage = 1;
+		bool marked = false;
+		if( p.mode == Problem::DP ) {
+			use_unmarked_dprem = false;
+			marked = true;
+			p.init_uses();
+			if( print_usables ) {
+				cerr << "(uses_graph" << p.uses_graph.print_nodes() << ')' << endl;
+				cerr << "(usables" << p.uses_graph.trancl().print_nodes() << ')' << endl;
 			}
-			return order_some_rule(*ord,p.main.rules,[&](auto&&rem){
-				if( print_proofs )
-					*prf << "(remove-rule\n  " << ord->print(p.main.sig) << "\n " << print_list(rem) << ')' << endl;
-				for( size_t i : rem ) {
-					p.main.rules.erase(i);
+		} else {
+			if( auto it = p.extra_var.begin(); it != p.extra_var.end() ) {
+				auto const& [no,var] = *it;
+				if( print_proofs ) *prf << "(extra-var " << var << " :rule " << no << ')' << endl;
+				throw Answer::NO;
+			}
+			// rule removal loop
+			auto rule_removes = [&]( auto& pair ) {
+				auto& [stage,ord] = pair;
+				if( print_steps ) cerr << "; trying " << ord->print_name() << "... " << endl;
+				if( stage < 1 ) {// initialize for signature
+					ord->extend_sig(p.main.sig);
+					stage = 1;
 				}
-			});
-		};
-		do {
-			if( p.main.rules.empty() ) throw Answer::YES;
-		} while(
-			std::ranges::any_of(rule_removers,rule_removes) ||
-			std::ranges::any_of(both_removers,rule_removes)
-		);
+				return order_some_rule(*ord,p.main.rules,[&](auto&&rem){
+					if( print_proofs )
+						*prf << "(remove-rule\n  " << ord->print(p.main.sig) << "\n " << print_list(rem) << ')' << endl;
+					for( size_t i : rem ) {
+						p.main.rules.erase(i);
+					}
+				});
+			};
+			do {
+				if( p.main.rules.empty() ) throw Answer::YES;
+			} while(
+				std::ranges::any_of(rule_removers,rule_removes) ||
+				std::ranges::any_of(both_removers,rule_removes)
+			);
 
-		if( !use_dp ) throw Answer::MAYBE;
+			if( !use_dp ) throw Answer::MAYBE;
 
-		if( print_steps ) cerr << "; taking DPs" << endl;
-		p.make_dps();// compute DPs
-		if( print_proofs ) *prf << "(make_dp)" << endl;
-		if( print_dp ) cerr << p << endl;
-		if( print_usables ) {
-			cerr << "(uses_graph" << p.uses_graph.print_nodes() << ')' << endl;
-			cerr << "(rule_usables" << p.uses_graph.trancl().print_nodes() << ')' << endl;
-			cerr << "(dp_usables" << Graph(p.dp_usables).print_nodes() << ')' << endl;
-		}
-		// SCC decomposition
-		auto dps = std::move(p.components.front().rules);
-		p.components.pop_front();
-		Graph dg = [&]{
-			Map<size_t,Set<size_t>> dgmap;
-			for( auto const& [i,dp] : dps ) {
-				auto const& [l1,r1,w] = dp;
-				auto [nexts,fl] = dgmap.emplace(i,Set<size_t>{});
-				for( auto const& j : ASSERTED(p.main.sig.find(r1.fun()))->depends ) {
-					auto const& [l2,r2,w2] = *ASSERTED(dps.find(j));
-					if( may_reach(p.main,r1,l2,8,false) ) {
-						nexts.emplace(j);
+			if( print_steps ) cerr << "; taking DPs" << endl;
+			p.make_dps();// compute DPs
+			if( print_proofs ) *prf << "(make_dp)" << endl;
+			if( print_dp ) cerr << p << endl;
+			if( print_usables ) {
+				cerr << "(uses_graph" << p.uses_graph.print_nodes() << ')' << endl;
+				cerr << "(usables" << p.uses_graph.trancl().print_nodes() << ')' << endl;
+			}
+			// SCC decomposition
+			auto dps = std::move(p.components.front().rules);
+			p.components.pop_front();
+			Graph dg = [&]{
+				Map<size_t,Set<size_t>> dgmap;
+				for( auto const& [i,dp] : dps ) {
+					auto const& [l1,r1,w] = dp;
+					auto [nexts,fl] = dgmap.emplace(i,Set<size_t>{});
+					for( auto const& j : ASSERTED(p.main.sig.find(r1.fun()))->depends ) {
+						auto const& [l2,r2,w2] = *ASSERTED(dps.find(j));
+						if( may_reach(p.main,r1,l2,8,false) ) {
+							nexts.emplace(j);
+						}
 					}
 				}
-			}
-			return std::move(dgmap);
-		}();
-		if( print_dg ) cerr << "(dependency-graph " << dg.print_nodes() << ')' << endl;
-		auto sccs = dg.sccs();
-		for( auto const& scc : sccs ) {
-			if( auto const& nodes = scc.ref<Set<size_t>>() ) {
-				auto& back = p.components.emplace_back();
-				for( auto const& dp : *nodes ) {
-					back.rules.emplace(dp,*ASSERTED(dps.find(dp)));
+				return std::move(dgmap);
+			}();
+			if( print_dg ) cerr << "(dependency-graph " << dg.print_nodes() << ')' << endl;
+			auto sccs = dg.sccs();
+			for( auto const& scc : sccs ) {
+				if( auto const& nodes = scc.ref<Set<size_t>>() ) {
+					auto& back = p.components.emplace_back();
+					for( auto const& dp : *nodes ) {
+						back.rules.emplace(dp,*ASSERTED(dps.find(dp)));
+					}
 				}
 			}
 		}
 		size_t target_ind = 2;
-		bool marked = false;
 		auto dp_removes = [&]( pair<int,unique_ptr<UsableRuleOrder>>& pair ){
 			auto& [subsig,subcomp] = p.components.front();
 			auto& [stage,ord] = pair;

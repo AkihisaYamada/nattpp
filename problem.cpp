@@ -16,6 +16,11 @@ static void _switch(
 		it->second();
 	}
 }
+void Problem::insert_rule( Trs::Rules& rules, Trs::Rule const& rule, size_t rule_ind ) & {
+	auto [ref,fl] = rules.emplace(rule_ind,rule);
+	if( !fl ) throw Error("#duplicate-rule-no",to_string(rule_ind));
+	next_rule = std::max(next_rule,rule_ind) + 1;
+}
 void Problem::insert_rule( Trs::Rules& rules, Trs::Rule const& rule ) & {
 	rules.emplace(next_rule,rule);
 	next_rule++;
@@ -25,23 +30,33 @@ bool Problem::reads_sym_decl( Reader& eis ) & {
 	if( eis.reads_sym("fun") ) {
 		string fun = eis.read_sym();
 		unsigned char arity = 255;
-		while( auto key = eis.reads_key() ) {
-			if( *key == ":arity" ) {
-				if( arity != 255 ) {
-					throw Error{"#duplicate-arity",fun};
-				}
-				arity = eis.read_nat();
-			} else {
-				throw Error{"#unknown-key",*key};
-			}
-		}
+		Opt<size_t> index = {};
 		if( auto num = eis.reads_nat() ) {
 			if( arity != 255 ) {
 				throw Error("#duplicate-arity",fun,to_string(*num));
 			}
 			arity = *num;
 		}
-		if( auto [prev,suc] = main.sig.emplace(fun,Trs::Rank{arity,false}); !suc ) {
+		while( auto key = eis.reads_key() ) {
+			if( *key == ":arity" ) {
+				if( arity != 255 ) {
+					throw eis.error("#duplicate-arity",fun);
+				}
+				arity = eis.read_nat([](auto n){ return n < 255; });
+			} else if( *key == ":index" ) {
+				if( index ) throw eis.error("#duplicate-index",fun);
+				index = {eis.read_nat()};
+			} else {
+				throw eis.error("#unknown-key",*key);
+			}
+		}
+		auto& sig = [&]()->Trs::Sig&{
+			if( index && *index > 1 ){
+				return components[*index-2].sig;
+			}
+			return main.sig;
+		}();
+		if( auto [prev,suc] = sig.emplace(fun,Trs::Rank{arity,false}); !suc ) {
 			throw Error{"#duplicate-fun",fun,to_string(prev.arity),to_string(arity)};
 		}
 		return true;
@@ -49,8 +64,7 @@ bool Problem::reads_sym_decl( Reader& eis ) & {
 	return false;
 }
 
-bool Problem::reads_rule_decl( Reader& eis, Trs::Reader& tis ) & {
-	if( eis.reads_sym("rule") ) {
+void Problem::read_rule_decl( Reader& eis, Trs::Reader& tis, Opt<size_t> rule_indo ) & {
 		std::set<std::string> vars;
 		auto l = tis.read([&]( auto const& var ){
 			vars.emplace(var);
@@ -76,17 +90,22 @@ bool Problem::reads_rule_decl( Reader& eis, Trs::Reader& tis ) & {
 			}
 		}
 		auto const& rule = Trs::Rule(l,r,weight.value_or(1));
-		if( !index || *index == 1 ) {// main rule
-			if( auto rank = main.sig.find(l.fun()) ) {
-				rank->defined_by.emplace(next_rule);
-			}
-			insert_rule(main.rules,std::move(rule));
+		size_t rule_ind = rule_indo ? *rule_indo : next_rule;
+		auto& rules = [&]()->Trs::Rules&{
+			if( !index || *index == 1 ) {// main rule
+				if( auto rank = main.sig.find(l.fun()) ) {
+					rank->defined_by.emplace(rule_ind);
+				}
+				return main.rules;
+			} else {
+				return components[*index-2].rules;
+			};
+		}();
+		if( rule_indo ) {
+			insert_rule(rules,std::move(rule),rule_ind);
 		} else {
-			insert_rule(components[*index-2].rules,std::move(rule));
+			insert_rule(rules,std::move(rule));
 		}
-		return true;
-	}
-	return false;
 }
 Problem::Problem( istream& is ) : next_rule(0), uses_graph(uses_map) {
 	auto eis = Reader(is);
@@ -104,6 +123,8 @@ Problem::Problem( istream& is ) : next_rule(0), uses_graph(uses_map) {
 					if( mode != NONE ) throw eis.error("#duplicate-problem");
 					if( eis.reads_sym("sat") ) {
 						mode = SAT;
+					} else if( eis.reads_sym("dp") ) {
+						mode = DP;
 					} else {
 						throw eis.error("#unknown-problem");
 					}
@@ -118,7 +139,13 @@ Problem::Problem( istream& is ) : next_rule(0), uses_graph(uses_map) {
 			}
 			auto tis = Trs::Reader(eis,sig_fun);
 			while( eis.opens() ) {
-				if( !reads_sym_decl(eis) && !reads_rule_decl(eis,tis) ) {
+				if( reads_sym_decl(eis) ) {
+				} else if( eis.reads_sym("rule") ) {
+					read_rule_decl(eis,tis,{});
+				} else if( eis.reads_sym("rule-n") ) {
+					size_t rule_ind = eis.read_nat();
+					read_rule_decl(eis,tis,rule_ind);
+				} else {
 					throw Error{"#unknown-command",eis.read_exp()};
 				};
 				eis.close();
@@ -134,12 +161,11 @@ static void collect_dps(
 	Trs::Term const& l, Trs::Rank& lrank, Trs::Term const& r,
 	Problem& p, Set<size_t>& org_uses, Map<size_t,Set<size_t>>& dp_uses
 ) {
+	for( auto const& a : r.args() ) {// first look arguments
+		collect_dps(sig,dps,l,lrank,a,p,org_uses,dp_uses);
+	}
 	if( auto rrank = sig.find(r.fun()) ) {// f(...) -> g(...)
-		if( rrank->defined_by.empty() ) {// just look arguments
-			for( auto const& a : r.args() ) {
-				collect_dps(sig,dps,l,lrank,a,p,org_uses,dp_uses);
-			}
-		} else {// g is defined
+		if( !rrank->defined_by.empty() ) {
 			Set<size_t> this_uses;// collect rules which this dp uses
 			for( auto const& a : r.args() ) {
 				collect_dps(sig,dps,l,lrank,a,p,this_uses,dp_uses);
@@ -168,7 +194,6 @@ void Problem::make_dps() & {
 	auto& [dpsig,dps] = components.emplace_back();
 	mode = DP;
 	Pos pos;
-	Map<size_t,Set<size_t>> dp_uses;
 	for( auto const& [org,rule] : main.rules ) {
 		auto const& l = rule.first;
 		auto lrank = main.sig.find(l.fun());
@@ -176,23 +201,50 @@ void Problem::make_dps() & {
 			cerr << "(var-lhs " << org << ')' << endl;
 			throw Answer::NO;
 		}
-		Set<size_t> uses;
-		collect_dps(main.sig,dps,l,*lrank,rule.second,*this,uses,dp_uses);
-		uses_map.emplace(org,std::move(uses));// register rules that the original uses
+		Set<size_t> uses;// collect here rules that the original uses
+		collect_dps(main.sig,dps,l,*lrank,rule.second,*this,uses,uses_map);
+		uses_map.emplace(org,std::move(uses));
 	}
-	// complete dp_usables
-	auto const& utr = uses_graph.trancl();// usability graph is completed
-	for( auto const& [dp,uses] : dp_uses ) {
-		auto [usables,fl] = dp_usables.emplace(dp,Set<size_t>());
-		assert(fl);
-		for( auto const& use : uses ) {
-			utr.iter_nexts(use,[&]( auto const& x ){
-				usables.emplace(x);
-			});
-			usables.emplace(use);
+}
+
+static void term_use(
+	Trs const& trs,
+	Trs::Term const& s,
+	Set<size_t>& uses
+) {
+	auto const& [f,ss] = *s;
+	for( auto const& a : ss ) {// use subterms
+		term_use(trs,a,uses);
+	}
+	if( auto rrank = trs.sig.find(f) ) {
+		for( size_t i : rrank->defined_by ) {// uses the rules that define the root
+			if( auto const& rule = trs.rules.find(i) ) {
+				auto const& [l,r,w] = *rule;
+				if( may_reach(trs,s,l,8,false) ) {
+					uses.emplace(i);
+				}
+			}
 		}
 	}
 }
+void Problem::init_uses() & {
+	assert( mode == DP );
+	for( auto const& [i,rule] : main.rules ) {
+		auto const& [l,r,w] = rule;
+		auto uses = Set<size_t>{};
+		term_use(main,r,uses);
+		uses_map.emplace(i,std::move(uses));
+	}
+	for( auto const& comp : components ) {
+		for( auto const& [i,dp] : comp.rules ) {
+			auto const& [l,r,w] = dp;
+			auto uses = Set<size_t>{};
+			term_use(main,r,uses);
+			uses_map.emplace(i,std::move(uses));
+		}
+	}
+};
+
 string mark_sym( string const& sym ) {
 	return string("#")+sym;
 }
@@ -214,7 +266,7 @@ void Problem::mark_dps() & {
 	for( auto uit = udps.begin(); uit != udps.end(); uit = udps.erase(uit) ) {// iterate while removing
 		auto [uind,udp] = *uit;
 		// marked dp will use what has been used by the unmarked one
-		dp_usables.emplace( next_rule, ASSERTED(dp_usables.extract(uind)).mapped() );
+		uses_map.emplace( next_rule, ASSERTED(uses_map.extract(uind)).mapped() );
 		insert_rule(mdps,mark_dp(main.sig,msig,udp));
 	}
 	swap(mdps,udps);

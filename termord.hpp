@@ -6,7 +6,7 @@
 
 struct TermOrder {
 	virtual ~TermOrder() = default;// to be able to make pointer of TermOrder 
-	enum { NONE = 0, RULE = 1 << 1, PAIR = 1 << 2, DEBUG = 1 << 3 };
+	enum { NONE = 0, RULE = 1 << 1, PAIR = 1 << 2, USE = 1 << 3, DEBUG = 1 << 4 };
 	virtual int log() = 0;
 	virtual void extend_sig( std::string const& f, Trs::Rank const& rank ) = 0;
 	virtual Smt::Solver& solver() = 0;

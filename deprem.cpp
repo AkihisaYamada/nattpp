@@ -48,9 +48,9 @@ bool order_some_dp(
 	std::vector<std::pair<size_t,Smt::PostExp>> gts;
 	Set<size_t> usables;// collect potential usable rules
 	for( auto const& [i,rule] : dps ) {
-		for( auto const& u : *ASSERTED(p.dp_usables.find(i)) ) {
-			usables.emplace(u);
-		};
+		p.uses_graph.trancl().iter_nexts(i,
+			[&]( size_t u ){ usables.emplace(u); }
+		);
 	}
 	for( auto const& i : usables ) {
 		if( auto const& rule = p.main.rules.find(i) ) {

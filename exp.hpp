@@ -169,6 +169,11 @@ inline Opt<std::string_view> is_str( std::string const& str ) {
 inline Opt<std::string_view> is_str( Term<std::string> const& x ) {
 	return x.unapplied() >>= []( auto const& val ){ return is_str(val); };
 }
+inline Opt<bool> is_bool( std::string const& str ) {
+	if( str == "true" ) return {true};
+	if( str == "false" ) return {false};
+	return {};
+}
 
 struct Exp : Term<std::string> {
 	using Term<std::string>::Term;
@@ -178,6 +183,12 @@ struct Exp : Term<std::string> {
 	using KeyValProc = std::function<bool(std::string_view const&,Exp const&)>;
 	/** Processes key-value pairs from the ith argument. */
 	void process_keys( size_t& i, KeyValProc const& f ) const&;
+	Opt<bool> is_bool() const& {
+		return unapplied() >>= []( std::string const& str ){ return ::is_bool(str); };
+	}
+	bool as_bool() const& {
+		return is_bool().value_or_throw(Error("#expected-bool",*this));
+	}
 	static void test();
 };
 

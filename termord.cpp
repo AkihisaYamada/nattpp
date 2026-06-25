@@ -173,8 +173,10 @@ int TermOrder::log_of( Exp const& x ) {
 		return RULE;
 	} else if( x == "pair" ) {
 		return RULE | PAIR;
+	} else if( x == "use" ) {
+		return RULE | PAIR | USE;
 	} else if( x == "debug" ) {
-		return RULE | PAIR | DEBUG;
+		return RULE | PAIR | USE | DEBUG;
 	} else {
 		throw Error("#unknown-log",x);
 	}
@@ -196,8 +198,10 @@ Smt::PostExp UsableRuleOrder::_Wrapper::term_used( Trs::Term const& r ) & {
 	if( auto const& ginfo = _trs.sig.find(g) ) {
 		return ret && Smt::conj( ginfo->defined_by, [&]( size_t i )->Smt::PostExp{
 			if( auto const& rule = _trs.rules.find(i) )
-				if( may_reach(_trs,r,rule->first,8,false) )//TODO
+				if( may_reach(_trs,r,rule->first,8,false) ) {//TODO
+					if( log() & USE ) cerr << "; " << r << " uses " << i << endl;
 					return rule_used(i);
+				}
 			return true;
 		} );
 	} else {

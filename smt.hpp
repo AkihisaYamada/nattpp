@@ -438,7 +438,8 @@ public:
 		Reader _reader;
 		size_t _var_count;
 		Logic _logic;
-		Solver( std::unique_ptr<Proc>&& proc, Logic const& logic );
+		bool _use_let;
+		Solver( std::unique_ptr<Proc>&& proc, Logic const& logic, bool no_let = false );
 		Solver( Solver const& other ) = delete;
 		Solver& operator=( Solver const& other ) = delete;
 		std::string _make_fresh() &;
@@ -504,13 +505,13 @@ public:
 	};
 	class Z3 : public Solver {
 	public:
-		Z3( Logic const& logic, Opt<OStream> && tee = {} ) :
-			Solver( std::make_unique<Proc>("z3",std::vector{"z3","-smt2","-in"},std::move(tee)), logic ) {}
+		Z3( Logic const& logic, Opt<OStream> && tee = {}, bool use_let = true ) :
+			Solver( std::make_unique<Proc>("z3",std::vector{"z3","-smt2","-in"},std::move(tee)), logic, use_let ) {}
 	};
 	class CVC5 : public Solver {
 	public:
-		CVC5( Logic const& logic, Opt<OStream> && tee = {} ) :
-			Solver( std::make_unique<Proc>("cvc5",std::vector{"cvc5","--incremental","--produce-models"},std::move(tee)), logic ) {}
+		CVC5( Logic const& logic, Opt<OStream> && tee = {}, bool no_let = true ) :
+			Solver( std::make_unique<Proc>("cvc5",std::vector{"cvc5","--incremental","--produce-models"},std::move(tee)), logic, no_let ) {}
 	};
 	static int test();
 };

@@ -120,20 +120,19 @@ int main( int argc, char* argv[] ) try {
 	auto p = Problem( ois ? *ois : cin );
 	auto prf = OStream( oprf ? *oprf : cerr );
 	if( print_problem ) cerr << p << endl;
+	if( default_strategy ) {
+		rulerem_specs.emplace_back("mono-sum");
+		dprem_specs.emplace_back("sum");
+		dprem_specs.emplace_back("max");
+		dprem_specs.emplace_back(LPO3_SPEC);
+		dprem_specs.emplace_back(Exp{"path-order",":weight","max",":status","map"});
+		use_dp = true;
+	}
 	if( mode == UNSET && p.mode == Problem::NONE ) {
 		p.mode = Problem::SN;
-		if( default_strategy ) {
-			rulerem_specs.emplace_back("mono-sum");
-			dprem_specs.emplace_back("sum");
-			dprem_specs.emplace_back("max");
-			dprem_specs.emplace_back(LPO3_SPEC);
-			dprem_specs.emplace_back(Exp{"path-order",":weight","max",":status","map"});
-			use_dp = true;
-		}
 	} else if( mode == SOME ) {
 		use_dp = false;
-	}
-	if( p.mode == Problem::SAT ) {
+	} else if( p.mode == Problem::SAT ) {
 		for( auto const& component : p.components ) {
 			for( auto const& [i,pair] : component.rules ) {
 				if( may_reach(p.main,pair.first,pair.second,8,true) ) {

@@ -32,9 +32,13 @@ struct Template {
 	public:
 		Smt::PostExp const mono;
 		struct ArgInfo {
-			Smt::PostExp inflationary, used;
+			Smt::PostExp infl, used;
 		};
-		Map<std::string,std::vector<ArgInfo>> sig;
+		struct FunInfo {
+			Smt::PostExp triv;
+			std::vector<ArgInfo> args;
+		};
+		Map<std::string,FunInfo> sig;
 		Deriver(
 			Exp const& e,
 			Smt::Solver& solver
@@ -54,7 +58,7 @@ struct Template {
 			std::string const& f,
 			Trs::Rank const& rank,
 			int pos,
-			std::vector<ArgInfo> const& sig
+			FunInfo const& finfo
 		);
 	};
 	/** instantiate SMT expressions in templates via get_value */

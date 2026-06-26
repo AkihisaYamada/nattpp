@@ -226,6 +226,9 @@ public:
 			}
 			return {};
 		}
+		bool as_bool() const & {
+			return is_bool().value_or_throw(Error("#exp:expected-bool",exp()));
+		}
 		Opt<std::tuple<PostExp,PostExp,PostExp>> is_ite() const &;
 public:
 		PostExp conj( PostExp const& y ) const &;

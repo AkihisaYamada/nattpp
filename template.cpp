@@ -157,7 +157,7 @@ Term<Sum<Template::Fun,Arg>> Template::Deriver::_deriver_of(
 	string const& f,
 	Trs::Rank const& rank,
 	int pos,
-	std::vector<ArgInfo> const& finfo
+	FunInfo const& finfo
 ) {
 	auto const& fun = exp.fun();
 	size_t n = 0;
@@ -181,8 +181,9 @@ Term<Sum<Template::Fun,Arg>> Template::Deriver::_deriver_of(
 				Smt::ALGEBRA.extend({
 					{"_",[&](auto){ return ret; }},
 					{"#mono",[&](auto){ return mono; }},
-					{"#infl",[&](auto){ return finfo[pos].inflationary; }},
-					{"#used",[&](auto){ return finfo[pos].used; }},
+					{"#infl",[&](auto){ return finfo.args[pos].infl; }},
+					{"#used",[&](auto){ return finfo.args[pos].used; }},
+					{"#triv",[&](auto){ return finfo.triv; }},
 				})(*constrain)
 			);
 		}
@@ -229,14 +230,26 @@ Term<Sum<Template::Fun,Arg>> Template::Deriver::_deriver_of(
 	return app(fun,std::move(args));
 }
 void Template::Deriver::extend_sig( std::string const& f, Trs::Rank const& rank ) & {
-	auto [finfo,fl] = sig.emplace(f,std::vector<ArgInfo>{});
+	auto [finfo,fl] = sig.emplace(
+		f, FunInfo{
+			.triv = _solver.declare_fresh(Smt::BOOL),
+		}
+	);
 	for( size_t i = 0; i < rank.arity; i++ ) {
-		finfo.emplace_back(ArgInfo{_solver.declare_fresh(Smt::BOOL),_solver.declare_fresh(Smt::BOOL)});
+		finfo.args.emplace_back(ArgInfo{
+			.infl = _solver.declare_fresh(Smt::BOOL),
+			.used = _solver.declare_fresh(Smt::BOOL),
+		});
 	}
 	assign(f,_deriver_of(_template_exp,f,rank,0,finfo));
 } 
 
-static Exp const _POSVAR = Exp("var",":constrain",Exp(">=","_","0"));
+static Exp const _POSVAR = Exp("var",":constrain",
+	Exp("and",
+		Exp(">=","_","0"),
+		Exp("=>","#triv",Exp("=","_","0"))// trivial requires 0 variable
+	)
+);
 static Exp const _1_OR_2 = Exp("ite",Exp("var",":sort","Bool"),"2","1");
 static Exp const _0_OR_1 = Exp("ite",Exp("var",":sort","Bool"),"1","0");
 Exp _0_or_1_constrain( Exp const& c ) {

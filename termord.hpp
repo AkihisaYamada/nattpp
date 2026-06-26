@@ -14,6 +14,7 @@ struct TermOrder {
 	virtual std::ostream& print_sym_info( std::ostream& os, std::string const& f ) = 0;
 	virtual Smt::Compare compare( Exp const& l, Exp const& r ) = 0;
 	virtual Smt::PostExp mono() = 0;
+	virtual Smt::PostExp fun_triv( std::string const& f ) = 0;
 	virtual Smt::PostExp arg_infl( std::string const& f, size_t i ) = 0;
 	virtual Smt::PostExp arg_used( std::string const& f, size_t i ) = 0;
 	virtual void extend_sig( Trs::Sig const& sig ) {
@@ -90,6 +91,7 @@ public:
 	std::ostream& print_name( std::ostream& os ) override { return _ref->print_name(os); }
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override { return _ref->print_sym_info(os,f); }
 	Smt::PostExp mono() override { return _ref->mono(); }
+	Smt::PostExp fun_triv( std::string const& f ) override { return _ref->fun_triv(f); }
 	Smt::PostExp arg_infl( std::string const& f, size_t i ) override { return _ref->arg_infl(f,i); }
 	Smt::PostExp arg_used( std::string const& f, size_t i ) override { return _ref->arg_used(f,i); }
 };
@@ -114,6 +116,7 @@ public:
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override { return _ref->print_sym_info(os,f); }
 	Smt::Compare compare( Exp const& l, Exp const& r ) override { return _ref->compare(l,r); }
 	Smt::PostExp mono() override { return _ref->mono(); }
+	Smt::PostExp fun_triv( std::string const& f ) override { return _ref->fun_triv(f); }
 	Smt::PostExp arg_infl( std::string const& f, size_t i ) override { return _ref->arg_infl(f,i); }
 	Smt::PostExp arg_used( std::string const& f, size_t i ) override { return _ref->arg_used(f,i); }
 };
@@ -145,6 +148,7 @@ public:
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) final override { return _ref->print_sym_info(os,f); }
 	Smt::Compare compare( Exp const& l, Exp const& r ) final override { return _ref->compare(l,r); }
 	Smt::PostExp mono() final override { return _ref->mono(); }
+	Smt::PostExp fun_triv( std::string const& f ) override { return _ref->fun_triv(f); }
 	Smt::PostExp arg_infl( std::string const& f, size_t i ) final override { return _ref->arg_infl(f,i); }
 	Smt::PostExp arg_used( std::string const& f, size_t i ) final override { return _ref->arg_used(f,i); }
 };
@@ -167,6 +171,7 @@ public:
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) final override { return _ref->print_sym_info(os,f); }
 	Smt::Compare compare( Exp const& l, Exp const& r ) final override { return _ref->compare(l,r); }
 	Smt::PostExp mono() final override { return _ref->mono(); }
+	Smt::PostExp fun_triv( std::string const& f ) override { return _ref->fun_triv(f); }
 	Smt::PostExp arg_infl( std::string const& f, size_t i ) final override { return _ref->arg_infl(f,i); }
 	Smt::PostExp arg_used( std::string const& f, size_t i ) final override { return _ref->arg_used(f,i); }
 };
@@ -193,6 +198,9 @@ public:
 		return os;
 	}
 	Smt::PostExp mono() override {
+		return true;
+	}
+	Smt::PostExp fun_triv( std::string const& f ) override {
 		return true;
 	}
 	Smt::PostExp arg_infl( std::string const& f, size_t i ) override {
@@ -257,20 +265,23 @@ public:
 	Smt::PostExp mono() override {
 		return deriver.mono;
 	}
+	Smt::PostExp fun_triv( std::string const& f ) override {
+		return ASSERTED(deriver.sig.find(f))->triv;
+	}
 	Smt::PostExp arg_infl( std::string const& f, size_t i ) override {
-		return (*ASSERTED(deriver.sig.find(f)))[i].inflationary;
+		return ASSERTED(deriver.sig.find(f))->args[i].infl;
 	}
 	Smt::PostExp arg_used( std::string const& f, size_t i ) override {
-		return (*ASSERTED(deriver.sig.find(f)))[i].used;
+		return ASSERTED(deriver.sig.find(f))->args[i].used;
 	}
 };
 
 struct PathOrder final : MemoizedTermOrder {
 private:
 	struct _SymInfo {
-		Smt::PostExp prec;
 		size_t arity;
 		size_t post_arity;// arity after argument rearrangement
+		Smt::PostExp prec, collapse, empty;
 		std::function<Smt::PostExp(size_t,size_t)> map;// map(i,j) i-th argument is mapped to j-th position
 		std::function<Smt::PostExp(size_t)> mapped;// flags if the corresponding argument is mapped
 		std::function<Smt::PostExp(size_t)> used;// flags if the corresponding argument is used
@@ -319,6 +330,9 @@ public:
 	Smt::Compare compare_inner( Exp const& l, Exp const& r ) override;
 	int log() override { return _log; }
 	Smt::PostExp mono() override { return _mono; }
+	Smt::PostExp fun_triv( std::string const& f ) override {
+		return ASSERTED(_info.find(f))->collapse;
+	}
 	Smt::PostExp arg_infl( std::string const& f, size_t i ) override {
 		return ASSERTED(_info.find(f))->mapped(i);
 	}

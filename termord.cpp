@@ -16,7 +16,7 @@ PathOrder::PathOrder(
 		}()
 	),
 	_log(log),
-	_mono(_weight->solver().declare_fresh(Smt::BOOL)),
+	_mono(_weight->solver().declare_const("MONO",Smt::BOOL)),
 	_status(std::move(status))
 {
 	if( log & DEBUG ) cerr << "; monotonicity flag: " << _mono << endl;
@@ -26,7 +26,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 	auto const& sort = sol.logic().base_sort();
 	if( _log & DEBUG ) cerr << "; fun " << f << ' ' << rank << endl;
 	_weight->extend_sig(f,rank);
-	auto [info,suc] = _info.emplace(f,_SymInfo{sol.declare_fresh(sort),rank.arity});
+	auto [info,suc] = _info.emplace(f,_SymInfo{sol.declare_const(string("p")+f,sort),rank.arity});
 	assert(suc);
 	sol.ass( Smt::ge(info.prec,0) );
 	if( _log & DEBUG ) cerr << "; prec " << f << ": " << info.prec << endl;
@@ -39,7 +39,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 		sol.ass( mappedi.imp(_weight->arg_infl(f,i)) );
 		if( _log & DEBUG ) cerr << "; used[" << f << ',' << i << "] := weight uses or mapped[" << i << "]" << endl;
 		used_tbl.emplace_back(
-			sol.let( Smt::BOOL, _weight->arg_used(f,i) || mappedi )
+			sol.define_fun( "u"+f+"_"+to_string(i), {}, Smt::BOOL, _weight->arg_used(f,i) || mappedi )
 		);
 	};
 	if( auto post_arity = _status.fun(rank).post_arity() ) {
@@ -48,14 +48,17 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 		for( size_t i = 0; i < rank.arity; i++ ) {
 			auto& mapi = map_tbl.emplace_back();
 			for( size_t k = 0; k < info.post_arity; k++ ) {// k-th place after mapping
-				auto const& ik = mapi.emplace_back(sol.declare_fresh(Smt::BOOL));
+				auto const& ik = mapi.emplace_back(
+					sol.declare_const(string("m")+f+"_"+to_string(i)+"_"+to_string(k),Smt::BOOL)
+				);
 				for( size_t j = 0; j < i; j++ ) {// k-th place cannot be shared
 					sol.ass( !map_tbl[i][k] || !map_tbl[j][k] );
 				}
 			}
 			if( _log & DEBUG ) cerr << ";  map[" << f << ',' << i << "] = " << print_list(mapi) << std::endl;
 			// mapped[i] means i-th argument survives mapping
-			auto const& mappedi = mapped_tbl.emplace_back( sol.let(Smt::BOOL,Smt::disj(mapi)) );
+			auto const& mappedi = mapped_tbl.emplace_back(
+				sol.define_fun("s"+f+"_"+to_string(i),{},Smt::BOOL,Smt::disj(mapi)) );
 			set_mappedi(mappedi,i);
 		}
 		info.map = [map_tbl=std::move(map_tbl)]( size_t i, size_t j ){ return map_tbl[i][j]; };
@@ -81,42 +84,53 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 		return {false,false};
 	}
 	auto const& [lf,largs] = *l;
-	auto const& linfo = _info.find(lf);
-	auto some_arg_ge = linfo ? Smt::disj( 0, largs.size(), [&]( size_t i ){
-		return linfo->mapped(i) && compare(largs[i],r).ge;// l_i survives and l_i >= r
-	} ) : false;
-	if( some_arg_ge == true ) {
-		return {true,true};
-	}
 	auto const& [rf,rargs] = *r;
-	auto const& rinfo = _info.find(rf);
-	auto gt_all_arg = rinfo ? Smt::conj( 0, rargs.size(), [&]( size_t j ){
-		return rinfo->mapped(j).imp( compare(l,rargs[j]).gt );// if r_j survives, then l > r_j
-	}) : true;
-	if( !linfo ) {// lhs is a variable
-		return { solver().let( Smt::BOOL, gt_all_arg && lf == rf ), false };
+	if( auto const& linfo = _info.find(lf) ) {// f(s...) >=? t
+		Smt::PostExp some_arg_ge = false;
+		for( size_t i = 0; i < largs.size(); i++ ) {
+			auto [i_ge,i_gt] = compare(largs[i],r);
+			// s > t if s_i survives and s_i >= t
+			some_arg_ge = some_arg_ge || linfo->mapped(i) && i_ge;
+		}
+		Smt::PostExp gt_all_arg = true;
+		if( auto const& rinfo = _info.find(rf) ) {// f(s...) >=? g(t...)
+			for( size_t j = 0; j < rargs.size(); j++ ) {
+				auto [ge_j,gt_j] = compare(l,rargs[j]);
+				// if t_j survives, then s > t_j is prerequisite
+				gt_all_arg = gt_all_arg && rinfo->mapped(j).imp(gt_j);
+			}
+			if( gt_all_arg == false ) return {false,false};
+			auto const& [pge,pgt] = order(linfo->prec,rinfo->prec);
+			auto const& [args_ge,args_gt] = mapped_lex_compare(
+				[&]( auto const& x, auto const& y ){ return compare(x,y); },
+				linfo->post_arity, rinfo->post_arity, linfo->map, rinfo->map, largs, rargs
+			);
+			if( _log & DEBUG ) {
+				cerr << "; path_order: arguments [" << print_list(largs) << "] <=> [" << print_list(rargs) << "] = {" << args_ge << ", " << args_gt << '}' << endl;
+			}
+			gt_all_arg = solver().let(Smt::BOOL,gt_all_arg);
+			auto const& gt = solver().let( Smt::BOOL,
+				wgt || (wge && (some_arg_ge || ( gt_all_arg && ( pgt || ( pge && args_gt ) ) ) ) )
+			);
+			auto const& ge = solver().let( Smt::BOOL,
+				gt || (wge && gt_all_arg && pge && args_ge )
+			);
+			return {ge,gt};
+		} else {// f(s...) >=? y
+			some_arg_ge = solver().let(Smt::BOOL,some_arg_ge);
+			return {some_arg_ge,some_arg_ge};
+		}
+	} else {// x >=? t
+		if( auto const& rinfo = _info.find(rf) ) {// x >=? g(t...)
+			auto least = Smt::eq(0,rinfo->prec);// g must be least and no t_j survives
+			for( size_t j = 0; j < rargs.size(); j++ ) {
+				least = least && !rinfo->mapped(j);
+			}
+			return {least,false};
+		} else {// x >=? y
+			return { lf == rf, false };
+		}
 	}
-	some_arg_ge = solver().let(Smt::BOOL,some_arg_ge);
-	if( gt_all_arg == false ) return {false,false};
-	if( !rinfo ) { // rhs is a variable
-		return {some_arg_ge,some_arg_ge};
-	}
-	gt_all_arg = solver().let(Smt::BOOL,gt_all_arg);
-	auto const& [args_ge,args_gt] = mapped_lex_compare(
-		[&]( auto const& x, auto const& y ){ return compare(x,y); },
-		linfo->post_arity, rinfo->post_arity, linfo->map, rinfo->map, largs, rargs
-	);
-	if( _log & DEBUG ) {
-		cerr << "; path_order: arguments [" << print_list(largs) << "] <=> [" << print_list(rargs) << "] = {" << args_ge << ", " << args_gt << '}' << endl;
-	}
-	auto const& [pge,pgt] = order(linfo->prec,rinfo->prec);
-	auto const& gt = solver().let(
-		Smt::BOOL, wgt || (wge && (some_arg_ge || ( gt_all_arg && ( pgt || ( pge && args_gt ) ) ) ) )
-	);
-	auto const& ge = solver().let(
-		Smt::BOOL, gt || (wge && gt_all_arg && pge && args_ge )
-	);
-	return {ge,gt};
 }
 
 std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sym ) {
@@ -219,7 +233,7 @@ Smt::PostExp UsableRuleOrder::_Wrapper::rule_used( size_t i ) & {
 	auto const& [l,r,w] = *rule;
 	auto& sol = _ref->solver();
 	if( log() & DEBUG ) cerr << "; rule used i => term used " << r << endl;
-	auto const& ret = _usable_table.emplace(i,sol.declare_fresh(Smt::BOOL)).first;
+	auto const& ret = _usable_table.emplace(i,sol.declare_const("used_"+to_string(i),Smt::BOOL)).first;
 	sol.ass(ret.imp(term_used(r)));
 	return ret;
 }

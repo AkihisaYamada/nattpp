@@ -290,7 +290,7 @@ public:
 	public:
 		Status( Straight const& ) : _sum(Straight()) {}
 		Status( Mapped b ) : _sum(b) {}
-		bool is_straight() { return _sum.ref<Straight>(); }
+		bool is_straight() { return (bool)_sum.ref<Straight>(); }
 		Opt<size_t> post_arity() {
 			return _sum.ref<Mapped>() >>= [&]( auto b )->Opt<size_t>{ return {b.post_arity}; };
 		}

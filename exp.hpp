@@ -320,7 +320,7 @@ public:
 	}
 	bool eof() {
 		_fetch();
-		return _fetched.ref<None>();
+		return (bool)_fetched.ref<None>();
 	}
 };
 

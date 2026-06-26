@@ -26,7 +26,10 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 	auto const& sort = sol.logic().base_sort();
 	if( _log & DEBUG ) cerr << "; fun " << f << ' ' << rank << endl;
 	_weight->extend_sig(f,rank);
-	auto [info,suc] = _info.emplace(f,_SymInfo{sol.declare_const(string("p")+f,sort),rank.arity});
+	auto [info,suc] = _info.emplace(f,_SymInfo{
+		sol.declare_fresh(sort),
+		//sol.declare_const(string("p")+f,sort),
+		rank.arity});
 	assert(suc);
 	sol.ass( Smt::ge(info.prec,0) );
 	if( _log & DEBUG ) cerr << "; prec " << f << ": " << info.prec << endl;
@@ -39,7 +42,8 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 		sol.ass( mappedi.imp(_weight->arg_infl(f,i)) );
 		if( _log & DEBUG ) cerr << "; used[" << f << ',' << i << "] := weight uses or mapped[" << i << "]" << endl;
 		used_tbl.emplace_back(
-			sol.define_fun( "u"+f+"_"+to_string(i), {}, Smt::BOOL, _weight->arg_used(f,i) || mappedi )
+			//sol.define_fun( "u"+f+"_"+to_string(i), {},
+			sol.let( Smt::BOOL, _weight->arg_used(f,i) || mappedi )
 		);
 	};
 	if( auto post_arity = _status.fun(rank).post_arity() ) {
@@ -49,7 +53,8 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 			auto& mapi = map_tbl.emplace_back();
 			for( size_t k = 0; k < info.post_arity; k++ ) {// k-th place after mapping
 				auto const& ik = mapi.emplace_back(
-					sol.declare_const(string("m")+f+"_"+to_string(i)+"_"+to_string(k),Smt::BOOL)
+					sol.declare_fresh(Smt::BOOL)
+					//sol.declare_const(string("m")+f+"_"+to_string(i)+"_"+to_string(k),Smt::BOOL)
 				);
 				for( size_t j = 0; j < i; j++ ) {// k-th place cannot be shared
 					sol.ass( !map_tbl[i][k] || !map_tbl[j][k] );
@@ -58,7 +63,8 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 			if( _log & DEBUG ) cerr << ";  map[" << f << ',' << i << "] = " << print_list(mapi) << std::endl;
 			// mapped[i] means i-th argument survives mapping
 			auto const& mappedi = mapped_tbl.emplace_back(
-				sol.define_fun("s"+f+"_"+to_string(i),{},Smt::BOOL,Smt::disj(mapi)) );
+				//sol.define_fun("s"+f+"_"+to_string(i),{},
+				sol.let( Smt::BOOL,Smt::disj(mapi)) );
 			set_mappedi(mappedi,i);
 		}
 		info.map = [map_tbl=std::move(map_tbl)]( size_t i, size_t j ){ return map_tbl[i][j]; };
@@ -92,8 +98,8 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 			// s > t if s_i survives and s_i >= t
 			some_arg_ge = some_arg_ge || linfo->mapped(i) && i_ge;
 		}
-		Smt::PostExp gt_all_arg = true;
 		if( auto const& rinfo = _info.find(rf) ) {// f(s...) >=? g(t...)
+			Smt::PostExp gt_all_arg = true;
 			for( size_t j = 0; j < rargs.size(); j++ ) {
 				auto [ge_j,gt_j] = compare(l,rargs[j]);
 				// if t_j survives, then s > t_j is prerequisite
@@ -126,7 +132,7 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 			for( size_t j = 0; j < rargs.size(); j++ ) {
 				least = least && !rinfo->mapped(j);
 			}
-			return {least,false};
+			return { wge && least, wgt };
 		} else {// x >=? y
 			return { lf == rf, false };
 		}

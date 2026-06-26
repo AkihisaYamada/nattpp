@@ -1,6 +1,7 @@
 #include<fstream>
 #include"problem.hpp"
 #include"reach.hpp"
+#include"graph.hpp"
 
 using namespace std;
 
@@ -107,7 +108,7 @@ void Problem::read_rule_decl( Reader& eis, Trs::Reader& tis, Opt<size_t> rule_in
 			insert_rule(rules,std::move(rule));
 		}
 }
-Problem::Problem( istream& is ) : next_rule(0), uses_graph(uses_map) {
+Problem::Problem( istream& is ) : next_rule(0) {
 	auto eis = Reader(is);
 	mode = NONE;
 	eis.open();
@@ -205,6 +206,7 @@ void Problem::make_dps() & {
 		collect_dps(main.sig,dps,l,*lrank,rule.second,*this,uses,uses_map);
 		uses_map.emplace(org,std::move(uses));
 	}
+	usable_graph = Graph(uses_map).trancl();
 }
 
 static void term_use(
@@ -243,6 +245,7 @@ void Problem::init_uses() & {
 			uses_map.emplace(i,std::move(uses));
 		}
 	}
+	usable_graph = Graph(uses_map).trancl();
 };
 
 string mark_sym( string const& sym ) {
@@ -266,7 +269,7 @@ void Problem::mark_dps() & {
 	for( auto uit = udps.begin(); uit != udps.end(); uit = udps.erase(uit) ) {// iterate while removing
 		auto [uind,udp] = *uit;
 		// marked dp will use what has been used by the unmarked one
-		uses_map.emplace( next_rule, ASSERTED(uses_map.extract(uind)).mapped() );
+		usable_graph.emplace( next_rule, ASSERTED(usable_graph.extract(uind)).mapped() );
 		insert_rule(mdps,mark_dp(main.sig,msig,udp));
 	}
 	swap(mdps,udps);

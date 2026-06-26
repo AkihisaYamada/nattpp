@@ -15,7 +15,7 @@ struct Problem {
 	} format;
 	Trs main;
 	Map<size_t,Set<size_t>> uses_map;// will be ready by make_dps
-	Graph uses_graph;// will be ready by make_dps
+	Map<size_t,Ref<Set<size_t>>> usable_graph;// will be ready by make_dps
 	std::deque<Trs> components;
 	using SubIt = std::deque<Trs>::iterator;
 	size_t next_rule;

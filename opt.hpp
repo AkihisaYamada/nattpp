@@ -26,7 +26,7 @@ public:
 	 */
 	template<typename... Ts>
 	Opt( std::in_place_t, Ts&&... xs ) : _opt(std::in_place,std::forward<Ts>(xs)...) {}
-	operator bool() const {
+	explicit operator bool() const {
 		return (bool)_opt;
 	}
 	Opt& operator=( Opt && other ) & {
@@ -141,7 +141,7 @@ public:
 	Opt() : _ptr(nullptr) {}
 	Opt( T& l ) : _ptr(&l) {}
 	operator Opt<T const&>() { return _ptr; }
-	operator bool() const { return _ptr; }
+	explicit operator bool() const { return _ptr; }
 	T& operator*() const {
 		assert(*this);
 		return *_ptr;

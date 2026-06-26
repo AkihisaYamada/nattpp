@@ -29,12 +29,12 @@ public:
 Graph::Graph( std::function<void(NodeFun const&)>&& node_iter, std::function<Set<size_t>const&(size_t)>&& nexts ) :
 	_ptr(Ref<_FunGraph>::make(std::move(node_iter),std::move(nexts))) {}
 
-struct _MapConstRefGraph final : GraphInterface {
+struct _MapCLVGraph final : GraphInterface {
 	using Body = Map<size_t,Set<size_t>>;
 private:
 	Body const& _body;
 public:
-	_MapConstRefGraph( Body const& org ) : _body(org) {}
+	_MapCLVGraph( Body const& org ) : _body(org) {}
 	void iter_nodes( NodeFun const& f ) const& override {
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
@@ -45,7 +45,25 @@ public:
 	}
 };
 Graph::Graph( Map<size_t,Set<size_t>>const& map ) :
-	_ptr( Ref<_MapConstRefGraph>::make(map) ) {}
+	_ptr( Ref<_MapCLVGraph>::make(map) ) {}
+
+struct _RefMapCLVGraph final : GraphInterface {
+	using Body = Map<size_t,Ref<Set<size_t>>>;
+private:
+	Body const& _body;
+public:
+	_RefMapCLVGraph( Map<size_t,Ref<Set<size_t>>>const& org ) : _body(org) {}
+	void iter_nodes( NodeFun const& f ) const& override {
+		for( auto const& [node,nexts] : _body ) f(node);
+	}
+	void iter_nexts( size_t src, NodeFun const& f ) const& override {
+		if( auto const& nexts = _body.find(src) ) {
+			for( auto const& next : **nexts ) f(next);
+		}
+	}
+};
+Graph::Graph( Map<size_t,Ref<Set<size_t>>>const& map ) :
+	_ptr( Ref<_RefMapCLVGraph>::make(map) ) {}
 
 struct _MapGraph final : GraphInterface {
 	using Body = Map<size_t,Set<size_t>>;
@@ -65,6 +83,23 @@ public:
 Graph::Graph( Map<size_t,Set<size_t>>&& map ) :
 	_ptr( Ref<_MapGraph>::make(std::move(map)) ) {}
 
+struct _RefMapGraph final : GraphInterface {
+	using Body = Map<size_t,Ref<Set<size_t>>>;
+private:
+	Body _body;
+public:
+	_RefMapGraph( Map<size_t,Ref<Set<size_t>>>&& org ) : _body(std::move(org)) {}
+	void iter_nodes( NodeFun const& f ) const& override {
+		for( auto const& [node,nexts] : _body ) f(node);
+	}
+	void iter_nexts( size_t src, NodeFun const& f ) const& override {
+		if( auto const& nexts = _body.find(src) ) {
+			for( auto const& next : **nexts ) f(next);
+		}
+	}
+};
+Graph::Graph( Map<size_t,Ref<Set<size_t>>>&& map ) :
+	_ptr( Ref<_RefMapGraph>::make(std::move(map)) ) {}
 
 struct _AcyclicMapConstRefGraph final : GraphInterface::Acyclic {
 	using Body = OrdMap<size_t,Set<size_t>>;
@@ -240,7 +275,7 @@ Graph::Acyclic GraphInterface::Acyclic::acyc_trancl() const {
 
 Printable print_sccs( std::vector<Graph::Scc> const& sccs ){
 	return Printable([&]( ostream& os )->ostream&{
-		os << '(';
+		os << "(sccs";
 		for( auto const& scc : sccs ) {
 			if( auto triv = scc.ref<size_t>() ) {
 				os << "\n  " << *triv << flush;
@@ -261,37 +296,40 @@ Printable print_map( auto const& map ){
 	});	
 }
 
-static std::function<Set<size_t>const&(size_t)> trancl_nexts( GraphInterface const& g ) {
-	auto const& [sccs,scc_inds,scc_dag] = g.scc_info();
-	auto scc_trancl = Graph::Acyclic(scc_dag).acyc_trancl();
-	std::vector<Set<size_t>> scc_reachables;
-	scc_trancl.iter_nodes([&]( size_t scc )->void{
-		auto& reachables = scc_reachables.emplace_back();
-		scc_trancl.iter_nexts(scc,[&]( size_t next_scc ){
-			for( auto const& node : scc_reachables[next_scc] ) {
-				reachables.emplace(node);
-			}
-			if( auto const& triv = sccs[next_scc].ref<size_t>() ) {
-				// if next is a trivial SCC, mark the node reachable as it is not from the SCC 
-				reachables.emplace(*triv);
+Map<size_t,Ref<Set<size_t>>> const& GraphInterface::trancl() const& {
+	if( !_trancl_opt ) {
+		_trancl_opt = {{}};
+		auto const& [sccs,scc_inds,scc_dag] = scc_info();
+		auto scc_trancl = Graph::Acyclic(scc_dag).acyc_trancl();
+		std::vector<Ref<Set<size_t>>> scc_reachables;
+		scc_trancl.iter_nodes([&]( size_t scc )->void{
+			auto& reachables = scc_reachables.emplace_back(Ref<Set<size_t>>::make());
+			scc_trancl.iter_nexts(scc,[&]( size_t next_scc ){
+				// nodes reachable from the next SCC are reachable
+				for( auto const& node : *scc_reachables[next_scc] ) {
+					reachables->emplace(node);
+				}
+				// if next is a trivial SCC, then mark the node reachable, since it is not so from the SCC 
+				if( auto const& triv = sccs[next_scc].ref<size_t>() ) {
+					reachables->emplace(*triv);
+				}
+			});
+			if( auto const& triv = sccs[scc].ref<size_t>() ) {// trivial SCC
+					_trancl_opt->emplace(*triv,reachables);// the node reaches where the SCC reaches
+			} else if( auto const& nodes = sccs[scc].ref<Set<size_t>>() ) {
+				for( auto const& node : *nodes ) {
+					_trancl_opt->emplace(node,reachables);// the node reaches where the SCC reaches
+					reachables->emplace(node);// the node is reachable
+				}
+			} else {
+				assert(false);
 			}
 		});
-		if( auto const& nodes = sccs[scc].ref<Set<size_t>>() ) {
-			for( auto const& node : *nodes ) {
-				reachables.emplace(node);
-			}
-		}
-	});
-	return [scc_reachables=std::move(scc_reachables),&scc_inds]( size_t src )->Set<size_t>const&{
-		if( auto const& scc_ind = scc_inds.find(src) ) {
-			return scc_reachables[*scc_ind];
-		}
-		return EMPTY;
-	};
+	}
+	return *_trancl_opt;
 }
-Graph GraphInterface::trancl() const& {
-	if( _trancl_opt ) return Graph(_trancl_opt.nonnull());
-	return Graph( [this]( NodeFun const& f ){ iter_nodes(f); }, trancl_nexts(*this) );
+Map<size_t,Ref<Set<size_t>>> GraphInterface::trancl() && {
+	return std::move(trancl());
 }
 
 Printable GraphInterface::print_nodes( std::string_view const& _pref ) const& {
@@ -312,6 +350,7 @@ Printable GraphInterface::print_nodes( std::string_view const& _pref ) const& {
 }
 
 void Graph::test() {
+	cerr << "=== Graph ===" << endl;
 	auto g = Graph({
 		{0,{1}},
 		{1,{2}},
@@ -324,8 +363,8 @@ void Graph::test() {
 		{8,{7}}
 	});
 	cout << g << endl;
-	print_sccs(g.sccs());
-	cout << "trancl: " << g.trancl() << endl;
+	cout << print_sccs(g.sccs());
+	cout << "(trancl " << Graph(g.trancl()).print_nodes() << ')' << endl;
 	auto g2 = Graph({
 		{0,{1}},
 		{1,{2}},
@@ -333,6 +372,6 @@ void Graph::test() {
 		{3,{}}
 	});
 	cout << g2 << endl;
-	print_sccs(g2.sccs());
-	cout << "trancl: " << g2.trancl() << endl;
+	cout << print_sccs(g2.sccs());
+	cout << "(trancl " << Graph(g2.trancl()).print_nodes() << ')' << endl;
 }

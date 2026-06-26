@@ -82,7 +82,7 @@ tpdb_result: $(TGT) $(TPDB)
 		do\
 			(echo -n $$f:\ ; timeout $(TIMEOUT) $(TGT) -q $$f; if [ $$? -eq 124 ]; then echo TIMEOUT; fi) | tee -a $$out;\
 		done'
-	grep -c 'YES\\|NO' $@
+	grep -c 'YES\|NO' $@
 
 tpdb_negative: $(TGT)
 	rm -f $@

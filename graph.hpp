@@ -12,6 +12,7 @@
 struct Graph;
 
 struct GraphInterface {
+	friend Graph;
 	using Scc = Sum<Set<size_t>,size_t>;
 	struct SccInfo {
 		std::vector<Scc> sccs;
@@ -19,17 +20,17 @@ struct GraphInterface {
 		std::vector<Set<size_t>> scc_dag;
 	};
 	using NodeFun = std::function<void(size_t)>;
-private:
+protected:
 	friend class _SccMaker;
 	mutable Opt<SccInfo> _scc_info_opt;
-	mutable OptRef<GraphInterface> _trancl_opt;
+	mutable Opt<Map<size_t,Ref<Set<size_t>>>> _trancl_opt;
 public:
 	virtual ~GraphInterface() {}
 	virtual void iter_nodes( NodeFun const& ) const& = 0;
 	virtual void iter_nexts( size_t src, NodeFun const& ) const& = 0;
 	virtual SccInfo const& scc_info() const&;
-	Graph trancl() && = delete;
-	Graph trancl() const&;
+	Map<size_t,Ref<Set<size_t>>> trancl() &&;
+	Map<size_t,Ref<Set<size_t>>> const& trancl() const&;
 	std::vector<Scc> const& sccs() const& {
 		return scc_info().sccs;
 	}
@@ -49,8 +50,12 @@ public:
 	);
 	/** Turn an adjacency map into a graph. */
 	Graph( Map<size_t,Set<size_t>>&& map );
+	/** Turn an adjacency ref map into a graph. */
+	Graph( Map<size_t,Ref<Set<size_t>>>&& map );
 	/** Wrap an adjacency map as a graph. */
 	Graph( Map<size_t,Set<size_t>>const& map );
+	/** Wrap an adjacency ref map into a graph. */
+	Graph( Map<size_t,Ref<Set<size_t>>>const& map );
 	struct Acyclic;
 	void iter_nodes( NodeFun const& f ) const& override {
 		return _ptr->iter_nodes(f);

@@ -41,7 +41,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 	auto const& sort = sol.logic().base_sort();
 	if( _log & DEBUG ) cerr << "; fun " << f << ' ' << rank << endl;
 	_weight->extend_sig(f,rank);
-	auto prec = sol.declare_fresh(sort);
+	auto prec = sol.declare_const("p"+escape(f),sol.logic().base_sort());//sol.declare_fresh(sort);
 	sol.ass( Smt::ge(prec,0) );
 	std::string fesc = escape(f);
 	if( _log & DEBUG ) cerr << "; prec " << f << ": " << prec << endl;
@@ -122,8 +122,14 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 				.prec = prec,
 				.collapse = collapse,
 				.empty = !occupied[0],
-				.map = [map_tbl=std::move(map_tbl)]( size_t i, size_t j ){ return map_tbl[i][j]; },
-				.mapped = [mapped_tbl=std::move(mapped_tbl)]( size_t i ){ return mapped_tbl[i]; },
+				.map = [map_tbl=std::move(map_tbl),arity,post_arity]( size_t i, size_t j )->Smt::PostExp{
+					if( i < arity && j < post_arity ) return map_tbl[i][j];
+					return false;
+				},
+				.mapped = [mapped_tbl=std::move(mapped_tbl),arity]( size_t i )->Smt::PostExp{
+					if( i < arity ) return mapped_tbl[i];
+					return false;
+				},
 				.occupied = [occupied=std::move(occupied),post_arity]( size_t i )->Smt::PostExp{
 					if( i < post_arity ) return occupied[i];
 					return false;
@@ -163,8 +169,9 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 		Smt::PostExp some_arg_ge = false;
 		Smt::PostExp some_arg_gt = false;
 		for( size_t i = 0; i < largs.size(); i++ ) {
-			auto [i_ge,i_gt] = compare(largs[i],r);
 			auto const& i_mapped = linfo->mapped(i);
+//			if( i_mapped == false ) break;
+			auto [i_ge,i_gt] = compare(largs[i],r);
 			some_arg_ge = some_arg_ge || i_mapped && i_ge;// s_i survives and s_i ≥ t
 			some_arg_gt = some_arg_gt || i_mapped && i_gt;
 		}
@@ -172,8 +179,9 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 			Smt::PostExp gt_all_arg = true;
 			Smt::PostExp ge_all_arg = true;
 			for( size_t j = 0; j < rargs.size(); j++ ) {
-				auto const& [ge_j,gt_j] = compare(l,rargs[j]);
 				auto const& j_mapped = rinfo->mapped(j);
+//				if( j_mapped == false ) break;
+				auto const& [ge_j,gt_j] = compare(l,rargs[j]);
 				ge_all_arg = ge_all_arg && j_mapped.imp(ge_j);
 				gt_all_arg = gt_all_arg && j_mapped.imp(gt_j); // if t_j survives, then s > t_j is prerequisite
 			}

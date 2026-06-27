@@ -248,15 +248,29 @@ Smt::PostExp Smt::le( PostExp const& x, PostExp const& y ) {
 			return ite(i,le(t,y),le(e,y));
 		}
 	}
-	return Term<Fun>(GE,x,y);
+	return Term<Fun>(LE,x,y);
 }
 
 Smt::PostExp Smt::gt( PostExp const& x, PostExp const& y ) {
-	if( auto xi = x.is_val() )
-		if( auto yi = y.is_val() ) {
-			return *xi > *yi;
+	if( x._term.args().empty() ) {
+		if( auto xi = x.is_val() ) {
+			if( auto yi = y.is_val() ) {
+				return *xi < *yi;
+			}
 		}
-	if( x == y ) return FALSE;
+		if( x == y ) {
+			return false;
+		}
+		if( auto iteo = y.is_ite() ) {
+			auto const& [i,t,e] = *iteo;
+			return ite(i,gt(x,t),gt(x,e));
+		}
+	} else if( y._term.args().empty() ) {
+		if( auto const& iteo = x.is_ite() ) {
+			auto const& [i,t,e] = *iteo;
+			return ite(i,gt(t,y),gt(e,y));
+		}
+	}
 	return Term<Fun>(GT,x,y);
 }
 

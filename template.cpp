@@ -248,6 +248,7 @@ void Template::Deriver::extend_sig( std::string const& f, Trs::Rank const& rank 
 				//_solver.declare_const("t"+escape(f),Smt::BOOL),
 		}
 	);
+	if( !fl ) return;
 	if( log & INIT ) cerr << "; intp triv[" << f << "] := " << finfo.triv << endl;
 	for( size_t i = 0; i < rank.arity; i++ ) {
 		auto const& infl = _solver.declare_const("i"+escape(f)+"_"+to_string(i), Smt::BOOL);

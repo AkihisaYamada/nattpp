@@ -298,7 +298,24 @@ int main( int argc, char* argv[] ) try {
 			exit(1);
 		} else if( a == Answer::MAYBE ) {
 			cout << "MAYBE" << endl;
-			if( print_on_fail ) cerr << p << endl;
+			if( print_on_fail ) {
+				if( p.mode == Problem::DP ) {
+					auto usables = Set<size_t>();
+					for( auto const& comp : p.components ) {
+						for( auto const& [i,dp] : comp.rules ) {
+							for( auto const& u : **ASSERTED(p.usable_graph.find(i)) ) {
+								usables.emplace(u);
+							}
+						}
+					}
+					for( auto it = p.main.rules.begin(); it != p.main.rules.end(); it++ ) {
+						if( !usables.find(it->first) ) {
+							p.main.rules.erase(it);
+						}
+					}
+				}
+				cerr << p << endl;
+			}
 			exit(2);
 		} else {
 			assert(false);

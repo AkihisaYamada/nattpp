@@ -175,8 +175,11 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 				ge = ge || rinfo->mapped(j) && gej;
 				gt = gt || rinfo->mapped(j) && gtj;
 			}
-			return {ge || Smt::eq(0,rinfo->prec) && rinfo->empty,// g is least and no t_j survives
-				gt};
+			return {
+				rinfo->collapse && ge ||
+					Smt::eq(0,rinfo->prec) && rinfo->empty,// g is least and no t_j survives
+				rinfo->collapse && gt
+			};
 		} else {// x >=? y
 			return {l == r, false};
 		}

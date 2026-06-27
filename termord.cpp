@@ -95,12 +95,14 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 				sol.ass( _mono.imp(mappedi) );
 				if( _log & DEBUG ) cerr << "; mapped[" << f << ',' << i << "] => weight weak simple" << endl;
 				sol.ass( mappedi.imp(_weight->arg_infl(f,i)) );
-				if( _log & DEBUG ) cerr << "; used[" << f << ',' << i << "] := weight uses or mapped[" << i << "]" << endl;
+				if( _log & DEBUG ) cerr << "; used[" << f << ',' << i << "] := weight used or mapped[" << i << "]" << endl;
 				used_tbl.emplace_back(
 					sol.define_fun( "U"+fesc+"_"+to_string(i), {},
 						Smt::BOOL, _weight->arg_used(f,i) || mappedi
 					)
 				);
+				if( _log & DEBUG ) cerr << "; collapse[" << f << "] => weight used => mapped" << endl;
+				sol.ass( collapse.imp( _weight->arg_used(f,i).imp(mappedi) ) ); 
 			}
 			if( _log & DEBUG ) cerr << "; require argument mapping to be contiguous" << endl;
 			std::vector<Smt::PostExp> occupied;
@@ -169,16 +171,17 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 	if( !linfo ) {// x >=? t
 		auto const& [rf,rargs] = *r;
 		if( auto const& rinfo = _info.find(rf) ) {// x >=? g(t...)
-			Smt::PostExp ge = false, gt = false;
+			Smt::PostExp ge_all_arg = false, gt_all_arg = false;
 			for( size_t j = 0; j < rinfo->arity; j++ ) {
 				auto const& [gej,gtj] = compare(l,rargs[j]);// just to invoke memoization
-				ge = ge || rinfo->mapped(j) && gej;
-				gt = gt || rinfo->mapped(j) && gtj;
+				ge_all_arg = ge_all_arg && rinfo->mapped(j).imp(gej);
+				gt_all_arg = gt_all_arg && rinfo->mapped(j).imp(gtj);
 			}
 			return {
-				rinfo->collapse && ge ||
-					Smt::eq(0,rinfo->prec) && rinfo->empty,// g is least and no t_j survives
-				rinfo->collapse && gt
+				wge && (rinfo->collapse && ge_all_arg ||// g is collapsed
+					Smt::eq(0,rinfo->prec) && rinfo->empty// g is least and no t_j survives
+				),
+				wgt && rinfo->collapse && gt_all_arg
 			};
 		} else {// x >=? y
 			return {l == r, false};
@@ -197,7 +200,7 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 		some_arg_gt = some_arg_gt || i_mapped && i_gt;
 	}
 	auto const& rinfo = _info.find(rf);
-	if( !rinfo ) {
+	if( !rinfo ) {// f(s..) >=? y
 		some_arg_ge = sol.let(Smt::BOOL,some_arg_ge);
 		auto gt = sol.let( Smt::BOOL, wgt || !linfo->collapse && some_arg_ge );
 		return { gt || some_arg_ge, gt };

@@ -244,8 +244,7 @@ Term<Sum<Template::Fun,Arg>> Template::Deriver::_deriver_of(
 void Template::Deriver::extend_sig( std::string const& f, Trs::Rank const& rank ) & {
 	auto [finfo,fl] = sig.emplace(
 		f, FunInfo{
-			.triv = false//_solver.declare_fresh(Smt::BOOL),
-				//_solver.declare_const("t"+escape(f),Smt::BOOL),
+			.triv = _solver.declare_const("t"+escape(f),Smt::BOOL),
 		}
 	);
 	if( !fl ) return;

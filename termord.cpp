@@ -171,17 +171,18 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 	if( !linfo ) {// x >=? t
 		auto const& [rf,rargs] = *r;
 		if( auto const& rinfo = _info.find(rf) ) {// x >=? g(t...)
-			Smt::PostExp ge_all_arg = false, gt_all_arg = false;
+			Smt::PostExp ge_all_arg = true, gt_all_arg = true;
 			for( size_t j = 0; j < rinfo->arity; j++ ) {
 				auto const& [gej,gtj] = compare(l,rargs[j]);// just to invoke memoization
 				ge_all_arg = ge_all_arg && rinfo->mapped(j).imp(gej);
 				gt_all_arg = gt_all_arg && rinfo->mapped(j).imp(gtj);
 			}
 			return {
-				wge && (rinfo->collapse && ge_all_arg ||// g is collapsed
+				wge && (
+					rinfo->collapse && ge_all_arg ||// g is collapsed
 					Smt::eq(0,rinfo->prec) && rinfo->empty// g is least and no t_j survives
 				),
-				wgt && rinfo->collapse && gt_all_arg
+				wgt || rinfo->collapse && gt_all_arg
 			};
 		} else {// x >=? y
 			return {l == r, false};
@@ -195,14 +196,16 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 	for( size_t i = 0; i < largs.size(); i++ ) {
 		auto const& i_mapped = linfo->mapped(i);
 //			if( i_mapped == false ) break;
-		auto [i_ge,i_gt] = compare(largs[i],r);
+		auto const& [i_ge,i_gt] = compare(largs[i],r);
 		some_arg_ge = some_arg_ge || i_mapped && i_ge;// s_i survives and s_i ≥ t
 		some_arg_gt = some_arg_gt || i_mapped && i_gt;
 	}
 	auto const& rinfo = _info.find(rf);
 	if( !rinfo ) {// f(s..) >=? y
 		some_arg_ge = sol.let(Smt::BOOL,some_arg_ge);
-		auto gt = sol.let( Smt::BOOL, wgt || !linfo->collapse && some_arg_ge );
+		auto const& gt = sol.let( Smt::BOOL,
+			wgt || linfo->collapse && some_arg_gt || !linfo->collapse && some_arg_ge
+		);
 		return { gt || some_arg_ge, gt };
 	}
 	// f(s...) >=? g(t...)
@@ -222,7 +225,7 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 		linfo->occupied, rinfo->occupied, linfo->map, rinfo->map, largs, rargs
 	);
 	if( _log & DEBUG ) {
-		cerr << "; path_order: arguments [" << print_list(largs) << "] <=> [" << print_list(rargs) << "] = {" << args_ge << ", " << args_gt << '}' << endl;
+		cerr << "; path_order: arguments [" << print_list(largs) << "] >=? [" << print_list(rargs) << "] = {" << args_ge << ", " << args_gt << '}' << endl;
 	}
 	some_arg_ge = sol.let(Smt::BOOL,some_arg_ge);
 	gt_all_arg = sol.let(Smt::BOOL,gt_all_arg);

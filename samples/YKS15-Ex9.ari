@@ -1,0 +1,11 @@
+; @author Akihisa Yamada
+; @author Keiichirou Kusakari
+; @author Toshiki Sakabe
+; Example 9 in "A Unified Ordering for Termination Proving". Sci. Comput. Program. 2015
+; @doi 10.1016/j.scico.2014.07.009
+(format TRS)
+(fun f 1)
+(fun g 1)
+(fun h 1)
+(rule (f (g x)) (g (f (f x))))
+(rule (f (h x)) (h (h (f x))))

@@ -98,6 +98,6 @@ tpdb_negative: $(TGT)
 .PHONY: clean test tpdb-negative
 
 clean:
-	rm -rf $(DEPEND) $(BUILD) $(SANITIZE) $(DEBUG)
+	rm -rf $(DEPEND) $(BUILD) $(SANITIZE) $(DEBUG) $(TGT) sanitize tester debug
 
 -include ${DEPS}

@@ -11,7 +11,7 @@ bool order_some_rule(
 	vector<pair<size_t,Smt::PostExp>> gts;
 	Smt::PostExp all_ge = true;
 	for( auto const& [i,rule] : rules ) {
-		if( order.log() & TermOrder::RULE ) {
+		if( order.log() & RULE ) {
 			cerr << "; " << rule << endl;
 		}
 		auto const& [ge,gt] = order.rule_compare(i,rule.first,rule.second);

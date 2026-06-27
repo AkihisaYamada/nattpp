@@ -17,6 +17,10 @@
     return f(std::forward<decltype(x)>(x),std::forward<decltype(y)>(y));\
 })
 
+enum { NONE = 0, RULE = 1 << 1, PAIR = 1 << 2, USE = 1 << 3, INIT = 1 << 4, DEBUG = 1 << 5 };
+
+std::string escape( std::string const& str );
+
 template<typename I, typename E, typename F>
 bool for_all( I it, E const& end, F const& f ) {
 	for( ; it != end; it++ ) {
@@ -161,20 +165,20 @@ Printable print_list( I&& begin, E&& end, F && f ) {
 		auto it = std::move(begin);
 		if( it == end ) return os;
 		for(;;) {
-			os << f(*it);
+			os << f(it);
 			it++;
 			if( it == end ) return os;
 			os << ' ';
 		}
 	}};
 }
-template<typename I, typename E>
-Printable print_list( I&& it, E&& end ) {
-	return print_list( std::forward<I>(it), std::forward<E>(end), []( auto const& x ){ return x; } );
+template<typename C, typename F>
+Printable print_list( C const& c, F const& f ) {
+	return print_list( c.begin(), c.end(), [&]( auto const& it ){ return f(*it); } );
 }
 template<typename C>
 Printable print_list( C const& c ) {
-	return print_list( c.begin(), c.end() );
+	return print_list( c.begin(), c.end(), [&]( auto const& it ){ return *it; } );
 }
 
 template<typename T1, typename T2>

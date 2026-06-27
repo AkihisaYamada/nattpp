@@ -1,9 +1,24 @@
+#include<sstream>
 #include "termord.hpp"
 #include "template.hpp"
 #include "poly.hpp"
 #include "reach.hpp"
 
 using namespace std;
+
+std::string escape( std::string const& str ) {
+	auto ss = std::ostringstream();
+	for( auto const& c : str ) {
+		switch(c) {
+		case '#': ss << "<sh>"; break;
+		case '|': ss << "<b>"; break;
+		case '<': ss << "<lt>"; break;
+		case '>': ss << "<gt>"; break;
+		default: ss << c; break;
+		}
+	}
+	return ss.str();
+}
 
 PathOrder::PathOrder(
 	std::unique_ptr<TermOrder>&& weight,
@@ -16,7 +31,7 @@ PathOrder::PathOrder(
 		}()
 	),
 	_log(log),
-	_mono(_weight->solver().declare_const("MONO",Smt::BOOL)),
+	_mono(false/*_weight->solver().declare_const("MONO",Smt::BOOL)*/),
 	_status(std::move(status))
 {
 	if( log & DEBUG ) cerr << "; monotonicity flag: " << _mono << endl;
@@ -28,33 +43,37 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 	_weight->extend_sig(f,rank);
 	auto prec = sol.declare_fresh(sort);
 	sol.ass( Smt::ge(prec,0) );
+	std::string fesc = escape(f);
 	if( _log & DEBUG ) cerr << "; prec " << f << ": " << prec << endl;
-	if( auto post_arity_opt = _status.fun(rank).post_arity() ) {
+	size_t arity = rank.arity;
+	Status status = _status.fun(rank);
+	if( auto post_arity_opt = status.post_arity() ) {
 		size_t post_arity = *post_arity_opt;
 		if( post_arity == 0 ) {// empty status
 			_info.emplace(f,_SymInfo{
-				.arity = rank.arity,
-				.post_arity = 0,
+				.arity = arity,
+				.status = status,
 				.prec = prec,
 				.collapse = false,
 				.empty = true,
 				.map = []( size_t i, size_t j ){ return false; },
 				.mapped = []( size_t i ){ return false; },
-				.used = [&]( size_t i ){ return _weight->arg_used(f,i); }
+				.occupied = []( size_t i ){ return false; },
+				.used = [&]( size_t i ){ return _weight->arg_used(f,i); },
 			});
 		} else {
 			std::vector<Smt::PostExp> used_tbl;
-			auto collapse = sol.declare_fresh(Smt::BOOL);
+			auto collapse = Smt::PostExp(false);//sol.declare_fresh(Smt::BOOL);
 			if( _log & DEBUG ) cerr << "; collapse[" << f << "] => trivial weight" << endl;
 			sol.ass(collapse.imp(_weight->fun_triv(f)));
 			std::vector<Smt::PostExp> mapped_tbl;
 			std::vector<std::vector<Smt::PostExp>> map_tbl;
-			for( size_t i = 0; i < rank.arity; i++ ) {
+			for( size_t i = 0; i < arity; i++ ) {
 				auto& mapi = map_tbl.emplace_back();
 				for( size_t k = 0; k < post_arity; k++ ) {// k-th place after mapping
 					auto const& ik = mapi.emplace_back(
-						sol.declare_fresh(Smt::BOOL)
-						//sol.declare_const(string("m")+f+"_"+to_string(i)+"_"+to_string(k),Smt::BOOL)
+//						sol.declare_fresh(Smt::BOOL)
+						sol.declare_const("M"+fesc+"_"+to_string(i)+"_"+to_string(k),Smt::BOOL)
 					);
 					for( size_t j = 0; j < i; j++ ) {// k-th place cannot be shared
 						sol.ass( !map_tbl[i][k] || !map_tbl[j][k] );
@@ -62,15 +81,18 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 				}
 				if( _log & DEBUG ) cerr << ";  map[" << f << ',' << i << "] = " << print_list(mapi) << std::endl;
 				// mapped[i] means i-th argument survives mapping
-				auto const& mappedi = mapped_tbl.emplace_back( sol.let( Smt::BOOL,Smt::disj(mapi)) );
+				auto const& mappedi = mapped_tbl.emplace_back(
+					sol.define_fun( "S"+fesc+"_"+to_string(i), {}, Smt::BOOL, Smt::disj(mapi))
+				);
 				if( _log & DEBUG ) cerr << "; monotonicity => mapped[" << f << ',' << i << "]" << endl;
 				sol.ass( _mono.imp(mappedi) );
 				if( _log & DEBUG ) cerr << "; mapped[" << f << ',' << i << "] => weight weak simple" << endl;
 				sol.ass( mappedi.imp(_weight->arg_infl(f,i)) );
 				if( _log & DEBUG ) cerr << "; used[" << f << ',' << i << "] := weight uses or mapped[" << i << "]" << endl;
 				used_tbl.emplace_back(
-					//sol.define_fun( "u"+f+"_"+to_string(i), {},
-					sol.let( Smt::BOOL, _weight->arg_used(f,i) || mappedi )
+					sol.define_fun( "U"+fesc+"_"+to_string(i), {},
+						Smt::BOOL, _weight->arg_used(f,i) || mappedi
+					)
 				);
 				if( _log & DEBUG ) cerr << "; collapse[" << f << "] & weight used => mapped" << endl;
 				sol.ass( ( collapse && _weight->arg_used(f,i) ).imp( mappedi ) );
@@ -79,7 +101,9 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 			std::vector<Smt::PostExp> occupied;
 			auto add_occupied = [&]( size_t k )->Smt::PostExp const&{
 				return occupied.emplace_back(
-					sol.let(Smt::BOOL,Smt::disj(0,rank.arity,[&]( size_t i ){ return map_tbl[i][k]; }))
+					sol.define_fun("o"+fesc+"_"+to_string(k),{},
+						Smt::BOOL,Smt::disj(0,rank.arity,[&]( size_t i ){ return map_tbl[i][k]; })
+					)
 				);
 			};
 			add_occupied(0);
@@ -87,30 +111,38 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 				auto& next = add_occupied(k);
 				sol.ass(next.imp(occupied[k-1]));
 			}
-			if( _log & DEBUG ) cerr << "; collapse => occupied[0] && !occupied[1]" << endl;
+			if( _log & DEBUG ) {
+				cerr << "; post-position occupancy: (" << print_list(occupied) << ")" << endl;
+				cerr << "; collapse => occupied[0] && !occupied[1]" << endl;
+			}
 			sol.ass(collapse.imp( occupied[0] && (post_arity > 1 ? !occupied[1] : Smt::PostExp(true) )));
 			_info.emplace(f,_SymInfo{
-				.arity = rank.arity,
-				.post_arity = post_arity,
+				.arity = arity,
+				.status = status,
 				.prec = prec,
 				.collapse = collapse,
 				.empty = !occupied[0],
 				.map = [map_tbl=std::move(map_tbl)]( size_t i, size_t j ){ return map_tbl[i][j]; },
 				.mapped = [mapped_tbl=std::move(mapped_tbl)]( size_t i ){ return mapped_tbl[i]; },
+				.occupied = [occupied=std::move(occupied),post_arity]( size_t i )->Smt::PostExp{
+					if( i < post_arity ) return occupied[i];
+					return false;
+				},
 				.used = [used_tbl=std::move(used_tbl)]( size_t i ){ return used_tbl[i]; }
 			});
 		}
 	} else {// straight status
 		if( _log & DEBUG ) cerr << "; straight status requires inflationarity on all arguments" << endl;
-		sol.ass( Smt::conj( 0, rank.arity, [&]( size_t i ){ return _weight->arg_infl(f,i); } ) );
+		sol.ass( Smt::conj( 0, arity, [&]( size_t i ){ return _weight->arg_infl(f,i); } ) );
 		_info.emplace(f,_SymInfo{
-			.arity = rank.arity,
-			.post_arity = rank.arity,
+			.arity = arity,
+			.status = status,
 			.prec = prec,
 			.collapse = false,
-			.empty = rank.arity == 0,
+			.empty = arity == 0,
 			.map = []( size_t i, size_t j ){ return i == j; },
 			.mapped = []( size_t i ){ return true; },
+			.occupied = [arity]( size_t i ){ return i < arity; },
 			.used = []( size_t i ){ return true; }
 		});
 	}
@@ -127,6 +159,7 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 	auto const& [lf,largs] = *l;
 	auto const& [rf,rargs] = *r;
 	if( auto const& linfo = _info.find(lf) ) {// f(s...) >=? t
+		auto& sol = solver();
 		Smt::PostExp some_arg_ge = false;
 		Smt::PostExp some_arg_gt = false;
 		for( size_t i = 0; i < largs.size(); i++ ) {
@@ -147,15 +180,15 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 			if( gt_all_arg == false ) return { false, false };
 			auto const& [pge,pgt] = order(linfo->prec,rinfo->prec);
 			auto const& [args_ge,args_gt] = mapped_lex_compare(
-				[&]( auto const& x, auto const& y ){ return compare(x,y); },
-				linfo->post_arity, rinfo->post_arity, linfo->map, rinfo->map, largs, rargs
+				sol, [&]( auto const& x, auto const& y ){ return compare(x,y); },
+				linfo->occupied, rinfo->occupied, linfo->map, rinfo->map, largs, rargs
 			);
 			if( _log & DEBUG ) {
 				cerr << "; path_order: arguments [" << print_list(largs) << "] <=> [" << print_list(rargs) << "] = {" << args_ge << ", " << args_gt << '}' << endl;
 			}
-			some_arg_ge = solver().let(Smt::BOOL,some_arg_ge);
-			gt_all_arg = solver().let(Smt::BOOL,gt_all_arg);
-			auto const& gt = solver().let( Smt::BOOL,
+			some_arg_ge = sol.let(Smt::BOOL,some_arg_ge);
+			gt_all_arg = sol.let(Smt::BOOL,gt_all_arg);
+			auto const& gt = sol.let( Smt::BOOL,
 				wgt ||
 				wge && (
 					some_arg_gt ||
@@ -166,7 +199,7 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 					))
 				)
 			);
-			auto const& ge = solver().let( Smt::BOOL,
+			auto const& ge = sol.let( Smt::BOOL,
 				gt ||
 				(linfo->collapse && some_arg_ge) ||
 				(rinfo->collapse && ge_all_arg) ||
@@ -174,8 +207,9 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 			);
 			return {ge,gt};
 		} else {// f(s...) >=? y
-			some_arg_ge = solver().let(Smt::BOOL,some_arg_ge);
-			return { some_arg_ge, !linfo->collapse && some_arg_ge };
+			some_arg_ge = sol.let(Smt::BOOL,some_arg_ge);
+			auto gt = sol.let( Smt::BOOL, wgt || !linfo->collapse && some_arg_ge );
+			return { gt || some_arg_ge, gt };
 		}
 	} else {// x >=? t
 		if( auto const& rinfo = _info.find(rf) ) {// x >=? g(t...)
@@ -195,7 +229,7 @@ std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sy
 	assert(info);
 	auto& sol = solver();
 	os << " :prec " << sol.get_value(info->prec);
-	if( info->post_arity > 0 ) {
+	if( auto post_arity = info->status.post_arity() ) {
 		auto f = [&]( string_view const& prefix, size_t k ){
 			size_t i = 0;
 			for(;;){
@@ -215,9 +249,7 @@ std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sy
 			os << " :map (";
 		}
 		f("",0);
-		for( size_t k = 1; k < info->post_arity; k++ ) {
-			f(" ",k);
-		}
+		for( size_t k = 1; f(" ",k); k++ );
 		os << ')';
 	}
 	return os << _weight->print_sym_info(sym);
@@ -249,8 +281,10 @@ int TermOrder::log_of( Exp const& x ) {
 		return RULE | PAIR;
 	} else if( x == "use" ) {
 		return RULE | PAIR | USE;
+	} else if( x == "init" ) {
+		return RULE | PAIR | USE | INIT;
 	} else if( x == "debug" ) {
-		return RULE | PAIR | USE | DEBUG;
+		return RULE | PAIR | USE | INIT | DEBUG;
 	} else {
 		throw Error("#unknown-log",x);
 	}
@@ -426,7 +460,7 @@ void TermOrder::test() {
 		std::make_unique<PathOrder>(
 			std::make_unique<TrivOrder>(Smt::Z3(Smt::LIA)),
 			PathOrder::StatusFun( [&](Trs::Rank const&){ return PathOrder::Status::Mapped(2); } ),
-			TermOrder::RULE
+			RULE
 		)
 	);
 	lpo->extend_sig(sig);

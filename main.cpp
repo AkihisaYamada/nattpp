@@ -115,7 +115,7 @@ int main( int argc, char* argv[] ) try {
 		}
 	};
 	if( default_log == -1 ) {
-		default_log = TermOrder::NONE;
+		default_log = NONE;
 	}
 	auto p = Problem( ois ? *ois : cin );
 	auto prf = OStream( oprf ? *oprf : cerr );

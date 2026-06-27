@@ -218,6 +218,18 @@ Term<Sum<Template::Fun,Arg>> Template::Deriver::_deriver_of(
 		}
 		throw Error{"#no-matching-arity",f};
 	}
+	if( fun == "#mono" ) {
+		return mono;
+	}
+	if( fun == "#infl" ) {
+		return finfo.args[pos].infl;
+	}
+	if( fun == "#used" ) {
+		return finfo.args[pos].used;
+	}
+	if( fun == "#triv" ) {
+		return finfo.triv;
+	}
 	if( auto const& i = is_int(fun) ) {
 		exp.get_end(n);
 		return Smt::PostExp(*i);
@@ -232,14 +244,22 @@ Term<Sum<Template::Fun,Arg>> Template::Deriver::_deriver_of(
 void Template::Deriver::extend_sig( std::string const& f, Trs::Rank const& rank ) & {
 	auto [finfo,fl] = sig.emplace(
 		f, FunInfo{
-			.triv = _solver.declare_fresh(Smt::BOOL),
+			.triv = false//_solver.declare_fresh(Smt::BOOL),
+				//_solver.declare_const("t"+escape(f),Smt::BOOL),
 		}
 	);
+	if( log & INIT ) cerr << "; intp triv[" << f << "] := " << finfo.triv << endl;
 	for( size_t i = 0; i < rank.arity; i++ ) {
-		finfo.args.emplace_back(ArgInfo{
-			.infl = _solver.declare_fresh(Smt::BOOL),
-			.used = _solver.declare_fresh(Smt::BOOL),
+		auto const& infl = _solver.declare_const("i"+escape(f)+"_"+to_string(i), Smt::BOOL);
+//		auto const& used = _solver.declare_const("u"+escape(f)+"_"+to_string(i),Smt::BOOL);
+		auto const& arg = finfo.args.emplace_back(ArgInfo{
+			.infl = infl,
+			.used = infl,
 		});
+	}
+	if( log & INIT ) {
+		cerr << "; intp infl[" << f << "] := (" << print_list( 0, rank.arity, [&](size_t i){ return finfo.args[i].infl; } ) << ")" << endl;
+		cerr << "; intp used[" << f << "] := (" << print_list( 0, rank.arity, [&](size_t i){ return finfo.args[i].used; } ) << ")" << endl;
 	}
 	assign(f,_deriver_of(_template_exp,f,rank,0,finfo));
 } 
@@ -277,11 +297,10 @@ Exp const Template::SIMP_MAX = Exp("arity",
 	Exp("0",_POSVAR),
 	Exp("otherwise",Exp("args","max",Exp("+","arg",_POSVAR)))
 );
-static Exp const _MAXCOEFF = _0_or_1_constrain(Exp("and",_INFL,_USED));
 Exp const Template::MAX = Exp("arity",
 	Exp("0",_POSVAR),
-	Exp("1",Exp("+",Exp("*",_MAXCOEFF,"arg"),_POSVAR)),
-	Exp("otherwise",Exp("args","max",Exp("*",_MAXCOEFF,Exp("+","arg",_POSVAR))))
+	Exp("1",Exp("+",Exp("ite","#infl","arg","0"),_POSVAR)),
+	Exp("otherwise",Exp("args","max",Exp("ite","#infl",Exp("+","arg",_POSVAR),"0")))
 );
 
 void Template::test() {
@@ -291,7 +310,7 @@ void Template::test() {
 	sig.emplace("f",2);
 	sig.emplace("g",1);
 	sig.emplace("a",0);
-	auto der = Template::Deriver(SUM,z3);
+	auto der = Template::Deriver(SUM,z3,INIT&DEBUG);
 	der.extend_sig(sig);
 	auto der_intp = der.derive(MPoly::ALGEBRA);
 	auto e = Exp("f",Exp("g","x"),"a");

@@ -30,6 +30,7 @@ struct Template {
 		Exp _template_exp;
 //		std::function<Smt::PostExp(std::string const&, size_t)> const simp;
 	public:
+		int log;
 		Smt::PostExp const mono;
 		struct ArgInfo {
 			Smt::PostExp infl, used;
@@ -41,11 +42,12 @@ struct Template {
 		Map<std::string,FunInfo> sig;
 		Deriver(
 			Exp const& e,
-			Smt::Solver& solver
-//			std::function<Smt::PostExp(std::string const&, size_t)>&& simp
+			Smt::Solver& solver,
+			int log
 		) : _template_exp(e),
 			_solver(solver),
-			mono(solver.declare_fresh(Smt::BOOL)) {}
+			mono(false/*solver.declare_fresh(Smt::BOOL)*/),
+			log(log) {}
 		void extend_sig( std::string const& f, Trs::Rank const& rank ) &;
 		void extend_sig( Trs::Sig const& sig ) & {
 			for( auto [f,rank] : sig ) {

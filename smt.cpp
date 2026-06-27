@@ -166,10 +166,10 @@ Smt::PostExp Smt::PostExp::disj( Smt::PostExp const& y ) const& {
 }
 
 Smt::PostExp Smt::PostExp::imp( Smt::PostExp const& y ) const {
-	if( *this == FALSE ) return TRUE;
-	if( *this == TRUE ) return y;
-	if( y == TRUE ) return TRUE;
-	if( y == FALSE ) return !*this;
+	if( *this == false ) return true;
+	if( *this == true ) return y;
+	if( y == true ) return true;
+	if( y == false ) return !*this;
 	if( is_app().contains(NOT) ) {
 		assert( _term.args().size() == 1 );
 		return _term.arg(0) || y;
@@ -562,6 +562,12 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 		} else if( fun == NOT ) {
 			assert( args.size() == 1 );
 			return !expand(args[0]);
+		} else if( fun == IMP ) {
+			assert( args.size() == 2 );
+			auto const& x = expand(args[0]);
+			if( x == false ) return true;
+			auto const& y = expand(args[1]);
+			return x.imp(y);
 		} else if( fun == ITE ) {
 			assert( args.size() == 3 );
 			auto const& i = expand(args[0]);

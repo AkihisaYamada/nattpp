@@ -6,7 +6,6 @@
 
 struct TermOrder {
 	virtual ~TermOrder() = default;// to be able to make pointer of TermOrder 
-	enum { NONE = 0, RULE = 1 << 1, PAIR = 1 << 2, USE = 1 << 3, DEBUG = 1 << 4 };
 	virtual int log() = 0;
 	virtual void extend_sig( std::string const& f, Trs::Rank const& rank ) = 0;
 	virtual Smt::Solver& solver() = 0;
@@ -235,7 +234,7 @@ public:
 		int log_ = NONE
 	) : _solver(std::move(sol_)),
 		_log(log_),
-		deriver(temp,_solver),
+		deriver(temp,_solver,log_),
 		_intp(deriver.derive(A::ALGEBRA)) {
 	}
 	void extend_sig( std::string const& f, Trs::Rank const& rank ) override {
@@ -277,20 +276,6 @@ public:
 };
 
 struct PathOrder final : MemoizedTermOrder {
-private:
-	struct _SymInfo {
-		size_t arity;
-		size_t post_arity;// arity after argument rearrangement
-		Smt::PostExp prec, collapse, empty;
-		std::function<Smt::PostExp(size_t,size_t)> map;// map(i,j) i-th argument is mapped to j-th position
-		std::function<Smt::PostExp(size_t)> mapped;// flags if the corresponding argument is mapped
-		std::function<Smt::PostExp(size_t)> used;// flags if the corresponding argument is used
-	};
-	std::unique_ptr<TermOrder> _weight;
-	Map<std::string,_SymInfo> _info;
-	Smt::PostExp _mono;// strict monotonicity flag
-	int _log;
-public:
 	struct Status {
 		struct Straight {};
 		struct Mapped {
@@ -312,6 +297,19 @@ public:
 		static StatusFun of( Exp const& );
 	};
 private:
+	struct _SymInfo {
+		size_t arity;
+		Status status;
+		Smt::PostExp prec, collapse, empty;
+		std::function<Smt::PostExp(size_t,size_t)> map;// map(i,k) i-th argument is mapped to k-th position
+		std::function<Smt::PostExp(size_t)> mapped;// mapped(i) if the i-th argument is mapped
+		std::function<Smt::PostExp(size_t)> occupied;// occupied(k) if some argument is mapped to k-th position
+		std::function<Smt::PostExp(size_t)> used;// flags if the corresponding argument is used
+	};
+	std::unique_ptr<TermOrder> _weight;
+	Map<std::string,_SymInfo> _info;
+	Smt::PostExp _mono;// strict monotonicity flag
+	int _log;
 	StatusFun _status;
 public:
 	PathOrder(
@@ -366,9 +364,10 @@ Smt::Compare lex_compare( F const& comp, std::vector<T> const& ls, std::vector<T
 
 template<typename F, typename T>
 Smt::Compare mapped_lex_compare(
+	Smt::Solver& solver,
 	F const& comp,
-	size_t lpar,// post arity
-	size_t rpar,
+	std::function<Smt::PostExp(size_t)> const& locc,// occupancy of post-positions. locc(i+1) => loc(i) is assumed 
+	std::function<Smt::PostExp(size_t)> const& rocc,
 	std::function<Smt::PostExp(size_t,size_t)> const& lmap,
 	std::function<Smt::PostExp(size_t,size_t)> const& rmap,
 	std::vector<T> const& ls,
@@ -378,31 +377,30 @@ Smt::Compare mapped_lex_compare(
 	auto lin = ls.size();
 	auto rin = rs.size();
 	for( size_t k = 0;; k++ ) {
-		if( k == lpar ) {// lhs has no more post arguments
-			// Check if any of r's remaining post-arguments survives
-			auto rsurvive = Smt::disj( k, rpar, [&]( size_t n ){
-				return Smt::disj( 0, rin, [&]( size_t j ){ return rmap(j,n); } ); 
-			});
-			return { gt || !rsurvive && all_ge, gt };
-		} else if( k == rpar ) {
-			// Check if l's remaining post-arguments are survives
-			auto lsurvive = Smt::disj( k, lpar, [&]( size_t n ){
-				return Smt::disj( 0, lin, [&]( size_t i ){ return lmap(i,n); } );
-			});
-			return { gt || all_ge, gt || lsurvive && all_ge };
+		auto const& locck = locc(k);
+		auto const& rocck = rocc(k);
+		all_ge = solver.let(Smt::BOOL,all_ge);
+		if( locck == false ) {// lhs has no more post arguments
+			gt = solver.let(Smt::BOOL,gt);
+			return { gt || !rocck && all_ge, gt };
+		} else if( rocck == false ) {// rhs has no more post arguments
+			gt = solver.let(Smt::BOOL,gt);
+			return { gt || !locck && all_ge, gt || locck && all_ge };
 		}
-		auto ige = Smt::disj( 0, lin, [&]( size_t const& i ){
-			return lmap(i,k) && Smt::disj( 0, rin, [&]( size_t const& j ){
-				return rmap(j,k) && comp(ls[i],rs[j]).ge;
-			} );
-		} );
-		auto igt = Smt::disj( 0, lin, [&]( size_t const& i ){
-			return lmap(i,k) && Smt::disj( 0, rin, [&]( size_t const& j ){
-				return rmap(j,k) && comp(ls[i],rs[j]).gt;
-			} );
-		} );
-		gt = gt || (all_ge && igt);
-		all_ge = all_ge && ige;
+		gt = gt || (all_ge &&
+			Smt::disj( 0, lin, [&]( size_t const& i ){
+				return lmap(i,k) && Smt::conj( 0, rin, [&]( size_t const& j ){// notice: [l] > []
+					return rmap(j,k).imp(comp(ls[i],rs[j]).gt);
+				} );
+			} )
+		);
+		all_ge = all_ge && (!locck && !rocck ||// [] >= []
+			Smt::disj( 0, lin, [&]( size_t const& i ){// [l] >= [r]
+				return lmap(i,k) && Smt::disj( 0, rin, [&]( size_t const& j ){
+					return rmap(j,k) && comp(ls[i],rs[j]).ge;
+				} );
+			} )
+		);
 	}
 }
 

@@ -230,7 +230,7 @@ int main( int argc, char* argv[] ) try {
 				}
 			}
 			if( p.components.empty() ) {
-				cerr << "; no SCC" << endl;
+				if( print_steps ) cerr << "; no SCC" << endl;
 				throw Answer::YES;
 			}
 		}

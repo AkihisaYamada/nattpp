@@ -256,7 +256,7 @@ int main( int argc, char* argv[] ) try {
 					};
 					for( auto [f,rank] : p.main.sig ) pr_sym(f);
 					for( auto [f,rank] : subsig ) pr_sym(f);
-					*prf << ")\n " << print_list(rem) << "\n  :usables (" << print_list(usables) << "))" << endl;
+					*prf << ")\n  " << print_list(rem) << "\n  :usables (" << print_list(usables) << "))" << endl;
 				}
 				for( size_t i : rem ) {
 					subcomp.erase(i);

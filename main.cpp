@@ -229,6 +229,10 @@ int main( int argc, char* argv[] ) try {
 					}
 				}
 			}
+			if( p.components.empty() ) {
+				cerr << "; no SCC" << endl;
+				throw Answer::YES;
+			}
 		}
 		size_t target_ind = 2;
 		auto dp_removes = [&]( pair<int,unique_ptr<UsableRuleOrder>>& pair ){
@@ -264,11 +268,11 @@ int main( int argc, char* argv[] ) try {
 			dp_removers.emplace_back(0,UsableRuleOrder::make(p.main,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log))));
 		}
 		for(;;) {
-			if( p.components.empty() ) throw Answer::YES;
 			if( p.components.front().rules.empty() ) {
 				p.components.pop_front();
 				target_ind++;
 				marked = false;
+				if( p.components.empty() ) throw Answer::YES;
 				if( print_proofs ) *prf << "(scc" << p.components.front().rules << ')' << endl;
 				continue;
 			}

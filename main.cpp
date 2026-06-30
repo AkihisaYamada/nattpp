@@ -233,6 +233,7 @@ int main( int argc, char* argv[] ) try {
 				if( print_steps ) cerr << "; no SCC" << endl;
 				throw Answer::YES;
 			}
+			if( print_proofs ) *prf << "(scc" << p.components.front().rules << ')' << endl;
 		}
 		size_t target_ind = 2;
 		auto dp_removes = [&]( pair<int,unique_ptr<UsableRuleOrder>>& pair ){

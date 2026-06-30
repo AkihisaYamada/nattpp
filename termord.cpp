@@ -254,7 +254,7 @@ std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sy
 	assert(info);
 	auto& sol = solver();
 	os << " :prec " << sol.get_value(info->prec);
-	if( auto post_arity = info->status.post_arity() ) {
+	if( auto post_arity = info->status.post_arity(); post_arity && *post_arity > 0 ) {
 		auto f = [&]( string_view const& prefix, size_t k ){
 			size_t i = 0;
 			for(;;){

@@ -12,15 +12,19 @@
 template<typename T>
 class Opt {
 	std::optional<T> _opt;
-	template<typename U>
+	template<typename S>
 	friend class Opt;
 public:
 	Opt() {}
 	Opt( Opt&& other ) = default;
 	Opt( Opt const& other ) = default;
 	Opt( T&& org ) : _opt(std::move(org)) {}
-	template<typename S> requires std::is_convertible_v<S,T>
-	Opt( S const& org ) : _opt(org) {}
+	Opt( T const& org ) : _opt(org) {}
+	template<typename S>
+		requires std::is_constructible_v<T,S>
+	Opt( Opt<S> const& other ) {
+		if( other ) _opt = {*other};
+	}
 	/**
 	 * @brief Constructs optional object in-place.
 	 */
@@ -28,6 +32,9 @@ public:
 	Opt( std::in_place_t, Ts&&... xs ) : _opt(std::in_place,std::forward<Ts>(xs)...) {}
 	explicit operator bool() const {
 		return (bool)_opt;
+	}
+	bool operator!() const {
+		return !_opt;
 	}
 	Opt& operator=( Opt && other ) & {
 		_opt = std::move(other._opt);
@@ -58,6 +65,11 @@ public:
 	T const& value_or( T const& def ) const & {
 		if(_opt) return *_opt;
 		return def;
+	}
+	/** @brief Copies the value or computes default. */
+	T operator||( std::function<T()> const& def ) const& {
+		if(_opt) return *_opt;
+		return def();
 	}
 	template<typename E>
 	T value_or_throw( E const& err ) {
@@ -167,6 +179,11 @@ public:
 		if(_ptr) return *_ptr;
 		return def;
 	}
+	/** @brief Copies the value or computes default. */
+	T operator||( std::function<T()> const& def ) const& {
+		if(_ptr) return *_ptr;
+		return def();
+	}
 	template<typename E>
 	T& value_or_throw( E const& err )& {
 		if(_ptr) return *_ptr;
@@ -188,5 +205,10 @@ public:
 		return *this ? f(*_ptr) : O{};
 	}
 };
+
+template<typename T, typename U>
+bool operator==( Opt<T> const& x, Opt<U> const& y ) {
+	return x ? y && *x == *y : !y;
+}
 
 #endif

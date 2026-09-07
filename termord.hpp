@@ -56,15 +56,14 @@ struct TermOrder {
 
 struct MemoizedTermOrder : TermOrder {
 protected:
-	OrdMap<std::pair<Term<std::string>,Term<std::string>>,Smt::Compare> _table;
+	OrdMap<std::pair<Exp,Exp>,Smt::Compare> _table;
 	virtual Smt::Compare compare_inner( Exp const& l, Exp const& r ) = 0;
 public:
 	Smt::Compare compare( Exp const& l, Exp const& r ) final override {
 		if( auto const& opt = _table.find({l,r}) ) {
 			return *opt;
 		}
-		auto [ge,gt] = compare_inner(l,r);
-		auto ret = Smt::Compare(solver().let(Smt::BOOL,ge),solver().let(Smt::BOOL,gt));
+		auto ret = solver().let(compare_inner(l,r));
 		if( log() & PAIR ) {
 			std::cerr << "; " << print_name() << ": " << l << " <=> " << r << " = " << ret << std::endl;
 		}
@@ -229,13 +228,24 @@ private:
 public:
 	Template::Deriver deriver;
 	DerivedTermOrder(
+		Algebra<Template::Sym,A>&& org,
 		Exp const& temp,
 		Smt::Solver&& sol_,
 		int log_ = NONE
 	) : _solver(std::move(sol_)),
 		_log(log_),
 		deriver(temp,_solver,log_),
-		_intp(deriver.derive(A::ALGEBRA)) {
+		_intp(deriver.derive(std::move(org))) {
+	}
+	DerivedTermOrder(
+		Algebra<Template::Sym,A> const& org,
+		Exp const& temp,
+		Smt::Solver&& sol_,
+		int log_ = NONE
+	) : _solver(std::move(sol_)),
+		_log(log_),
+		deriver(temp,_solver,log_),
+		_intp(deriver.derive(org)) {
 	}
 	void extend_sig( std::string const& f, Trs::Rank const& rank ) override {
 		deriver.extend_sig(f,rank);
@@ -388,15 +398,15 @@ Smt::Compare mapped_lex_compare(
 			return { gt || !locck && all_ge, gt || locck && all_ge };
 		}
 		gt = gt || (all_ge &&
-			Smt::disj( 0, lin, [&]( size_t const& i ){
-				return lmap(i,k) && Smt::conj( 0, rin, [&]( size_t const& j ){// notice: [l] > []
+			Smt::PostExp::disj( 0, lin, [&]( size_t const& i ){
+				return lmap(i,k) && Smt::PostExp::conj( 0, rin, [&]( size_t const& j ){// notice: [l] > []
 					return rmap(j,k).imp(comp(ls[i],rs[j]).gt);
 				} );
 			} )
 		);
 		all_ge = all_ge && (!locck && !rocck ||// [] >= []
-			Smt::disj( 0, lin, [&]( size_t const& i ){// [l] >= [r]
-				return lmap(i,k) && Smt::disj( 0, rin, [&]( size_t const& j ){
+			Smt::PostExp::disj( 0, lin, [&]( size_t const& i ){// [l] >= [r]
+				return lmap(i,k) && Smt::PostExp::disj( 0, rin, [&]( size_t const& j ){
 					return rmap(j,k) && comp(ls[i],rs[j]).ge;
 				} );
 			} )

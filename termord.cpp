@@ -3,6 +3,7 @@
 #include "template.hpp"
 #include "poly.hpp"
 #include "reach.hpp"
+#include "tpalgebra.hpp"
 
 using namespace std;
 
@@ -89,7 +90,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 				if( _log & DEBUG ) cerr << ";  map[" << f << ',' << i << "] = " << print_list(mapi) << std::endl;
 				// mapped[i] means i-th argument survives mapping
 				auto const& mappedi = mapped_tbl.emplace_back(
-					sol.define_fun( "S"+fesc+"_"+to_string(i), {}, Smt::BOOL, Smt::disj(mapi))
+					sol.define_fun( "S"+fesc+"_"+to_string(i), {}, Smt::BOOL, Smt::PostExp::disj(mapi))
 				);
 				if( _log & DEBUG ) cerr << "; monotonicity => mapped[" << f << ',' << i << "]" << endl;
 				sol.ass( _mono.imp(mappedi) );
@@ -109,7 +110,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 			auto add_occupied = [&]( size_t k )->Smt::PostExp const&{
 				return occupied.emplace_back(
 					sol.define_fun("o"+fesc+"_"+to_string(k),{},
-						Smt::BOOL,Smt::disj(0,rank.arity,[&]( size_t i ){ return map_tbl[i][k]; })
+						Smt::BOOL,Smt::PostExp::disj(0u,rank.arity,[&]( unsigned int const& i )->Smt::PostExp{ return map_tbl[i][k]; })
 					)
 				);
 			};
@@ -146,7 +147,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 		}
 	} else {// straight status
 		if( _log & DEBUG ) cerr << "; straight status requires inflationarity on all arguments" << endl;
-		sol.ass( Smt::conj( 0, arity, [&]( size_t i ){ return _weight->arg_infl(f,i); } ) );
+		sol.ass( Smt::PostExp::conj( 0, arity, [&]( size_t i ){ return _weight->arg_infl(f,i); } ) );
 		_info.emplace(f,_SymInfo{
 			.arity = arity,
 			.status = status,
@@ -327,9 +328,9 @@ Smt::Compare TrsOrder::_Wrapper::rule_compare( size_t i, Trs::Term const& l, Trs
 
 Smt::PostExp UsableRuleOrder::_Wrapper::term_used( Trs::Term const& r ) & {
 	auto const& [g,rs] = *r;
-	auto ret = Smt::conj(0,rs.size(),[&]( size_t p ){ return arg_used(g,p).imp(term_used(rs[p])); } );
+	auto ret = Smt::PostExp::conj(0,rs.size(),[&]( size_t p ){ return arg_used(g,p).imp(term_used(rs[p])); } );
 	if( auto const& ginfo = _trs.sig.find(g) ) {
-		return ret && Smt::conj( ginfo->defined_by, [&]( size_t i )->Smt::PostExp{
+		return ret && Smt::PostExp::conj( ginfo->defined_by, [&]( size_t i )->Smt::PostExp{
 			if( auto const& rule = _trs.rules.find(i) )
 				if( may_reach(_trs,r,rule->first,8,false) ) {//TODO
 					if( log() & USE ) cerr << "; " << r << " uses " << i << endl;
@@ -390,24 +391,30 @@ std::unique_ptr<TermOrder> TermOrder::make(
 	} else if( f == "mono-sum" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<MPoly>>(Template::MONO_SUM,mk_smt(),log);
+		return std::make_unique<DerivedTermOrder<Poly>>(Poly::ALGEBRA,Template::MONO_SUM,mk_smt(),log);
 	} else if( f == "sum" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<MPoly>>(Template::SUM,mk_smt(),log);
+		return std::make_unique<DerivedTermOrder<Poly>>(Poly::ALGEBRA,Template::SUM,mk_smt(),log);
 	} else if( f == "poly" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<MPoly>>(Template::MONO_POLY2,mk_smt(),log);
+		return std::make_unique<DerivedTermOrder<Poly>>(Poly::ALGEBRA,Template::MONO_POLY2,mk_smt(),log);
+	} else if( f == "mat2b" ) {
+		x.process_keys( n, solver_key || log_key );
+		set_log();
+		return std::make_unique<DerivedTermOrder<TupleVal<Poly>>>(
+			tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::POS}),Template::MAT2B,mk_smt(),log
+		);
 	} else if( f == "max" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<MPoly>>(Template::MAX,mk_smt(),log);
+		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::ALGEBRA,Template::MAX,mk_smt(),log);
 	} else if( f == "template" ) {
 		Exp t = x.get_arg(n);
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<MPoly>>(t,mk_smt(),log);
+		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::ALGEBRA,t,mk_smt(),log);
 	} else if( f == "path-order" ) {
 		Opt<Exp> w;
 		Exp::KeyValProc weight_key = [&]( auto const& key, Exp const& val ){

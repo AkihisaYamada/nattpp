@@ -115,7 +115,7 @@ Problem::Problem( istream& is ) : next_rule(0) {
 	if( eis.reads_sym("format") ) {
 		if( eis.reads_sym("TRS") ) {
 			format = TRS;
-			Opt<int> number;
+			Opt<unsigned int> number;
 			while( auto key = eis.reads_key() ) {
 				if( *key == ":number" ) {
 					if( number ) throw eis.error("#duplicate-number");

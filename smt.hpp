@@ -9,6 +9,7 @@
 
 class Smt {
 public:
+	class Solver;
 	struct Error : ::Error {
 		using ::Error::Error;
 	};
@@ -241,46 +242,43 @@ public:
 			return Term<Fun>(CONS,*this,y);
 		}
 		Exp exp() const;
-	};
-	static PostExp disj( auto i, auto const& end, auto const& f ) {
-		std::vector<Term<Fun>> ds;
-		for( ; i != end; i++ ) {
-			PostExp const& fx = f(i);
-			if( fx == TRUE ) return TRUE;
-			if( fx != FALSE ) ds.push_back(fx._term);
+		static PostExp disj( auto i, auto const& end, auto const& f ) {
+			std::vector<Term<Fun>> ds;
+			for( ; i != end; i++ ) {
+				PostExp const& fx = f(i);
+				if( fx == TRUE ) return TRUE;
+				if( fx != FALSE ) ds.push_back(fx._term);
+			}
+			switch( ds.size() ) {
+			case 0: return FALSE;
+			case 1: return PostExp(ds[0]);
+			}
+			return PostExp(app(OR,std::move(ds)));
 		}
-		switch( ds.size() ) {
-		case 0: return FALSE;
-		case 1: return PostExp(ds[0]);
+		static PostExp disj( auto const& xs, auto const& f ) {
+			return disj( xs.begin(), xs.end(), [&]( auto const& i )->PostExp{ return f(*i); } );
 		}
-		return PostExp(app(OR,std::move(ds)));
-	}
-	template<typename C>
-	static PostExp disj( C const& xs, auto const& f ) {
-		return disj( xs.begin(), xs.end(), [&]( typename C::const_iterator const& i ){ return f(*i); } );
-	}
-	template<typename C>
-	static PostExp disj( C const& xs ) {
-		return disj( xs, []( auto const& x ){ return x; } );
-	}
+		static PostExp disj( auto const& xs ) {
+			return disj( xs, []( auto const& x ){ return x; } );
+		}
 
-	static PostExp conj( auto i, auto const& end, auto const& f ) {
-		std::vector<Term<Fun>> cs;
-		for( ; i != end; i++ ) {
-			PostExp const& fx = f(i);
-			if( fx == FALSE ) return FALSE;
-			if( fx != TRUE ) cs.push_back(fx._term);
+		static PostExp conj( auto i, auto const& end, auto const& f ) {
+			std::vector<Term<Fun>> cs;
+			for( ; i != end; i++ ) {
+				PostExp const& fx = f(i);
+				if( fx == FALSE ) return FALSE;
+				if( fx != TRUE ) cs.push_back(fx._term);
+			}
+			switch( cs.size() ) {
+			case 0: return TRUE;
+			case 1: return cs[0];
+			}
+			return app(AND,std::move(cs));
 		}
-		switch( cs.size() ) {
-		case 0: return TRUE;
-		case 1: return cs[0];
+		static PostExp conj( auto const& xs, auto const& f ) {
+			return conj( xs.begin(), xs.end(), [&]( auto const& i ){ return f(*i); } );
 		}
-		return app(AND,std::move(cs));
-	}
-	template<typename C>
-	static PostExp conj( C const& xs, auto const& f ) {
-		return conj( xs.begin(), xs.end(), [&]( auto const& i ){ return f(*i); } );
-	}
+	};
 	static PostExp car( PostExp const& arg );
 	static PostExp cdr( PostExp const& arg );
 	struct Compare {
@@ -290,7 +288,7 @@ public:
 		friend Smt;
 		class App;
 		class Let;
-		using Lazy = std::function<PreExp()>;
+		using Lazy = std::function<PostExp(Smt::Solver&)>;
 		Sum<PostExp,Ref<App>,Ref<Let>,Lazy> _un;
 		explicit PreExp( Sort const& sort, PreExp const& val, std::function<PreExp(PostExp const&)> body ) :
 			_un(Ref<Let>::make(val,sort,body)) {}
@@ -337,6 +335,17 @@ public:
 		}
 		PreExp add( PreExp const& y ) const {
 			return PreExp(ADD,{*this,y});
+		}
+		static PreExp disj( auto&& begin, auto&& end, auto&& f ) {
+			return [begin=std::move(begin),end=std::move(end),f=std::move(f)]( Solver& solver ){
+				auto i = std::move(begin);
+				PostExp ret = false;
+				for( ;i != end; i++ ) {
+					ret = ret || solver.expand(f(i));
+					if( ret == true ) return ret;
+				}
+				return ret;
+			};
 		}
 		friend PreExp& operator+=( PreExp& x, PreExp const& y ) {
 			return x = x.add(y);
@@ -480,6 +489,9 @@ public:
 		}
 		PostExp let( PreExp const& val ) & {
 			return let(_logic._base_sort,expand(val));
+		}
+		Compare let( Compare const& val ) & {
+			return Smt::Compare( let(Smt::BOOL,val.ge),let(Smt::BOOL,val.gt));
 		}
 		Solver& ass( PostExp const& e ) &;
 		Solver& ass( PreExp const& p ) & {

@@ -3,13 +3,13 @@ MAIN_SRC=main.cpp
 TEST_SRC=test.cpp
 TGT=$(PWD)/natt++
 
-CLANGPP=clang++ -std=c++20 -Wfatal-errors -ftemplate-backtrace-limit=0 -Wno-switch
-GPP=g++ -std=c++20 -Wfatal-errors
+CLANGPP=clang++ -std=c++23 -Wfatal-errors -ftemplate-backtrace-limit=0 -Wno-switch
+GPP=g++ -std=c++23 -Wfatal-errors
 
 CPP=${GPP}
 BUILD_CPP=${CPP} -O3
 SANITIZE_CPP=${CPP} -O1 -fsanitize=address,alignment,undefined -fno-omit-frame-pointer
-DEBUG_CPP=${CPP} -O0 -ggdb3 -fsanitize=address
+DEBUG_CPP=${CPP} -O0 -ggdb3 -fsanitize=address,undefined
 
 DEPEND=_depend
 BUILD=_build
@@ -59,7 +59,7 @@ $(DEPEND)/%.d: %.cpp
 
 $(BUILD)/%.o: %.cpp
 	@mkdir -p $(@D)
-	${CPP} -c $< -o $@
+	${BUILD_CPP} -c $< -o $@
 
 $(SANITIZE)/%.o: %.cpp
 	@mkdir -p $(@D)

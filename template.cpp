@@ -3,9 +3,9 @@
 
 using namespace std;
 
-ArgTerm<Template::Fun>& operator+=( ArgTerm<Template::Fun>& x, ArgTerm<Template::Fun> const& y ) {
-	auto xf = x.fun().ref<Template::Fun>();
-	auto yf = y.fun().ref<Template::Fun>();
+ArgTerm<Template::Sym>& operator+=( ArgTerm<Template::Sym>& x, ArgTerm<Template::Sym> const& y ) {
+	auto xf = x.fun().ref<Template::Sym>();
+	auto yf = y.fun().ref<Template::Sym>();
 	if( xf ) {
 		auto const& xe = xf->is_smt();
 		if( yf ) {
@@ -17,8 +17,8 @@ ArgTerm<Template::Fun>& operator+=( ArgTerm<Template::Fun>& x, ArgTerm<Template:
 					return x = *xe + *ye;
 				}
 			}
-			vector<ArgTerm<Template::Fun>> args;
-			if( xf->is_fun().contains(Smt::ADD) ) {
+			vector<ArgTerm<Template::Sym>> args;
+			if( xf->is_fun() && [&](auto const& f){ return f.name == Smt::ADD; } ) {
 				for( auto xarg : x.args() ) {
 					args.emplace_back(xarg);
 				}
@@ -26,14 +26,14 @@ ArgTerm<Template::Fun>& operator+=( ArgTerm<Template::Fun>& x, ArgTerm<Template:
 			} else {
 				args.emplace_back(x);
 			}
-			if( yf->is_fun().contains(Smt::ADD) ) {
+			if( yf->is_fun() && [&](auto const& f){ return f.name == Smt::ADD; } ) {
 				for( auto const& yarg : y.args() ) {
 					args.emplace_back(yarg);
 				}
 			} else {
 				args.emplace_back(y);
 			}
-			return x = app(Smt::ADD,std::move(args));
+			return x = app(Template::Fun(Smt::ADD),std::move(args));
 		}
 		if( xe.contains(0) ) {
 			return x = y;
@@ -41,12 +41,12 @@ ArgTerm<Template::Fun>& operator+=( ArgTerm<Template::Fun>& x, ArgTerm<Template:
 	} else if( yf && yf->is_smt().contains(0) ) {
 		return x;
 	}
-	return x = {Smt::ADD,x,y};
+	return x = {Template::Fun(Smt::ADD),x,y};
 }
 
-ArgTerm<Template::Fun>& operator*=( ArgTerm<Template::Fun>& x, ArgTerm<Template::Fun> const& y ) {
-	auto xs = x.fun().ref<Template::Fun>();
-	auto ys = y.fun().ref<Template::Fun>();
+ArgTerm<Template::Sym>& operator*=( ArgTerm<Template::Sym>& x, ArgTerm<Template::Sym> const& y ) {
+	auto xs = x.fun().ref<Template::Sym>();
+	auto ys = y.fun().ref<Template::Sym>();
 	if( xs ) {
 		auto const& xe = xs->is_smt();
 		if( xe ) {
@@ -63,32 +63,32 @@ ArgTerm<Template::Fun>& operator*=( ArgTerm<Template::Fun>& x, ArgTerm<Template:
 				if( *ye == 0 ) return x = y;
 				if( *ye == 1 ) return x;
 			}
-			vector<ArgTerm<Template::Fun>> args;
-			if( xs->is_fun().contains(Smt::MUL) ) {
+			vector<ArgTerm<Template::Sym>> args;
+			if( xs->is_fun() && [&](auto const& f){ return f.name == Smt::MUL; } ) {
 				for( auto xarg : x.args() ) {
 					args.emplace_back(xarg);
 				}
 			} else {
 				args.emplace_back(x);
 			}
-			if( ys->is_fun().contains(Smt::MUL) ) {
+			if( ys->is_fun() && [&](auto const& f){ return f.name == Smt::MUL; } ) {
 				for( auto const& yarg : y.args() ) {
 					args.emplace_back(yarg);
 				}
 			} else {
 				args.emplace_back(y);
 			}
-			return x = app(Smt::MUL,std::move(args));
+			return x = app(Template::Fun(Smt::MUL),std::move(args));
 		}
 	}
-	return x = {Smt::MUL,x,y};
+	return x = {Template::Fun(Smt::MUL),x,y};
 }
-ArgTerm<Template::Fun> ite(
-	ArgTerm<Template::Fun> const& i,
-	ArgTerm<Template::Fun> const& t,
-	ArgTerm<Template::Fun> const& e
+ArgTerm<Template::Sym> ite(
+	ArgTerm<Template::Sym> const& i,
+	ArgTerm<Template::Sym> const& t,
+	ArgTerm<Template::Sym> const& e
 ) {
-	if( auto const& ifun = i.fun().ref<Template::Fun>() ) {
+	if( auto const& ifun = i.fun().ref<Template::Sym>() ) {
 		if( auto ie = ifun->is_smt() ) {
 			if( auto const& ie2 = ie->is_post() ) {
 				if( *ie2 == Smt::TRUE ) return t;
@@ -96,63 +96,68 @@ ArgTerm<Template::Fun> ite(
 			}
 		}
 	}
-	return {Smt::ITE,i,t,e};
+	return {Template::Fun(Smt::ITE),i,t,e};
 }
-ArgTerm<Template::Fun>& max_eq( ArgTerm<Template::Fun>& x, ArgTerm<Template::Fun> const& y ) {
+ArgTerm<Template::Sym>& max_eq( ArgTerm<Template::Sym>& x, ArgTerm<Template::Sym> const& y ) {
 	auto const& [xsym,xargs] = *x;
 	auto const& [ysym,yargs] = *y;
-	std::vector<ArgTerm<Template::Fun>> args;
-	if( auto const& xf = xsym.ref<Template::Fun>(); xf && xf->is_fun().contains(Smt::MAX) ) {
+	std::vector<ArgTerm<Template::Sym>> args;
+	if( xsym.ref<Template::Sym>() && [&]( auto const& sym ){
+		return sym.is_fun() && [&]( auto const& f ){ return f.name == Smt::MAX; };
+	} ) {
 		for( auto const& xarg : xargs ) {
 			args.emplace_back(xarg);
 		}
 	} else {
 		args.emplace_back(x);
 	}
-	if( auto const& yf = ysym.ref<Template::Fun>(); yf && yf->is_fun().contains(Smt::MAX) ) {
+	if( ysym.ref<Template::Sym>() && [&]( auto const& sym ){
+		return sym.is_fun() && [&]( auto const& f ){ return f.name == Smt::MAX; };
+	} ) {
 		for( auto const& yarg : yargs ) {
 			args.emplace_back(yarg);
 		}
 	} else {
 		args.emplace_back(y);
 	}
-	return x = app(Smt::MAX,std::move(args));
+	return x = app(Template::Fun(Smt::MAX),std::move(args));
 }
 
-Algebra<Sum<Template::Fun,Arg>,ArgTerm<Template::Fun>> Template::instantiator( Smt::Solver& solver ) {
-	return [&]( Sum<Fun,Arg> const& sym, std::vector<ArgTerm<Fun>>&& args )->ArgTerm<Fun>{
+Algebra<Sum<Template::Sym,Arg>,ArgTerm<Template::Sym>> Template::instantiator( Smt::Solver& solver ) {
+	return [&]( Sum<Sym,Arg> const& sym, std::vector<ArgTerm<Sym>>&& args )->ArgTerm<Sym>{
 		if( auto const& a = sym.ref<Arg>() ) {
 			assert( args.empty() );
 			return sym;
 		}
-		auto const& fe = sym.ref<Fun>();
+		auto const& fe = sym.ref<Sym>();
 		if( auto const& e = fe->is_smt() ) {
 			assert( args.empty() );
 			return solver.get_value(*e);
 		}
-		auto const& f = *fe->is_fun();
-		if( f == Smt::ADD ) {
-			return chain(ArgTerm<Fun>(Smt::PostExp(0)),BINARY(operator+=),args);
+		if( auto const& f = fe->is_fun() ) {
+			if( f->name == Smt::ADD ) {
+				return chain(ArgTerm<Sym>(Smt::PostExp(0)),BINARY(operator+=),args);
+			}
+			if( f->name == Smt::MUL ) {
+				return chain(ArgTerm<Sym>(Smt::PostExp(1)),BINARY(operator*=),args);
+			}
+			if( f->name == Smt::ITE ) {
+				assert( args.size() == 3 );
+				return ite(args[0],args[1],args[2]);
+			}
+			if( f->name == Smt::MAX ) {
+				
+			}
 		}
-		if( f == Smt::MUL ) {
-			return chain(ArgTerm<Fun>(Smt::PostExp(1)),BINARY(operator*=),args);
-		}
-		if( f == Smt::ITE ) {
-			assert( args.size() == 3 );
-			return ite(args[0],args[1],args[2]);
-		}
-		if( f == Smt::MAX ) {
-			
-		}
-		std::vector<ArgTerm<Fun>> targs;
+		std::vector<ArgTerm<Sym>> targs;
 		for( auto&& arg : args ) {
 			targs.emplace_back(std::move(arg));
 		}
-		return app(Fun(f),std::move(targs));
+		return app(*fe,std::move(targs));
 	};
 }
 
-Term<Sum<Template::Fun,Arg>> Template::Deriver::_deriver_of(
+Term<Sum<Template::Sym,Arg>> Template::Deriver::_deriver_of(
 	Exp const& exp,
 	string const& f,
 	Trs::Rank const& rank,
@@ -198,11 +203,11 @@ Term<Sum<Template::Fun,Arg>> Template::Deriver::_deriver_of(
 		auto const& argexp = exp.get_arg(n);
 		exp.get_end(n);
 		if( auto const& aggfun = agg.unapplied() ) {
-			auto args = vector<Term<Sum<Template::Fun,Arg>>>();
+			auto args = vector<Term<Sum<Template::Sym,Arg>>>();
 			for( int i = 0; i < rank.arity; i++ ) {
 				args.emplace_back(_deriver_of(argexp,f,rank,i,finfo));
 			}
-			return app(*aggfun,std::move(args));
+			return app(Template::Fun(*aggfun),std::move(args));
 		}
 		throw Error("#invalid-arg-aggregator",agg);
 	}
@@ -234,12 +239,12 @@ Term<Sum<Template::Fun,Arg>> Template::Deriver::_deriver_of(
 		exp.get_end(n);
 		return Smt::PostExp(*i);
 	}
-	auto args = vector<Term<Sum<Template::Fun,Arg>>>();
+	auto args = vector<Term<Sum<Template::Sym,Arg>>>();
 	while( auto const& arg = exp.gets_arg(n) ) {
 		args.emplace_back(_deriver_of(*arg,f,rank,pos,finfo));
 	}
 	exp.get_end(n);
-	return app(fun,std::move(args));
+	return app(Template::Fun(fun),std::move(args));
 }
 void Template::Deriver::extend_sig( std::string const& f, Trs::Rank const& rank ) & {
 	if( sig.find(f) ) return;
@@ -270,8 +275,9 @@ static Exp const _POSVAR = Exp("var",":constrain",
 		Exp("=>","#triv",Exp("=","_","0"))// trivial requires 0 variable
 	)
 );
-static Exp const _1_OR_2 = Exp("ite",Exp("var",":sort","Bool"),"2","1");
-static Exp const _0_OR_1 = Exp("ite",Exp("var",":sort","Bool"),"1","0");
+static Exp const _BOOLVAR = Exp("var",":sort","Bool");
+static Exp const _1_OR_2 = Exp("ite",_BOOLVAR,"2","1");
+static Exp const _0_OR_1 = Exp("ite",_BOOLVAR,"1","0");
 Exp _0_or_1_constrain( Exp const& c ) {
 	return Exp("ite",Exp("var",":sort","Bool",":constrain",c),"1","0");
 }
@@ -302,6 +308,22 @@ Exp const Template::MAX = Exp("arity",
 	Exp("1",Exp("+",Exp("ite","#infl","arg","0"),_POSVAR)),
 	Exp("otherwise",Exp("args","max",Exp("ite","#infl",Exp("+","arg",_POSVAR),"0")))
 );
+Exp const Template::MAT2B = Exp("tp",
+	Exp("+",Exp("args","+",
+		Exp("+",
+			Exp("ite",_BOOLVAR,Exp("prj0","arg"),"0"),
+			Exp("ite",_BOOLVAR,Exp("prj1","arg"),"0")
+		)),
+		_POSVAR
+	),
+	Exp("+",Exp("args","+",
+		Exp("+",
+			Exp("ite",_BOOLVAR,Exp("prj0","arg"),"0"),
+			Exp("ite",_BOOLVAR,Exp("prj1","arg"),"0")
+		)),
+		_POSVAR
+	)
+);
 
 void Template::test() {
 	cout << "=== Template::test ===" << endl;
@@ -312,16 +334,16 @@ void Template::test() {
 	sig.emplace("a",0);
 	auto der = Template::Deriver(SUM,z3,INIT&DEBUG);
 	der.extend_sig(sig);
-	auto der_intp = der.derive(MPoly::ALGEBRA);
+	auto der_intp = der.derive(Poly::ALGEBRA);
 	auto e = Exp("f",Exp("g","x"),"a");
 	cout << der << endl;
-	auto der_term = der.derive(MPoly::ALGEBRA);
+	auto der_term = der.derive(Poly::ALGEBRA);
 	cout << "der⟦" << "(g x)" << "⟧ = " << der_term(Exp("g","x")) << endl;
 	cout << "der⟦a⟧ = " << der_term("a") << endl;
 	cout << "der⟦" << e << "⟧ = " << der_term(e) << endl;
 	cout << "Poly: " << der_intp(e) << endl;
 	cout << "Annotate: " << der_intp.annotate(e) << endl;
-	ArgTerm<Template::Fun> x = Smt::PostExp(1);
+	ArgTerm<Template::Sym> x = Smt::PostExp(1);
 	x *= "foo";
 	cout << x << endl;
 }

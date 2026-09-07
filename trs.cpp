@@ -19,7 +19,7 @@ Opt<Trs::Term> Trs::Reader::reads( function<void(string const&)> const& var ) {
 			return Term{*sym};
 		}
 		var(*sym);
-		return *sym;
+		return {*sym};
 	}
 	if( _reader.opens() ) {
 		auto const& fun = _reader.reads_sym();
@@ -40,7 +40,7 @@ Opt<Trs::Term> Trs::Reader::reads( function<void(string const&)> const& var ) {
 		}
 		auto ret = app(*fun,args);
 		if( !_reader.closes() ) throw _reader.error("too-many-args",ret);
-		return ret;
+		return {ret};
 	}
 	return {};
 }

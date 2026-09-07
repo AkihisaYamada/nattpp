@@ -672,7 +672,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 		return expand(body(let(sort,expand(val))));
 	}
 	if( auto lazy = p.is_lazy() ) {
-		return expand((*lazy)());
+		return expand((*lazy)(*this));
 	}
 	assert(false);
 };
@@ -776,7 +776,7 @@ Smt::Solver Smt::Solver::of( Exp const& x ) {
 int Smt::test() try {
 	cout << "this is Smt::test()." << endl;
 	cout << 1 + PostExp("x") << endl;
-	cout << !!(PostExp(0) + []{ return PostExp("x"); }) << endl;
+	cout << !!(PostExp(0) + [](auto&){ return PostExp("x"); }) << endl;
 	cout << ite(PostExp("p"), PostExp(3) * PostExp("x") * PostExp("y"), PostExp(0)) << endl;
 	cout << !(Smt::eq(PostExp("x"),PostExp("y")) && Smt::ge(PostExp("y"),3)) << endl;
 	auto z3 = Smt::Solver::of({"z3","QF_LIA",":tee","cout"});
@@ -791,15 +791,15 @@ int Smt::test() try {
 	cout << y << " := " << yv << endl;
 	assert( xv.as_val() > yv.as_val() + 4);
 
-	cout << z3.expand( FALSE && []{ return PostExp("BUG"); } ) << endl;
+	cout << z3.expand( FALSE && [](auto&){ return PostExp("BUG"); } ) << endl;
 
-	cout << z3.expand( TRUE || []{ return PostExp("BUG"); } ) << endl;
+	cout << z3.expand( TRUE || [](auto&){ return PostExp("BUG"); } ) << endl;
 
-	cout << z3.expand( If( TRUE ) ^ []{ return PostExp("ok"); } ^ []{ return PostExp("BUG"); } ) << endl;
+	cout << z3.expand( If( TRUE ) ^ [](auto&){ return PostExp("ok"); } ^ [](auto&){ return PostExp("BUG"); } ) << endl;
 
-	cout << z3.expand( If( FALSE ) ^ []{ return PostExp("BUG"); } ^ []{ return PostExp("ok"); } ) << endl;
+	cout << z3.expand( If( FALSE ) ^ [](auto&){ return PostExp("BUG"); } ^ [](auto&){ return PostExp("ok"); } ) << endl;
 
-	cout << z3.expand( If( PostExp("cond") ) ^ []{ return PostExp("then"); } ^ []{ return PostExp("else"); } ) << endl;
+	cout << z3.expand( If( PostExp("cond") ) ^ [](auto&){ return PostExp("then"); } ^ [](auto&){ return PostExp("else"); } ) << endl;
 
 	z3.ass(
 		Let(INT, x + y) ^ []( PostExp const& x5 ){ return Smt::ge(x5 + x5, 20); }

@@ -1,6 +1,7 @@
 #ifndef _ALGEBRA_HPP
 #define _ALGEBRA_HPP
 
+#include<functional>
 #include"map.hpp"
 #include"exp.hpp"
 
@@ -21,7 +22,7 @@ public:
  */
 template<typename F, typename T>
 struct Algebra {
-	using Intp = std::function<T(F const&,std::vector<T>&&)>;
+	using Intp = std::move_only_function<T(F const&,std::vector<T>&&) const>;
 private:
 	Intp _intp;
 public:
@@ -106,14 +107,6 @@ private:
 		assert(false);
 	};
 public:
-	Algebra<F,Term<G>> algebra() const {
-		return [&]( F const& f, std::vector<Term<G>>&& args ){
-			if( auto const& df = _map.find(f) ) {
-				return _intp_inner(TERM<G>,*df,std::move(args));
-			}
-			return app(G(f),std::move(args));
-		};
-	}
 	template<typename... Args>
 		requires std::is_constructible_v<_Map,Args&&...>
 	Deriver( Args&&... args ) : _map(std::forward<Args>(args)...) {}
@@ -127,7 +120,7 @@ public:
 		return *this;
 	}
 	/** general substitution */
-	Term<G> subst( Term<F> const& t ) const& { return algebra()(t); }
+	Term<G> subst( Term<F> const& t ) const& { return derive(TERM<G>)(t); }
 	auto derive( auto ) && = delete;
 	template<typename T>
 	Algebra<F,T> derive( Algebra<G,T>&& org ) const & {

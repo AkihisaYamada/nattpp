@@ -167,27 +167,39 @@ ostream& operator<<( ostream& os, Poly::Sig const& f ) {
 }
 
 
-Algebra<Template::Fun,MPoly> const MPoly::ALGEBRA =
-	[]( Template::Fun const& f, std::vector<MPoly> const& args )->MPoly {
-	if( auto const& smt = f.is_smt() ) {
-		return *smt;
-	}
+Algebra<Template::Sym,Poly> const Poly::ALGEBRA =
+[]( Template::Sym const& f, std::vector<Poly> const& args )->Poly {
+	if( auto const& smt = f.is_smt() ) return *smt;
 	if( auto const& sym = f.is_fun() ) {
-		if( *sym == Smt::ADD ){
-			return sum(args);
-		} else if( *sym == Smt::MUL ) {
-			return prod(args);
-		} else if( *sym == Smt::ITE ) {
+		if( sym->name == Smt::ADD ) return sum(args);
+		if( sym->name == Smt::MUL ) return prod(args);
+		if( sym->name == Smt::ITE ) {
 			assert( args.size() == 3 );
 			return ite(args[0],args[1],args[2]);
-		} else if( *sym == Smt::MAX ) {
-			return chain(MPoly(),(MPoly&(*)(MPoly&,MPoly const&))max_eq,args);
-		} else {
-			assert( args.empty() );
-			return Poly::Var(*sym,Poly::POS);
 		}
+		throw Error("#poly","\"unknown fun\"",sym->name);
 	}
-	throw Error("#poly:template-algebra");
+	if( auto const& var = f.is_var() ) return Poly::Var(*var,Poly::POS);
+	assert(false);
+};
+
+Algebra<Template::Sym,MPoly> const MPoly::ALGEBRA =
+[]( Template::Sym const& f, std::vector<MPoly> const& args )->MPoly {
+	if( auto const& smt = f.is_smt() ) return *smt;
+	if( auto const& sym = f.is_fun() ) {
+		if( sym->name == Smt::ADD ) return sum(args);
+		if( sym->name == Smt::MUL ) return prod(args);
+		if( sym->name == Smt::ITE ) {
+			assert( args.size() == 3 );
+			return ite(args[0],args[1],args[2]);
+		} 
+		if( sym->name == Smt::MAX ) {
+			return chain(MPoly(),(MPoly&(*)(MPoly&,MPoly const&))max_eq,args);
+		}
+		throw Error("#mpoly","\"unknown fun\"",sym->name);
+	}
+	if( auto const& var = f.is_var() ) return Poly::Var(*var,Poly::POS);
+	assert(false);
 };
 
 MPoly operator+( MPoly const& x, MPoly const& y ) {
@@ -258,17 +270,17 @@ int Poly::test() {
 	auto c2 = z3.declare_const("c2",Smt::INT);
 	auto wa = z3.declare_const("wa",Smt::INT);
 	auto wb = z3.declare_const("wb",Smt::INT);
-	auto hsubst = Deriver<string,Template::Fun>{
-		{ "f", Term<Sum<Template::Fun,Arg>>(
-			string("+"),
-			Term<Sum<Template::Fun,Arg>>("*",c1,Arg(0)),
-			Term<Sum<Template::Fun,Arg>>("*",c2,Arg(1))
+	auto hsubst = Deriver<string,Template::Sym>{
+		{ "f", Term<Sum<Template::Sym,Arg>>(
+			Template::Fun("+"),
+			Term<Sum<Template::Sym,Arg>>(Template::Fun("*"),c1,Arg(0)),
+			Term<Sum<Template::Sym,Arg>>(Template::Fun("*"),c2,Arg(1))
 		)},
-		{ "a", Term<Sum<Template::Fun,Arg>>(string("+"),Arg(0),wa) },
-		{ "b", Term<Sum<Template::Fun,Arg>>(string("+"),Arg(0),wb) }
+		{ "a", Term<Sum<Template::Sym,Arg>>(Template::Fun("+"),Arg(0),wa) },
+		{ "b", Term<Sum<Template::Sym,Arg>>(Template::Fun("+"),Arg(0),wb) }
 	};
 	auto e = Exp{"f",Exp{"a","x"},Exp{"b","x"}};
-	cout << "⟦" << e << "⟧ = " << hsubst.derive(TERM<Template::Fun>)(e) << endl;
+	cout << "⟦" << e << "⟧ = " << hsubst.derive(TERM<Template::Sym>)(e) << endl;
 	cout << hsubst.derive(MPoly::ALGEBRA)(e) << endl;
 	Poly x = Poly::Var("x",Poly::POS);
 	Poly y = Poly::Var("y",Poly::NEG);

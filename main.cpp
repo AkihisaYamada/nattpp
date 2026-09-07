@@ -297,10 +297,8 @@ int main( int argc, char* argv[] ) try {
 	} catch( Answer a ) {
 		if( a == Answer::YES ) {
 			cout << "YES" << endl;
-			exit(0);
 		} else if( a == Answer::NO ) {
 			cout << "NO" << endl;
-			exit(1);
 		} else if( a == Answer::MAYBE ) {
 			cout << "MAYBE" << endl;
 			if( print_on_fail ) {
@@ -321,10 +319,10 @@ int main( int argc, char* argv[] ) try {
 				}
 				cerr << p << endl;
 			}
-			exit(2);
 		} else {
 			assert(false);
 		}
+		exit(0);
 	} 
 } catch( Error const& e ) {
 	cerr << e << endl;

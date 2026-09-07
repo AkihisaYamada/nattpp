@@ -9,21 +9,27 @@
 struct Template {
 	Template() = delete;
 	struct Fun {
+		std::string name;
+	};
+	struct Sym {
 	private:
-		using _Sum = Sum<std::string,Smt::PreExp>;
+		using _Sum = Sum<std::string,Fun,Smt::PreExp>;
 		_Sum _sum;
 	public:
 		template<typename... Args>
 			requires std::is_constructible_v<_Sum,Args...>
-		Fun( Args&&... args ) : _sum(std::forward<Args>(args)...) {}
-		Opt<std::string const&> is_fun() const& {
+		Sym( Args&&... args ) : _sum(std::forward<Args>(args)...) {}
+		Opt<std::string const&> is_var() const& {
 			return _sum.ref<std::string>();
+		}
+		Opt<Fun const&> is_fun() const& {
+			return _sum.ref<Fun>();
 		}
 		Opt<Smt::PreExp const&> is_smt() const& {
 			return _sum.ref<Smt::PreExp>();
 		}
 	};
-	struct Deriver : ::Deriver<std::string,Fun> {
+	struct Deriver : ::Deriver<std::string,Sym> {
 	private:
 		Deriver() = delete;
 		Smt::Solver& _solver;
@@ -55,7 +61,7 @@ struct Template {
 			}
 		}
 	private:
-		Term<Sum<Fun,Arg>> _deriver_of(
+		Term<Sum<Sym,Arg>> _deriver_of(
 			Exp const& exp,
 			std::string const& f,
 			Trs::Rank const& rank,
@@ -64,27 +70,30 @@ struct Template {
 		);
 	};
 	/** instantiate SMT expressions in templates via get_value */
-	static Algebra<Sum<Fun,Arg>,ArgTerm<Fun>> instantiator( Smt::Solver& solver );
+	static Algebra<Sum<Sym,Arg>,ArgTerm<Sym>> instantiator( Smt::Solver& solver );
 
-	static ::Exp const SUM, MONO_SUM, MONO_POLY2, SIMP_MAX, MAX;
+	static ::Exp const SUM, MONO_SUM, MONO_POLY2, SIMP_MAX, MAX, MAT2B;
 
 	static void test();
 };
 
-ArgTerm<Template::Fun>& operator+=( ArgTerm<Template::Fun>& x, ArgTerm<Template::Fun> const& y );
-ArgTerm<Template::Fun>& operator*=( ArgTerm<Template::Fun>& x, ArgTerm<Template::Fun> const& y );
-ArgTerm<Template::Fun> ite(
-	ArgTerm<Template::Fun> const& i,
-	ArgTerm<Template::Fun> const& t,
-	ArgTerm<Template::Fun> const& e
+ArgTerm<Template::Sym>& operator+=( ArgTerm<Template::Sym>& x, ArgTerm<Template::Sym> const& y );
+ArgTerm<Template::Sym>& operator*=( ArgTerm<Template::Sym>& x, ArgTerm<Template::Sym> const& y );
+ArgTerm<Template::Sym> ite(
+	ArgTerm<Template::Sym> const& i,
+	ArgTerm<Template::Sym> const& t,
+	ArgTerm<Template::Sym> const& e
 );
-ArgTerm<Template::Fun>& max_eq( ArgTerm<Template::Fun>& x, ArgTerm<Template::Fun> const& y );
+ArgTerm<Template::Sym>& max_eq( ArgTerm<Template::Sym>& x, ArgTerm<Template::Sym> const& y );
 
-inline std::ostream& operator<<( std::ostream& os, Template::Fun const& sym ) {
+inline std::ostream& operator<<( std::ostream& os, Template::Sym const& sym ) {
 	if( auto const& e = sym.is_smt() ) {
 		return os << *e;
 	}
 	if( auto const& f = sym.is_fun() ) {
+		return os << f->name;
+	}
+	if( auto const& f = sym.is_var() ) {
 		return os << *f;
 	}
 	assert(false);

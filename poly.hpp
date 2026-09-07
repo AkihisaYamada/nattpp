@@ -102,6 +102,7 @@ public:
 	Smt::PreExp ge( Poly const& p2 ) const;
 	friend Poly ite( Poly const& c, Poly const& p1, Poly const& p2 );
 	friend Smt::Compare order( Poly const& p1, Poly const& p2, Smt::Solver& solver );
+	static Algebra<Template::Sym,Poly> const ALGEBRA;
 	static int test();
 };
 
@@ -116,7 +117,7 @@ public:
 	std::vector<Poly> const& set() const& {
 		return _set;
 	}
-	static Algebra<Template::Fun,MPoly> const ALGEBRA;
+	static Algebra<Template::Sym,MPoly> const ALGEBRA;
 	friend MPoly ite( MPoly const& c, MPoly const& p1, MPoly const& p2 );
 	friend MPoly operator+( MPoly const& x, MPoly const& y );
 	friend MPoly operator*( MPoly const& x, MPoly const& y );

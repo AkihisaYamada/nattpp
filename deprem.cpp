@@ -19,7 +19,7 @@ bool order_some_rule(
 		gts.emplace_back(i,gt);
 	}
 	solver.push();
-	solver.ass( order.mono() && all_ge && Smt::disj(gts,[]( auto const& gt ){ return gt.second; }) );
+	solver.ass( order.mono() && all_ge && Smt::PostExp::disj(gts,[]( auto const& gt ){ return gt.second; }) );
 	solver.check_sat();
 	if( solver.result().is_sat() ) {
 		std::vector<size_t> ret;

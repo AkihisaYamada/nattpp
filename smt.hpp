@@ -231,7 +231,6 @@ public:
 			return is_bool().value_or_throw(Error("#exp:expected-bool",exp()));
 		}
 		Opt<std::tuple<PostExp,PostExp,PostExp>> is_ite() const &;
-public:
 		PostExp conj( PostExp const& y ) const &;
 		PostExp disj( PostExp const& y ) const &;
 		PostExp imp( PostExp const& y ) const;
@@ -294,7 +293,7 @@ public:
 			_un(Ref<Let>::make(val,sort,body)) {}
 		explicit PreExp( std::string const& fun, std::vector<PreExp>&& args ) :
 			_un(Ref<App>::make(fun,std::move(args))) {
-}
+		}
 	public:
 		PreExp( PostExp const& e ) : _un(e) {}
 		template<typename T>
@@ -333,23 +332,29 @@ public:
 		PreExp disj( PreExp const& y ) const {
 			return PreExp(OR,{*this,y});
 		}
-		PreExp add( PreExp const& y ) const {
-			return PreExp(ADD,{*this,y});
-		}
 		static PreExp disj( auto&& begin, auto&& end, auto&& f ) {
 			return [begin=std::move(begin),end=std::move(end),f=std::move(f)]( Solver& solver ){
 				auto i = std::move(begin);
 				PostExp ret = false;
-				for( ;i != end; i++ ) {
+				for( ; i != end; i++ ) {
 					ret = ret || solver.expand(f(i));
 					if( ret == true ) return ret;
 				}
 				return ret;
 			};
 		}
-		friend PreExp& operator+=( PreExp& x, PreExp const& y ) {
-			return x = x.add(y);
+		static PreExp conj( auto&& begin, auto&& end, auto&& f ) {
+			return [begin=std::move(begin),end=std::move(end),f=std::move(f)]( Solver& solver ){
+				auto i = std::move(begin);
+				PostExp ret = true;
+				for( ; i != end; i++ ) {
+					ret = ret && solver.expand(f(i));
+					if( ret == false ) return ret;
+				}
+				return ret;
+			};
 		}
+		friend PreExp& operator+=( PreExp& x, PreExp const& y );
 		PreExp mul( PreExp const& y ) const {
 			return PreExp(MUL,{*this,y});
 		}
@@ -396,15 +401,21 @@ public:
 	}
 	static PostExp ite( PostExp const& i, PostExp const& t, PostExp const& e );
 	static PreExp ite( PreExp const& i, PreExp const& t, PreExp const& e ) {
+		if( t.is_post() && [&]( auto const& tp ){
+			return e.is_post() && [&]( auto const& ep ){ return tp == ep; };
+		} ) return t;
 		return PreExp(ITE,{i,t,e});
 	}
 	static PreExp ite( PreExp const& i, PreExp const& t, PostExp const& e ) {
+		if( t == e ) return t;
 		return PreExp(ITE,{i,t,e});
 	}
 	static PreExp ite( PreExp const& i, PostExp const& t, PreExp const& e ) {
+		if( t == e ) return t;
 		return PreExp(ITE,{i,t,e});
 	}
 	static PreExp ite( PreExp const& i, PostExp const& t, PostExp const& e ) {
+		if( t == e ) return t;
 		return PreExp(ITE,{i,t,e});
 	}
 	static PostExp mul( PostExp x, PostExp const& y, bool linear ) {
@@ -575,8 +586,9 @@ inline Smt::PreExp operator&&( Smt::PreExp const& x, Smt::PreExp const& y ) {
 inline Smt::PreExp operator||( Smt::PreExp const& x, Smt::PreExp const& y ) {
 	return x.disj(y);
 }
-inline Smt::PreExp operator+( Smt::PreExp const& x, Smt::PreExp const& y ) {
-	return x.add(y);
+
+inline Smt::PreExp operator+( Smt::PreExp x, Smt::PreExp const& y ) {
+	return x += y;
 }
 inline Smt::PreExp operator*( Smt::PreExp const& x, Smt::PreExp const& y ) {
 	return x.mul(y);

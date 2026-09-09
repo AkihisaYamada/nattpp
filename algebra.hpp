@@ -2,6 +2,7 @@
 #define _ALGEBRA_HPP
 
 #include<functional>
+#include"util.hpp"
 #include"map.hpp"
 #include"exp.hpp"
 
@@ -92,12 +93,12 @@ private:
 	template<typename T>
 	static T _intp_inner( Algebra<G,T> const& org, ArgTerm<G> const& e, std::vector<T> const& vs ) {
 		auto const& [ifun,args] = *e;
-		if( auto i = ifun.template ref<1>() ) {// placeholder for applied variable arguments
+		if( auto i = ifun.template ref<Arg>() ) {// placeholder for applied variable arguments
 			assert( args.empty() );
 			if( i->pos() >= vs.size() ) throw Error("#deriver:too-few-arguments");
 			return vs[i->pos()];
 		}
-		if( auto fun = ifun.template ref<0>() ) {
+		if( auto fun = ifun.template ref<G>() ) {
 			std::vector<T> vargs;
 			for( auto const& arg : args ) {
 				vargs.push_back(_intp_inner(org,arg,vs));
@@ -169,7 +170,7 @@ std::ostream& operator<<( std::ostream& os, Sum<F,Arg> const& df ) {
 		return os << *f;
 	}
 	if( auto const& a = df.template ref<Arg>() ) {
-		return os << "(arg " << a->pos()+1 << ')';
+		return os << "(arg " << a->pos() << ')';
 	}
 	assert(false);
 }

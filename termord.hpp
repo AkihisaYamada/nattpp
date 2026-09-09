@@ -65,7 +65,7 @@ public:
 		}
 		auto ret = solver().let(compare_inner(l,r));
 		if( log() & PAIR ) {
-			std::cerr << "; " << print_name() << ": " << l << " <=> " << r << " = " << ret << std::endl;
+			std::cerr << "; " << print_name() << ": (<=? " << l << ' ' << r << ") := " << ret << std::endl;
 		}
 		_table.emplace(std::pair{l,r},ret);
 		return ret;
@@ -231,20 +231,22 @@ public:
 		Algebra<Template::Sym,A>&& org,
 		Exp const& temp,
 		Smt::Solver&& sol_,
-		int log_ = NONE
+		Smt::PostExp const& mono,
+		int log_
 	) : _solver(std::move(sol_)),
 		_log(log_),
-		deriver(temp,_solver,log_),
+		deriver(temp,_solver,mono,log_),
 		_intp(deriver.derive(std::move(org))) {
 	}
 	DerivedTermOrder(
 		Algebra<Template::Sym,A> const& org,
 		Exp const& temp,
 		Smt::Solver&& sol_,
-		int log_ = NONE
+		Smt::PostExp const& mono,
+		int log_
 	) : _solver(std::move(sol_)),
 		_log(log_),
-		deriver(temp,_solver,log_),
+		deriver(temp,_solver,mono,log_),
 		_intp(deriver.derive(org)) {
 	}
 	void extend_sig( std::string const& f, Trs::Rank const& rank ) override {
@@ -257,7 +259,11 @@ public:
 		return ret;
 	}
 	Smt::Compare compare_inner( Exp const& l, Exp const& r ) override {
-		return order(intp(l),intp(r),_solver);
+		A li = intp(l), ri = intp(r);
+		if( _log & PAIR ) {
+			std::cerr << "; (<=? " << l << ' ' << r << ")\n;   " << li << "\n;   " << ri << std::endl;
+		}
+		return order(li,ri,_solver);
 	}
 	std::ostream& print_name( std::ostream& os ) override {
 		return os << "interpretation-order";

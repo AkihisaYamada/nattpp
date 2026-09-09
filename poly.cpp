@@ -73,7 +73,7 @@ Poly& operator+=( Poly& p1, Poly const& p2 ) {
 		it1->second += it2->second;
 	},[&]( auto const it1 ){
 	},[&]( auto const it2 ){
-		p1._map.emplace(*it2);
+		p1._map.emplace(std::move(*it2));
 	});
 	return p1;
 }
@@ -112,7 +112,7 @@ static Smt::PreExp order_sub( Poly const& p1, Poly const& p2 ) {
 		auto const& e1 = it1->second;
 		auto const& e2 = it2->second;
 		switch( it1->first.range() ) {
-			case Poly::NONE: return;
+			case Poly::NONE: return;// constant part should be handled by ge/gt
 			case Poly::POS: ge = ge && Smt::ge(e1,e2); return;
 			case Poly::NEG: ge = ge && Smt::ge(e2,e1); return;
 			case Poly::FULL: ge = ge && Smt::eq(e1,e2); return;

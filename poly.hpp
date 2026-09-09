@@ -89,7 +89,7 @@ public:
 	}
 	void memoize( Smt::Solver& solver )& {
 		for( auto [vs,coeff] : _map ) {
-//			coeff = solver.let(coeff);
+			coeff = solver.let(coeff);
 		}
 	}
 	friend Poly operator+( Poly const& p1, Poly const& p2 );

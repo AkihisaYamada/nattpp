@@ -49,10 +49,11 @@ struct Template {
 		Deriver(
 			Exp const& e,
 			Smt::Solver& solver,
+			Smt::PostExp const& mono,
 			int log
 		) : _template_exp(e),
 			_solver(solver),
-			mono(false/*solver.declare_fresh(Smt::BOOL)*/),
+			mono(mono),
 			log(log) {}
 		void extend_sig( std::string const& f, Trs::Rank const& rank ) &;
 		void extend_sig( Trs::Sig const& sig ) & {
@@ -72,7 +73,7 @@ struct Template {
 	/** instantiate SMT expressions in templates via get_value */
 	static Algebra<Sum<Sym,Arg>,ArgTerm<Sym>> instantiator( Smt::Solver& solver );
 
-	static ::Exp const SUM, MONO_SUM, MONO_POLY2, SIMP_MAX, MAX, MAT2B;
+	static ::Exp const SUM, MONO_SUM, MONO_POLY2, SIMP_MAX, MAX, MAT2B, MAT2N;
 
 	static void test();
 };

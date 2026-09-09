@@ -40,7 +40,7 @@ bool order_some_dp(
 	UsableRuleOrder& order,
 	Problem const& p,
 	Trs::Rules const& dps,
-	std::function<void(std::vector<size_t>&&,Set<size_t>const&)> const& f
+	std::function<void(std::vector<size_t>&&,std::vector<size_t>&&)> const& f
 ) {
 	auto& solver = order.solver();
 	Smt::PostExp some_gt = false;
@@ -78,7 +78,13 @@ bool order_some_dp(
 				rem.push_back(i);
 			}
 		}
-		f(std::move(rem),usables);
+		std::vector<size_t> uses;
+		for( auto const& usable : usables ) {
+			if( solver.get_value(order.rule_used(usable)) == true ) {
+				uses.push_back(usable);
+			}
+		}
+		f(std::move(rem),std::move(uses));
 		solver.pop();
 		return true;
 	}

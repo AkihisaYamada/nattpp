@@ -14,7 +14,7 @@ bool order_some_dp(
 	UsableRuleOrder& order,
 	Problem const& p,
 	Trs::Rules const& dps,
-	std::function<void(std::vector<size_t>&&,Set<size_t>const&)> const& f
+	std::function<void(std::vector<size_t>&&,std::vector<size_t>&&)> const& f
 );
 
 #endif

@@ -281,17 +281,28 @@ Smt::PostExp Smt::ite( PostExp const& i, PostExp const& t, PostExp const& e ) {
 	if( i == FALSE ) {
 		return e;
 	}
-	if( t == TRUE ) {
+	if( t == true ) {
 		return i || e;
 	}
-	if( t == FALSE ) {
+	if( t == false ) {
 		return !i && e;
 	}
-	if( e == TRUE ) {
+	if( e == true ) {
 		return i.imp(t);
 	}
-	if( e == FALSE ) {
+	if( e == false ) {
 		return i && t;
+	}
+	if( auto tv = t.is_val() ) {
+		if( t == e ) return t;
+	}
+	if( auto ev = e.is_val() ) {
+		if( auto to = t.is_ite() ) {
+			auto const& [ti,tt,te] = *to;
+			if( te == *ev ) {
+				return Term<Fun>(ITE,i&&ti,tt,te);
+			}
+		}
 	}
 	return Term<Fun>(ITE,i,t,e);
 }
@@ -300,6 +311,37 @@ Opt<std::tuple<Smt::PostExp,Smt::PostExp,Smt::PostExp>> Smt::PostExp::is_ite() c
 		return {{this->_term.args()[0],this->_term.args()[1],this->_term.args()[2]}};
 	}
 	return {};
+}
+
+Smt::PreExp& operator+=( Smt::PreExp& x, Smt::PreExp const& y ) {
+	if( x.is_post() && []( auto const& e ){ return e == 0; } ) {
+		return x = y;
+	}
+	if( y.is_post() && []( auto const& e ){ return e == 0; } ) {
+		return x;
+	}
+	auto xapp = x._un.ref<Ref<Smt::PreExp::App>>();
+	auto const& yapp = y.is_app();
+	if( xapp && (**xapp).fun == Smt::ADD ) {
+		auto& xargs = (**xapp).args;
+		if( yapp && yapp->fun == Smt::ADD ) {
+			for( auto const& yarg : yapp->args ) {
+				xargs.emplace_back(yarg);
+			}
+		} else {
+			xargs.emplace_back(y);
+		}
+		return x;
+	}
+	auto args = std::vector<Smt::PreExp>{x};
+	if( yapp && yapp->fun == Smt::ADD ) {
+		for( auto const& yarg : yapp->args ) {
+			args.emplace_back(yarg);
+		}
+	} else {
+		args.emplace_back(y);
+	}
+	return x = Smt::PreExp(Smt::ADD,std::move(args));
 }
 
 Smt::BaseSort Smt::BaseSort::of( Exp const& exp ) {
@@ -550,39 +592,33 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 		auto const& [fun,args] = *o;
 		auto eargs = vector<Term<Fun>>();
 		if( fun == AND ) {
+			PostExp ret = true;
 			for( auto const& arg : args ) {
-				auto const& earg = expand(arg);
-				if( earg == FALSE ) return FALSE;
-				if( earg != TRUE ) {
-					eargs.push_back(earg);
-				}
+				ret = ret.conj(expand(arg));
+				if( ret == false ) break;
 			}
-			switch( eargs.size() ) {
-				case 0: return TRUE;
-				case 1: return eargs[0];
-			}
-		} else if( fun == OR ) {
+			return ret;
+		}
+		if( fun == OR ) {
+			PostExp ret = false;
 			for( auto const& arg : args ) {
-				auto const& earg = expand(arg);
-				if( earg == TRUE ) return TRUE;
-				if( earg != FALSE ) {
-					eargs.push_back(earg);
-				}
+				ret = ret.disj(expand(arg));
+				if( ret == true ) break;
 			}
-			switch( eargs.size() ) {
-				case 0: return FALSE;
-				case 1: return eargs[0];
-			}
-		} else if( fun == NOT ) {
+			return ret;
+		}
+		if( fun == NOT ) {
 			assert( args.size() == 1 );
 			return !expand(args[0]);
-		} else if( fun == IMP ) {
+		}
+		if( fun == IMP ) {
 			assert( args.size() == 2 );
 			auto const& x = expand(args[0]);
 			if( x == false ) return true;
 			auto const& y = expand(args[1]);
 			return x.imp(y);
-		} else if( fun == ITE ) {
+		}
+		if( fun == ITE ) {
 			assert( args.size() == 3 );
 			auto const& i = expand(args[0]);
 			if( i == TRUE ) {
@@ -591,24 +627,27 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 			if( i == FALSE ) {
 				return expand(args[2]);
 			}
-			eargs.push_back(i);
-			eargs.push_back(expand(args[1]));
-			eargs.push_back(expand(args[2]));
-		} else if( fun == EQ ) {
+			return ite(i,expand(args[1]),expand(args[2]));
+		}
+		if( fun == EQ ) {
 			assert( args.size() == 2 );
 			auto earg1 = expand(args[0]), earg2 = expand(args[1]);
 			return eq(earg1,earg2);
-		} else if( fun == GE ) {
+		}
+		if( fun == GE ) {
 			assert( args.size() == 2 );
 			auto earg1 = expand(args[0]), earg2 = expand(args[1]);
 			return ge(expand(args[0]),expand(args[1]));
-		} else if( fun == LE ) {
+		}
+		if( fun == LE ) {
 			assert( args.size() == 2 );
 			return le(expand(args[0]),expand(args[1]));
-		} else if( fun == GT ) {
+		}
+		if( fun == GT ) {
 			assert( args.size() == 2 );
 			return gt(expand(args[0]),expand(args[1]));
-		} else if( fun == ADD ) {
+		}
+		if( fun == ADD ) {
 			for( auto const& arg : args ) {
 				auto const& earg = expand(arg);
 				if( auto const& oi = earg.is_val() ) {

@@ -71,7 +71,7 @@ $(DEBUG)/%.o: %.cpp
 
 # TPDB 
 TPDB=~/TPDB-ARI
-TIMEOUT=15
+TIMEOUT=60
 
 tpdb_result: $(TGT) $(TPDB)
 	rm -f $@

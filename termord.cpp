@@ -39,7 +39,7 @@ PathOrder::PathOrder(
 		}()
 	),
 	_log(log),
-	_mono(false/*_weight->solver().declare_const("MONO",Smt::BOOL)*/),
+	_mono(_weight->solver().declare_const("MONO",Smt::BOOL)),
 	_status(std::move(status))
 {
 	if( log & DEBUG ) cerr << "; monotonicity flag: " << _mono << endl;
@@ -319,7 +319,7 @@ int TermOrder::log_of( Exp const& x ) {
 Smt::Compare TrsOrder::_Wrapper::rule_compare( size_t i, Trs::Term const& l, Trs::Term const& r ) {
 	if( auto const& opt = _rule_order_table.find(i) ) return *opt;
 	Smt::Solver& sol = _ref->solver();
-	if( log() & RULE ) cerr << "; " << _ref->print_name() << ": rule-n " << i << ' ' << l << " <=> " << r << endl;
+	if( log() & RULE ) cerr << "; " << _ref->print_name() << ": (rule-n " << i << ' ' << l << ' ' << r << ')' << endl;
 	auto [ge,gt] = _ref->compare(l,r);
 	Smt::Compare ret = {sol.let(Smt::BOOL,ge),sol.let(Smt::BOOL,gt)};
 	_rule_order_table.emplace(i,ret);
@@ -385,36 +385,50 @@ std::unique_ptr<TermOrder> TermOrder::make(
 		}
 		return false;
 	};
+	bool mono;
+	Exp::KeyValProc mono_key = [&]( string_view const& key, Exp const& val ){
+		if( key == "mono" ) {
+			mono = val.as_bool();
+			return true;
+		}
+		return false;
+	};
 	if( f == "trivial" ) {
 		x.process_keys(n,solver_key);
 		return std::make_unique<TrivOrder>(mk_smt());
 	} else if( f == "mono-sum" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<Poly>>(Poly::ALGEBRA,Template::MONO_SUM,mk_smt(),log);
+		return std::make_unique<DerivedTermOrder<Poly>>(Poly::ALGEBRA,Template::MONO_SUM,mk_smt(),true,log);
 	} else if( f == "sum" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<Poly>>(Poly::ALGEBRA,Template::SUM,mk_smt(),log);
-	} else if( f == "poly" ) {
+		return std::make_unique<DerivedTermOrder<Poly>>(Poly::ALGEBRA,Template::SUM,mk_smt(),false,log);
+	} else if( f == "mono-bpoly" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<Poly>>(Poly::ALGEBRA,Template::MONO_POLY2,mk_smt(),log);
+		return std::make_unique<DerivedTermOrder<Poly>>(Poly::ALGEBRA,Template::MONO_POLY2,mk_smt(),true,log);
 	} else if( f == "mat2b" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<Poly>>>(
-			tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::POS}),Template::MAT2B,mk_smt(),log
+			tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::POS}),Template::MAT2B,mk_smt(),false,log
+		);
+	} else if( f == "mat2n" ) {
+		x.process_keys( n, solver_key || log_key );
+		set_log();
+		return std::make_unique<DerivedTermOrder<TupleVal<Poly>>>(
+			tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::POS}),Template::MAT2N,mk_smt(),false,log
 		);
 	} else if( f == "max" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::ALGEBRA,Template::MAX,mk_smt(),log);
+		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::ALGEBRA,Template::MAX,mk_smt(),false,log);
 	} else if( f == "template" ) {
 		Exp t = x.get_arg(n);
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key || mono_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::ALGEBRA,t,mk_smt(),log);
+		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::ALGEBRA,t,mk_smt(),mono,log);
 	} else if( f == "path-order" ) {
 		Opt<Exp> w;
 		Exp::KeyValProc weight_key = [&]( auto const& key, Exp const& val ){

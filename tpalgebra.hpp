@@ -20,11 +20,18 @@ struct TupleVal {
 		size_t n = l.vec.size();
 		if( n == 0 ) throw Error("\"tuple algebra: empty tuple\"");
 		if( n != r.vec.size() ) throw Error("\"tuple algebra: comparing wrong size\"");
-		auto const& ord1 = order(l.vec[0],r.vec[0],solver);
+		auto const& ord0 = order(l.vec[0],r.vec[0],solver);
 		auto ge2 = solver.let( Smt::BOOL,
-			Smt::PreExp::disj( 1, n, [&]( size_t i ){ return l.vec[i].ge(r.vec[i]); })
+			Smt::PreExp::conj( 1, n, [&]( size_t i ){ return l.vec[i].ge(r.vec[i]); })
 		);
-		return { ord1.ge && ge2, ord1.gt && ge2 };
+		return { ord0.ge && ge2, ord0.gt && ge2 };
+	}
+	friend std::ostream& operator<<( std::ostream& os, TupleVal const& t ) {
+		os << "(tp";
+		for( auto const& val : t.vec ) {
+			os << ' ' << val;
+		}
+		return os << ')';
 	}
 };
 

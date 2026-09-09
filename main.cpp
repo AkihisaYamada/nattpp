@@ -105,7 +105,7 @@ int main( int argc, char* argv[] ) try {
 		}
 	}
 	if( !default_sort ) {
-		default_sort = {Smt::INT};
+		default_sort = {Smt::REAL};
 	}
 	auto default_smt = [&]()->Smt::Solver{
 		if( default_smt_spec ) {
@@ -126,6 +126,7 @@ int main( int argc, char* argv[] ) try {
 		dprem_specs.emplace_back("max");
 		dprem_specs.emplace_back(LPO3_SPEC);
 		dprem_specs.emplace_back(Exp{"path-order",":weight","max",":status","map"});
+		dprem_specs.emplace_back("mat2b");
 		use_dp = true;
 	}
 	if( mode == UNSET && p.mode == Problem::NONE ) {

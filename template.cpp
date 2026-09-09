@@ -1,4 +1,5 @@
 #include"template.hpp"
+#include"tpalgebra.hpp"
 #include"poly.hpp"
 
 using namespace std;
@@ -9,8 +10,7 @@ ArgTerm<Template::Sym>& operator+=( ArgTerm<Template::Sym>& x, ArgTerm<Template:
 	if( xf ) {
 		auto const& xe = xf->is_smt();
 		if( yf ) {
-			auto const& ye = yf->is_smt();
-			if( ye ) {
+			if( auto const& ye = yf->is_smt() ) {
 				if( *ye == 0 ) return x;
 				if( xe ) {
 					if( *xe == 0 ) return x = y;
@@ -19,7 +19,7 @@ ArgTerm<Template::Sym>& operator+=( ArgTerm<Template::Sym>& x, ArgTerm<Template:
 			}
 			vector<ArgTerm<Template::Sym>> args;
 			if( xf->is_fun() && [&](auto const& f){ return f.name == Smt::ADD; } ) {
-				for( auto xarg : x.args() ) {
+				for( auto const& xarg : x.args() ) {
 					args.emplace_back(xarg);
 				}
 			} else if( xf->is_smt().contains(0) ) {
@@ -33,13 +33,24 @@ ArgTerm<Template::Sym>& operator+=( ArgTerm<Template::Sym>& x, ArgTerm<Template:
 			} else {
 				args.emplace_back(y);
 			}
+			if( args.size() == 1 ) return x = args[0];
 			return x = app(Template::Fun(Smt::ADD),std::move(args));
 		}
 		if( xe.contains(0) ) {
 			return x = y;
 		}
-	} else if( yf && yf->is_smt().contains(0) ) {
-		return x;
+	} else if( yf ) {
+		if( yf->is_smt().contains(0) ) {
+			return x;
+		}
+		if( yf->is_fun() && [&](auto const& f){ return f.name == Smt::ADD; } ) {
+			vector<ArgTerm<Template::Sym>> args = {x};
+			for( auto const& yarg : y.args() ) {
+				args.emplace_back(yarg);
+			}
+			if( args.size() == 1 ) return x = args[0];
+			return x = app(Template::Fun(Smt::ADD),std::move(args));
+		}
 	}
 	return x = {Template::Fun(Smt::ADD),x,y};
 }
@@ -244,22 +255,29 @@ Term<Sum<Template::Sym,Arg>> Template::Deriver::_deriver_of(
 		args.emplace_back(_deriver_of(*arg,f,rank,pos,finfo));
 	}
 	exp.get_end(n);
+	if( fun == Smt::ADD ) {
+		Term<Sum<Sym,Arg>> ret = Smt::PostExp(0);
+		for( auto&& arg : args ) {
+			ret += std::move(arg);
+		}
+		return ret;
+	}
 	return app(Template::Fun(fun),std::move(args));
 }
 void Template::Deriver::extend_sig( std::string const& f, Trs::Rank const& rank ) & {
 	if( sig.find(f) ) return;
 	auto [finfo,fl] = sig.emplace(
 		f, FunInfo{
-			.triv = _solver.declare_const("t"+escape(f),Smt::BOOL),
+			.triv = false//_solver.declare_const("t_"+escape(f),Smt::BOOL),
 		}
 	);
 	if( log & INIT ) cerr << "; intp triv[" << f << "] := " << finfo.triv << endl;
 	for( size_t i = 0; i < rank.arity; i++ ) {
-		auto const& infl = _solver.declare_const("i"+escape(f)+"_"+to_string(i), Smt::BOOL);
-//		auto const& used = _solver.declare_const("u"+escape(f)+"_"+to_string(i),Smt::BOOL);
+		auto const& infl = _solver.declare_const("i_"+escape(f)+"_"+to_string(i), Smt::BOOL);
+		auto const& used = _solver.declare_const("u_"+escape(f)+"_"+to_string(i),Smt::BOOL);
 		auto const& arg = finfo.args.emplace_back(ArgInfo{
 			.infl = infl,
-			.used = infl,
+			.used = used,
 		});
 	}
 	if( log & INIT ) {
@@ -269,15 +287,16 @@ void Template::Deriver::extend_sig( std::string const& f, Trs::Rank const& rank 
 	assign(f,_deriver_of(_template_exp,f,rank,0,finfo));
 } 
 
-static Exp const _POSVAR = Exp("var",":constrain",
+static Exp const _POSCONST = Exp("var",":constrain",
 	Exp("and",
 		Exp(">=","_","0"),
 		Exp("=>","#triv",Exp("=","_","0"))// trivial requires 0 variable
 	)
 );
-static Exp const _BOOLVAR = Exp("var",":sort","Bool");
-static Exp const _1_OR_2 = Exp("ite",_BOOLVAR,"2","1");
-static Exp const _0_OR_1 = Exp("ite",_BOOLVAR,"1","0");
+static Exp _bool_constrain( Exp const& c ) {
+	return Exp("var",":sort","Bool",":constrain",c);
+}
+static Exp const _1_OR_2 = Exp("ite",Exp("var",":sort","Bool"),"2","1");
 Exp _0_or_1_constrain( Exp const& c ) {
 	return Exp("ite",Exp("var",":sort","Bool",":constrain",c),"1","0");
 }
@@ -286,53 +305,69 @@ static Exp const _USED = Exp("=>","_","#used");// non-zero coefficient implies u
 static Exp const _INFL = Exp("=>","#infl","_");// inflationary position requires non-zero coefficient (and more)
 
 Exp const Template::MONO_SUM = Exp{
-	Exp("+",Exp("args","+","arg"),_POSVAR)
+	Exp("+",Exp("args","+","arg"),_POSCONST)
 };
 Exp const Template::MONO_POLY2 = Exp("arity",
-	Exp("0",_POSVAR),
-	Exp("1",Exp("+", Exp("*",_1_OR_2,"arg"), _POSVAR)),
-	Exp("otherwise",Exp("+",Exp("args","+",Exp("*",_1_OR_2,"arg")),_POSVAR))
+	Exp("0",_POSCONST),
+	Exp("1",Exp("+", Exp("*",_1_OR_2,"arg"), _POSCONST)),
+	Exp("otherwise",Exp("+",Exp("args","+",Exp("*",_1_OR_2,"arg")),_POSCONST))
 );
 static Exp const _SUMCOEFF = _0_or_1_constrain(Exp("and",_MONO,_INFL,_USED));
 Exp const Template::SUM = Exp("arity",
-	Exp("0",_POSVAR),
-	Exp("1",Exp("+",Exp("*",_SUMCOEFF,"arg"),_POSVAR)),
-	Exp("otherwise",Exp("+",Exp("args","+",Exp("*",_SUMCOEFF,"arg")),_POSVAR))
+	Exp("0",_POSCONST),
+	Exp("1",Exp("+",Exp("*",_SUMCOEFF,"arg"),_POSCONST)),
+	Exp("otherwise",Exp("+",Exp("args","+",Exp("*",_SUMCOEFF,"arg")),_POSCONST))
 );
 Exp const Template::SIMP_MAX = Exp("arity",
-	Exp("0",_POSVAR),
-	Exp("otherwise",Exp("args","max",Exp("+","arg",_POSVAR)))
+	Exp("0",_POSCONST),
+	Exp("otherwise",Exp("args","max",Exp("+","arg",_POSCONST)))
 );
 Exp const Template::MAX = Exp("arity",
-	Exp("0",_POSVAR),
-	Exp("1",Exp("+",Exp("ite","#infl","arg","0"),_POSVAR)),
-	Exp("otherwise",Exp("args","max",Exp("ite","#infl",Exp("+","arg",_POSVAR),"0")))
+	Exp("0",_POSCONST),
+	Exp("1",Exp("+",Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),"arg","0"),_POSCONST)),
+	Exp("otherwise",Exp("args","max",Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),Exp("+","arg",_POSCONST),"0")))
+);
+Exp const Template::MAT2N = Exp("tp",
+	Exp("+",Exp("args","+",
+		Exp("+",
+			Exp("*",_POSCONST,Exp("prj0","arg")),
+			Exp("*",_POSCONST,Exp("prj1","arg"))
+		)),
+		_POSCONST
+	),
+	Exp("+",Exp("args","+",
+		Exp("+",
+			Exp("*",_POSCONST,Exp("prj0","arg")),
+			Exp("*",_POSCONST,Exp("prj1","arg"))
+		)),
+		_POSCONST
+	)
 );
 Exp const Template::MAT2B = Exp("tp",
 	Exp("+",Exp("args","+",
 		Exp("+",
-			Exp("ite",_BOOLVAR,Exp("prj0","arg"),"0"),
-			Exp("ite",_BOOLVAR,Exp("prj1","arg"),"0")
+			Exp("ite",_bool_constrain(Exp("and",_MONO,_USED,_INFL)),Exp("prj0","arg"),"0"),
+			Exp("ite",_bool_constrain(Exp("and",_USED)),Exp("prj1","arg"),"0")
 		)),
-		_POSVAR
+		_POSCONST
 	),
 	Exp("+",Exp("args","+",
 		Exp("+",
-			Exp("ite",_BOOLVAR,Exp("prj0","arg"),"0"),
-			Exp("ite",_BOOLVAR,Exp("prj1","arg"),"0")
+			Exp("ite",_bool_constrain(_USED),Exp("prj0","arg"),"0"),
+			Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),Exp("prj1","arg"),"0")
 		)),
-		_POSVAR
+		_POSCONST
 	)
 );
 
 void Template::test() {
 	cout << "=== Template::test ===" << endl;
-	auto z3 = Smt::Z3(Smt::QF_LIA);
+	auto z3 = Smt::Solver::of(Exp("z3","LIA",":tee","cout"));
 	Trs::Sig sig;
 	sig.emplace("f",2);
 	sig.emplace("g",1);
 	sig.emplace("a",0);
-	auto der = Template::Deriver(SUM,z3,INIT&DEBUG);
+	auto der = Template::Deriver(SUM,z3,false,INIT&DEBUG);
 	der.extend_sig(sig);
 	auto der_intp = der.derive(Poly::ALGEBRA);
 	auto e = Exp("f",Exp("g","x"),"a");
@@ -346,4 +381,13 @@ void Template::test() {
 	ArgTerm<Template::Sym> x = Smt::PostExp(1);
 	x *= "foo";
 	cout << x << endl;
+	auto mat2b = Template::Deriver(MAT2B,z3,false,INIT&DEBUG);
+	mat2b.extend_sig(sig);
+	auto mat_intp = mat2b.derive(tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::POS}));
+	auto gx = Exp("g","x");
+	cout << "mat⟦" << gx << "⟧ = " << mat_intp(gx) << endl;
+	auto fxy = Exp("f","x","y");
+	auto mfxy = mat_intp(fxy);
+	cout << "mat⟦" << fxy << "⟧ = " << mfxy << endl;
+	cout << "(<=? " << fxy << " x) : " << order(mfxy,mat_intp(Exp("x")),z3) << endl;
 }

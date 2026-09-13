@@ -25,28 +25,28 @@ public:
 		bool operator==( Smt::BaseSort const& y ) const& = default;
 	};
 	class Rat {
-		int _numen, _denom;
+		int64_t _numen, _denom;
 	public:
-		Rat( int i ) : _numen(i), _denom(1) {}
-		Rat( int numen, int denom ) {
-			int gcd = std::gcd(numen,denom);
+		Rat( int64_t i ) : _numen(i), _denom(1) {}
+		Rat( int64_t numen, int64_t denom ) {
+			int64_t gcd = std::gcd(numen,denom);
 			_numen = numen/gcd;
 			_denom = denom/gcd;
 		}
 		friend bool operator==( Rat const&, Rat const& ) = default;
-		int numen() const { return _numen; }
-		int denom() const { return _denom; }
+		int64_t numen() const { return _numen; }
+		int64_t denom() const { return _denom; }
 		friend Rat operator+( Rat const& x, Rat const& y ) {
-			int n = std::gcd(x._denom,y._denom);
-			int m = y._denom/n;
+			int64_t n = std::gcd(x._denom,y._denom);
+			int64_t m = y._denom/n;
 			return Rat( x._numen * m + y._numen * (x._denom / n), x._denom * m );
 		}
 		friend Rat& operator+=( Rat& x, Rat const& y ) {
 			return x = x + y;
 		}
 		friend Rat& operator*=( Rat& x, Rat const& y ) {
-			int ngcd = std::gcd(x._numen,y._denom);
-			int dgcd = std::gcd(x._denom,y._numen);
+			int64_t ngcd = std::gcd(x._numen,y._denom);
+			int64_t dgcd = std::gcd(x._denom,y._numen);
 			x._numen = x._numen / ngcd * (y._numen / dgcd);
 			x._denom = x._denom / dgcd * (y._denom / ngcd);
 			return x;
@@ -60,12 +60,12 @@ public:
 		}
 	};
 	class Val {
-		Sum<int,Rat> _sum;
+		Sum<int64_t,Rat> _sum;
 	public:
-		Val( int i ) : _sum(i) {}
+		Val( int64_t i ) : _sum(i) {}
 		Val( Rat r ) : _sum(r) {}
-		Opt<int const&> is_int() const& { return _sum.ref<int>(); }
-		Opt<int&> is_int()& { return _sum.ref<int>(); }
+		Opt<int64_t const&> is_int() const& { return _sum.ref<int64_t>(); }
+		Opt<int64_t&> is_int()& { return _sum.ref<int64_t>(); }
 		Opt<Rat const&> is_rat() const& { return _sum.ref<Rat>(); }
 		Opt<Rat&> is_rat()& { return _sum.ref<Rat>(); }
 		friend bool operator==( Val const& x, Val const& y ) {
@@ -101,8 +101,8 @@ public:
 			assert(false);
 		}
 		friend Val& operator+=( Val& x, Val const& y ) {
-			if( auto xi = x._sum.ref<int>() ) {
-				if( auto yi = y._sum.ref<int>() ) {
+			if( auto xi = x._sum.ref<int64_t>() ) {
+				if( auto yi = y._sum.ref<int64_t>() ) {
 					*xi += *yi;
 					return x;
 				}
@@ -110,7 +110,7 @@ public:
 					return x = *xi + *yr;
 				}
 			} else if( auto xr = x._sum.ref<Rat>() ) {
-				if( auto yi = y._sum.ref<int>() ) {
+				if( auto yi = y._sum.ref<int64_t>() ) {
 					*xr += *yi;
 					return x;
 				}
@@ -125,8 +125,8 @@ public:
 			return x+=y;
 		}
 		friend Val& operator*=( Val& x, Val const& y ) {
-			if( auto xi = x._sum.ref<int>() ) {
-				if( auto yi = y._sum.ref<int>() ) {
+			if( auto xi = x._sum.ref<int64_t>() ) {
+				if( auto yi = y._sum.ref<int64_t>() ) {
 					*xi *= *yi;
 					return x;
 				}
@@ -134,7 +134,7 @@ public:
 					return x = *xi * *yr;
 				}
 			} else if( auto xr = x._sum.ref<Rat>() ) {
-				if( auto yi = y._sum.ref<int>() ) {
+				if( auto yi = y._sum.ref<int64_t>() ) {
 					*xr *= *yi;
 					return x;
 				}
@@ -191,8 +191,8 @@ public:
 		PostExp( PostExp const& ) = default;
 		PostExp( PostExp && ) = default;
 		PostExp( bool b ) : _term( b ? TRUE : FALSE ) {}
+		PostExp( uint64_t i ) : _term(Val(i)) {}
 		PostExp( int i ) : _term(Val(i)) {}
-		PostExp( unsigned int i ) : _term(Val(i)) {}
 		PostExp( Val v ) : _term(v) {}
 		operator Term<Fun> const&() const& {
 			return _term;
@@ -215,6 +215,9 @@ public:
 		Opt<std::string const&> is_app() const& { return _term.fun().ref<std::string>(); }
 		Opt<Val> is_val() && { return std::move(_term).fun().ref<Val>(); }
 		Opt<Val const&> is_val() const & { return _term.fun().ref<Val>(); }
+		bool operator==( int n ) const {
+			return is_val() && [n]( auto const& val ) { return val == n; };
+		}
 		Val as_val() const& {
 			auto opt = is_val();
 			assert(opt);

@@ -11,7 +11,7 @@
 #include"ref.hpp"
 #include"sum.hpp"
 
-Opt<unsigned int> nat_of( std::string_view const& str );
+Opt<unsigned long> nat_of( std::string_view const& str );
 
 using Pos = std::vector<unsigned char>;
 
@@ -284,7 +284,7 @@ public:
 		}
 		return false;
 	}
-	Opt<unsigned int> reads_nat() {
+	Opt<unsigned long> reads_nat() {
 		_fetch();
 		if( auto sym = _fetched.ref<Sym>() )
 			if( auto val = nat_of(sym->str) ) {
@@ -293,7 +293,7 @@ public:
 			}
 		return {};
 	}
-	Opt<unsigned int> reads_nat( std::function<bool(unsigned int)> const& test ) {
+	Opt<unsigned long> reads_nat( std::function<bool(unsigned long)> const& test ) {
 		if( auto n = reads_nat() ) {
 			if( !test(*n) ) throw error("#invalid-value",std::to_string(*n));
 			return n;

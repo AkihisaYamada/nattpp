@@ -287,12 +287,15 @@ void Template::Deriver::extend_sig( std::string const& f, Trs::Rank const& rank 
 	assign(f,_deriver_of(_template_exp,f,rank,0,finfo));
 } 
 
-static Exp const _POSCONST = Exp("var",":constrain",
-	Exp("and",
-		Exp(">=","_","0"),
-		Exp("=>","#triv",Exp("=","_","0"))// trivial requires 0 variable
-	)
-);
+static Exp const _MONO = Exp("=>","#mono","_");// monotonicity requires non-zero coefficient
+static Exp const _USED = Exp("=>","_","#used");// non-zero coefficient implies used
+static Exp const _INFL = Exp("=>","#infl","_");// inflationary position requires non-zero coefficient (and more)
+static Exp const _TRIV = Exp("=>","#triv",Exp("=","_","0"));// trivial requires 0
+
+static Exp const _CONST = Exp("var",":constrain",_TRIV);
+static Exp const _POSCONST =
+	Exp("var",":constrain", Exp( "and", Exp(">=","_","0"), _TRIV ) );
+
 static Exp _bool_constrain( Exp const& c ) {
 	return Exp("var",":sort","Bool",":constrain",c);
 }
@@ -300,9 +303,6 @@ static Exp const _1_OR_2 = Exp("ite",Exp("var",":sort","Bool"),"2","1");
 Exp _0_or_1_constrain( Exp const& c ) {
 	return Exp("ite",Exp("var",":sort","Bool",":constrain",c),"1","0");
 }
-static Exp const _MONO = Exp("=>","#mono","_");// monotonicity requires non-zero coefficient
-static Exp const _USED = Exp("=>","_","#used");// non-zero coefficient implies used
-static Exp const _INFL = Exp("=>","#infl","_");// inflationary position requires non-zero coefficient (and more)
 
 Exp const Template::MONO_SUM = Exp{
 	Exp("+",Exp("args","+","arg"),_POSCONST)
@@ -326,6 +326,18 @@ Exp const Template::MAX = Exp("arity",
 	Exp("0",_POSCONST),
 	Exp("1",Exp("+",Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),"arg","0"),_POSCONST)),
 	Exp("otherwise",Exp("args","max",Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),Exp("+","arg",_POSCONST),"0")))
+);
+Exp const Template::IMAX = Exp("arity",
+	Exp("0",_POSCONST),
+	Exp("1",Exp("ite",_bool_constrain(Exp("and",_USED)),Exp("max",Exp("+","arg",_CONST),"0"),"0")),
+	Exp("otherwise",
+		Exp("max",
+			Exp("args","max",
+				Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),Exp("+","arg",_CONST),"0")
+			),
+			"0"
+		)
+	)
 );
 Exp const Template::MAT2N = Exp("tp",
 	Exp("+",Exp("args","+",

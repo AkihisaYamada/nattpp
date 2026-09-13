@@ -11,13 +11,23 @@ ostream& operator<<( ostream& os, Pos const& pos ) {
 	return os << '(' << print_list( pos.begin(), pos.end(), []( auto c ){ return (unsigned int)(*c)+1; } ) << ')';
 }
 
-Opt<unsigned int> nat_of( string_view const& str ) {
-	unsigned int val = 0;
-	for( auto c : str ) {
+Opt<unsigned long> nat_of( string_view const& str ) {
+	unsigned long val = 0;
+	unsigned int pos = 0;
+	for(;;) {
+		auto c = str[pos];
+		if( c == '.' ) {
+			for(;;) {
+				pos++;
+				if( str[pos] == '0' ) return {};
+				if( pos == str.length() ) return {val};
+			}
+		}
 		if( c < '0' || '9' < c ) return {};
 		val = val * 10 + c - '0';
+		pos++;
+		if( pos == str.length() ) return {val};
 	}
-	return {val};
 }
 
 static void skip_line( istream& is ) {

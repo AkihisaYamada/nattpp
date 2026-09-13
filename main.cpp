@@ -126,6 +126,7 @@ int main( int argc, char* argv[] ) try {
 		dprem_specs.emplace_back("max");
 		dprem_specs.emplace_back(LPO3_SPEC);
 		dprem_specs.emplace_back(Exp{"path-order",":weight","max",":status","map"});
+		dprem_specs.emplace_back("imax");
 		dprem_specs.emplace_back("mat2b");
 		use_dp = true;
 	}

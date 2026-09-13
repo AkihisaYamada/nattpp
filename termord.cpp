@@ -424,6 +424,10 @@ std::unique_ptr<TermOrder> TermOrder::make(
 		x.process_keys( n, solver_key || log_key );
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::ALGEBRA,Template::MAX,mk_smt(),false,log);
+	} else if( f == "imax" ) {
+		x.process_keys( n, solver_key || log_key );
+		set_log();
+		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::ALGEBRA,Template::IMAX,mk_smt(),false,log);
 	} else if( f == "template" ) {
 		Exp t = x.get_arg(n);
 		x.process_keys( n, solver_key || log_key || mono_key );

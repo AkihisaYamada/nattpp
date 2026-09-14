@@ -207,7 +207,7 @@ int main( int argc, char* argv[] ) try {
 			// SCC decomposition
 			auto dps = std::move(p.components.front().rules);
 			p.components.pop_front();
-			ConstGraph dg = [&]{
+			Graph dg = [&]{
 				Map<uint32_t,Set<uint32_t>> dgmap;
 				for( auto const& [i,dp] : dps ) {
 					auto const& [l1,r1,w] = dp;

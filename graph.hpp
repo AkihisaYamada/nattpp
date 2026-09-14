@@ -10,6 +10,7 @@
 #include"sum.hpp"
 
 struct ConstGraph;
+struct Graph;
 
 struct ConstGraphInterface {
 	friend ConstGraph;
@@ -38,6 +39,11 @@ public:
 	Printable print_nodes( std::string_view const& prefix = "\n  (" ) const&;
 };
 
+struct GraphInterface : ConstGraphInterface {
+	virtual bool remove_node( uint32_t node ) & = 0;
+	virtual bool remove_edge( uint32_t src, uint32_t tgt ) & = 0;
+};
+
 struct ConstGraph final : ConstGraphInterface {
 private:
 	Ref<ConstGraphInterface> _ptr;
@@ -50,10 +56,10 @@ public:
 	);
 	/** Turn an adjacency map into a graph. */
 	ConstGraph( Map<uint32_t,Set<uint32_t>>&& map );
-	/** Turn an adjacency ref map into a graph. */
-	ConstGraph( Map<uint32_t,Ref<Set<uint32_t>>>&& map );
 	/** Wrap an adjacency map as a graph. */
 	ConstGraph( Map<uint32_t,Set<uint32_t>>const& map );
+	/** Turn an adjacency ref map into a graph. */
+	ConstGraph( Map<uint32_t,Ref<Set<uint32_t>>>&& map );
 	/** Wrap an adjacency ref map into a graph. */
 	ConstGraph( Map<uint32_t,Ref<Set<uint32_t>>>const& map );
 	struct Acyclic;
@@ -62,6 +68,29 @@ public:
 	}
 	void iter_nexts( uint32_t src, NodeFun const& f ) const& override {
 		return _ptr->iter_nexts(src,f);
+	}
+};
+
+
+struct Graph : GraphInterface {
+private:
+	Ref<GraphInterface> _ptr;
+public:
+	Graph( Ref<GraphInterface>&& org ) : _ptr(std::move(org)) {}
+	/** Turn an adjacency map into a graph. */
+	Graph( Map<uint32_t,Set<uint32_t>>&& map );
+	struct Acyclic;
+	void iter_nodes( NodeFun const& f ) const& override {
+		return _ptr->iter_nodes(f);
+	}
+	void iter_nexts( uint32_t src, NodeFun const& f ) const& override {
+		return _ptr->iter_nexts(src,f);
+	}
+	bool remove_node( uint32_t node ) & override {
+		return _ptr->remove_node(node);
+	}
+	bool remove_edge( uint32_t src, uint32_t tgt ) & override {
+		return _ptr->remove_edge(src,tgt);
 	}
 	static void test();
 };

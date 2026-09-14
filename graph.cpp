@@ -29,12 +29,12 @@ public:
 ConstGraph::ConstGraph( std::function<void(NodeFun const&)>&& node_iter, std::function<Set<uint32_t>const&(uint32_t)>&& nexts ) :
 	_ptr(Ref<_FunGraph>::make(std::move(node_iter),std::move(nexts))) {}
 
-struct _MapCLVGraph final : ConstGraphInterface {
+struct _ConstMapGraph final : ConstGraphInterface {
 	using Body = Map<uint32_t,Set<uint32_t>>;
 private:
 	Body const& _body;
 public:
-	_MapCLVGraph( Body const& org ) : _body(org) {}
+	_ConstMapGraph( Body const& org ) : _body(org) {}
 	void iter_nodes( NodeFun const& f ) const& override {
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
@@ -45,14 +45,14 @@ public:
 	}
 };
 ConstGraph::ConstGraph( Map<uint32_t,Set<uint32_t>>const& map ) :
-	_ptr( Ref<_MapCLVGraph>::make(map) ) {}
+	_ptr( Ref<_ConstMapGraph>::make(map) ) {}
 
-struct _RefMapCLVGraph final : ConstGraphInterface {
+struct _ConstRefMapGraph final : ConstGraphInterface {
 	using Body = Map<uint32_t,Ref<Set<uint32_t>>>;
 private:
 	Body const& _body;
 public:
-	_RefMapCLVGraph( Map<uint32_t,Ref<Set<uint32_t>>>const& org ) : _body(org) {}
+	_ConstRefMapGraph( Map<uint32_t,Ref<Set<uint32_t>>>const& org ) : _body(org) {}
 	void iter_nodes( NodeFun const& f ) const& override {
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
@@ -63,32 +63,14 @@ public:
 	}
 };
 ConstGraph::ConstGraph( Map<uint32_t,Ref<Set<uint32_t>>>const& map ) :
-	_ptr( Ref<_RefMapCLVGraph>::make(map) ) {}
+	_ptr( Ref<_ConstRefMapGraph>::make(map) ) {}
 
-struct _MapGraph final : ConstGraphInterface {
-	using Body = Map<uint32_t,Set<uint32_t>>;
-private:
-	Body _body;
-public:
-	_MapGraph( Map<uint32_t,Set<uint32_t>>&& org ) : _body(std::move(org)) {}
-	void iter_nodes( NodeFun const& f ) const& override {
-		for( auto const& [node,nexts] : _body ) f(node);
-	}
-	void iter_nexts( uint32_t src, NodeFun const& f ) const& override {
-		if( auto const& nexts = _body.find(src) ) {
-			for( auto const& next : *nexts ) f(next);
-		}
-	}
-};
-ConstGraph::ConstGraph( Map<uint32_t,Set<uint32_t>>&& map ) :
-	_ptr( Ref<_MapGraph>::make(std::move(map)) ) {}
-
-struct _RefMapGraph final : ConstGraphInterface {
+struct _RefMapConstGraph final : ConstGraphInterface {
 	using Body = Map<uint32_t,Ref<Set<uint32_t>>>;
 private:
 	Body _body;
 public:
-	_RefMapGraph( Map<uint32_t,Ref<Set<uint32_t>>>&& org ) : _body(std::move(org)) {}
+	_RefMapConstGraph( Map<uint32_t,Ref<Set<uint32_t>>>&& org ) : _body(std::move(org)) {}
 	void iter_nodes( NodeFun const& f ) const& override {
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
@@ -99,7 +81,7 @@ public:
 	}
 };
 ConstGraph::ConstGraph( Map<uint32_t,Ref<Set<uint32_t>>>&& map ) :
-	_ptr( Ref<_RefMapGraph>::make(std::move(map)) ) {}
+	_ptr( Ref<_RefMapConstGraph>::make(std::move(map)) ) {}
 
 struct _AcyclicMapConstRefGraph final : ConstGraphInterface::Acyclic {
 	using Body = OrdMap<uint32_t,Set<uint32_t>>;
@@ -174,6 +156,34 @@ public:
 
 ConstGraph::Acyclic::Acyclic( std::vector<Set<uint32_t>>&& map ) :
 	_ptr( std::make_unique<_AcyclicVecGraph>(std::move(map)) ) {}
+
+struct _MapGraph final : GraphInterface {
+	using Body = Map<uint32_t,Set<uint32_t>>;
+private:
+	Body _body;
+public:
+	_MapGraph( Map<uint32_t,Set<uint32_t>>&& org ) : _body(std::move(org)) {}
+	void iter_nodes( NodeFun const& f ) const& override {
+		for( auto const& [node,nexts] : _body ) f(node);
+	}
+	void iter_nexts( uint32_t src, NodeFun const& f ) const& override {
+		if( auto const& nexts = _body.find(src) ) {
+			for( auto const& next : *nexts ) f(next);
+		}
+	}
+	bool remove_node( uint32_t node ) & override {
+		return _body.erase(node);
+	}
+	bool remove_edge( uint32_t src, uint32_t tgt ) & override {
+		return _body.find(src) && [&]( Set<uint32_t>& nexts )->bool{ return nexts.erase(tgt); };
+	}
+};
+Graph::Graph( Map<uint32_t,Set<uint32_t>>&& map ) :
+	_ptr( Ref<_MapGraph>::make(std::move(map)) ) {
+}
+ConstGraph::ConstGraph( Map<uint32_t,Set<uint32_t>>&& map ) :
+	_ptr( Ref<_MapGraph>::make(std::move(map)) ) {
+}
 
 static auto const MAX = std::numeric_limits<int>::max();
 static auto const MIN = std::numeric_limits<int>::min();
@@ -349,7 +359,7 @@ Printable ConstGraphInterface::print_nodes( std::string_view const& _pref ) cons
 	});
 }
 
-void ConstGraph::test() {
+void Graph::test() {
 	cerr << "=== Graph ===" << endl;
 	auto g = ConstGraph({
 		{0,{1}},

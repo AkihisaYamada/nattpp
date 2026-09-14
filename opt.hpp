@@ -162,7 +162,7 @@ public:
 		assert(*this);
 		return _ptr;
 	}
-	bool operator&&( std::function<bool(T const&)> f ) const& {
+	bool operator&&( std::function<bool(T&)> f ) const {
 		return *this && f(*_ptr);
 	}
 	template<typename U>

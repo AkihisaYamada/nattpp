@@ -187,10 +187,15 @@ public:
 		friend Smt;
 		Term<Fun> _term;
 		PostExp( Term<Fun> const& term ) : _term(term) {}
+		PostExp( char const* str ) : _term(str) {}
+		friend std::ostream& operator<<( std::ostream& os, Smt::PostExp const& e ) {
+			return os << (Term<Smt::Fun>)e;
+		}
 	public:
 		PostExp( PostExp const& ) = default;
 		PostExp( PostExp && ) = default;
 		PostExp( bool b ) : _term( b ? TRUE : FALSE ) {}
+		PostExp( auto* ) = delete;
 		PostExp( uint64_t i ) : _term(Val(i)) {}
 		PostExp( int i ) : _term(Val(i)) {}
 		PostExp( Val v ) : _term(v) {}
@@ -215,14 +220,6 @@ public:
 		Opt<std::string const&> is_app() const& { return _term.fun().ref<std::string>(); }
 		Opt<Val> is_val() && { return std::move(_term).fun().ref<Val>(); }
 		Opt<Val const&> is_val() const & { return _term.fun().ref<Val>(); }
-		bool operator==( int n ) const {
-			return is_val() && [n]( auto const& val ) { return val == n; };
-		}
-		Val as_val() const& {
-			auto opt = is_val();
-			assert(opt);
-			return *opt;
-		}
 		Opt<bool> is_bool() const & {
 			if( auto str = _term.fun().ref<std::string>() ) {
 				if( *str == "true" ) return {true};
@@ -232,6 +229,17 @@ public:
 		}
 		bool as_bool() const & {
 			return is_bool().value_or_throw(Error("#exp:expected-bool",exp()));
+		}
+		bool operator==( bool b ) const {
+			return is_bool() && ( b ? []( bool const& b ){ return b; } : []( bool const& b ){ return !b; } );
+		}
+		bool operator==( int n ) const {
+			return is_val() && [n]( auto const& val ) { return val == n; };
+		}
+		Val as_val() const& {
+			auto opt = is_val();
+			assert(opt);
+			return *opt;
 		}
 		Opt<std::tuple<PostExp,PostExp,PostExp>> is_ite() const &;
 		PostExp conj( PostExp const& y ) const &;
@@ -297,6 +305,7 @@ public:
 		explicit PreExp( std::string const& fun, std::vector<PreExp>&& args ) :
 			_un(Ref<App>::make(fun,std::move(args))) {
 		}
+		friend std::ostream& operator<<( std::ostream& os, Smt::PreExp const& e );
 	public:
 		PreExp( PostExp const& e ) : _un(e) {}
 		template<typename T>
@@ -606,10 +615,6 @@ std::ostream& operator<<( std::ostream& os, Smt::Sort const& e );
 std::ostream& operator<<( std::ostream& os, Smt::Rat const& r );
 std::ostream& operator<<( std::ostream& os, Smt::Val const& v );
 std::ostream& operator<<( std::ostream& os, Smt::Fun const& f );
-inline std::ostream& operator<<( std::ostream& os, Smt::PostExp const& e ) {
-	return os << (Term<Smt::Fun>)e;
-}
-std::ostream& operator<<( std::ostream& os, Smt::PreExp const& e );
 inline std::ostream& operator<<( std::ostream& os, Smt::Compare const& c ) {
 	return os << '{' << c.ge << ", " << c.gt << '}';
 }

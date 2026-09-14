@@ -105,7 +105,7 @@ int main( int argc, char* argv[] ) try {
 		}
 	}
 	if( !default_sort ) {
-		default_sort = {Smt::REAL};
+		default_sort = {Smt::INT};
 	}
 	auto default_smt = [&]()->Smt::Solver{
 		if( default_smt_spec ) {

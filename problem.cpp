@@ -206,7 +206,7 @@ void Problem::make_dps() & {
 		collect_dps(main.sig,dps,l,*lrank,rule.second,*this,uses,uses_map);
 		uses_map.emplace(org,std::move(uses));
 	}
-	usable_graph = Graph(uses_map).trancl();
+	usable_graph = ConstGraph(uses_map).trancl();
 }
 
 static void term_use(
@@ -245,7 +245,7 @@ void Problem::init_uses() & {
 			uses_map.emplace(i,std::move(uses));
 		}
 	}
-	usable_graph = Graph(uses_map).trancl();
+	usable_graph = ConstGraph(uses_map).trancl();
 };
 
 string mark_sym( string const& sym ) {

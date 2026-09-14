@@ -162,8 +162,8 @@ int main( int argc, char* argv[] ) try {
 			marked = true;
 			p.init_uses();
 			if( print_usables ) {
-				cerr << "(uses_graph" << Graph(p.uses_map).print_nodes() << ')' << endl;
-				cerr << "(usables" << Graph(p.usable_graph).print_nodes() << ')' << endl;
+				cerr << "(uses_graph" << ConstGraph(p.uses_map).print_nodes() << ')' << endl;
+				cerr << "(usables" << ConstGraph(p.usable_graph).print_nodes() << ')' << endl;
 			}
 		} else {
 			if( auto it = p.extra_var.begin(); it != p.extra_var.end() ) {
@@ -201,13 +201,13 @@ int main( int argc, char* argv[] ) try {
 			if( print_proofs ) *prf << "(make_dp)" << endl;
 			if( print_dp ) cerr << p << endl;
 			if( print_usables ) {
-				cerr << "(uses_graph" << Graph(p.uses_map).print_nodes() << ')' << endl;
-				cerr << "(usables" << Graph(p.usable_graph).print_nodes() << ')' << endl;
+				cerr << "(uses_graph" << ConstGraph(p.uses_map).print_nodes() << ')' << endl;
+				cerr << "(usables" << ConstGraph(p.usable_graph).print_nodes() << ')' << endl;
 			}
 			// SCC decomposition
 			auto dps = std::move(p.components.front().rules);
 			p.components.pop_front();
-			Graph dg = [&]{
+			ConstGraph dg = [&]{
 				Map<uint32_t,Set<uint32_t>> dgmap;
 				for( auto const& [i,dp] : dps ) {
 					auto const& [l1,r1,w] = dp;

@@ -9,10 +9,10 @@
 #include"ref.hpp"
 #include"sum.hpp"
 
-struct Graph;
+struct ConstGraph;
 
-struct GraphInterface {
-	friend Graph;
+struct ConstGraphInterface {
+	friend ConstGraph;
 	using Scc = Sum<Set<uint32_t>,uint32_t>;
 	struct SccInfo {
 		std::vector<Scc> sccs;
@@ -25,7 +25,7 @@ protected:
 	mutable Opt<SccInfo> _scc_info_opt;
 	mutable Opt<Map<uint32_t,Ref<Set<uint32_t>>>> _trancl_opt;
 public:
-	virtual ~GraphInterface() {}
+	virtual ~ConstGraphInterface() {}
 	virtual void iter_nodes( NodeFun const& ) const& = 0;
 	virtual void iter_nexts( uint32_t src, NodeFun const& ) const& = 0;
 	virtual SccInfo const& scc_info() const&;
@@ -38,24 +38,24 @@ public:
 	Printable print_nodes( std::string_view const& prefix = "\n  (" ) const&;
 };
 
-struct Graph final : GraphInterface {
+struct ConstGraph final : ConstGraphInterface {
 private:
-	Ref<GraphInterface> _ptr;
+	Ref<ConstGraphInterface> _ptr;
 public:
-	Graph( Ref<GraphInterface>&& org ) : _ptr(std::move(org)) {}
+	ConstGraph( Ref<ConstGraphInterface>&& org ) : _ptr(std::move(org)) {}
 	/** turn node iterator function and adjacency function into a graph */
-	Graph(
+	ConstGraph(
 		std::function<void(NodeFun const&)>&&,
 		std::function<Set<uint32_t>const&(uint32_t)>&&
 	);
 	/** Turn an adjacency map into a graph. */
-	Graph( Map<uint32_t,Set<uint32_t>>&& map );
+	ConstGraph( Map<uint32_t,Set<uint32_t>>&& map );
 	/** Turn an adjacency ref map into a graph. */
-	Graph( Map<uint32_t,Ref<Set<uint32_t>>>&& map );
+	ConstGraph( Map<uint32_t,Ref<Set<uint32_t>>>&& map );
 	/** Wrap an adjacency map as a graph. */
-	Graph( Map<uint32_t,Set<uint32_t>>const& map );
+	ConstGraph( Map<uint32_t,Set<uint32_t>>const& map );
 	/** Wrap an adjacency ref map into a graph. */
-	Graph( Map<uint32_t,Ref<Set<uint32_t>>>const& map );
+	ConstGraph( Map<uint32_t,Ref<Set<uint32_t>>>const& map );
 	struct Acyclic;
 	void iter_nodes( NodeFun const& f ) const& override {
 		return _ptr->iter_nodes(f);
@@ -67,16 +67,16 @@ public:
 };
 
 /** Acyclic graph interface. Nodes are supposed to be reverse-topologically ordered. */
-struct GraphInterface::Acyclic : GraphInterface {
+struct ConstGraphInterface::Acyclic : ConstGraphInterface {
 	SccInfo const& scc_info() const& override {
 		assert(false/*not supported*/);
 	}
-	Graph::Acyclic acyc_trancl() const;
+	ConstGraph::Acyclic acyc_trancl() const;
 };
 
-struct Graph::Acyclic final : GraphInterface::Acyclic {
+struct ConstGraph::Acyclic final : ConstGraphInterface::Acyclic {
 private:
-	std::unique_ptr<GraphInterface::Acyclic> _ptr;
+	std::unique_ptr<ConstGraphInterface::Acyclic> _ptr;
 public:
 	/** Turn an acyclic adjacency map into a graph. */
 	Acyclic( OrdMap<uint32_t,Set<uint32_t>>&& map );
@@ -94,7 +94,7 @@ public:
 	}
 };
 
-inline std::ostream& operator<<( std::ostream& os, GraphInterface const& g ) {
+inline std::ostream& operator<<( std::ostream& os, ConstGraphInterface const& g ) {
 	return os << "(" << g.print_nodes(" (") << ')';
 }
 

@@ -13,24 +13,24 @@ struct Graph;
 
 struct GraphInterface {
 	friend Graph;
-	using Scc = Sum<Set<size_t>,size_t>;
+	using Scc = Sum<Set<uint32_t>,uint32_t>;
 	struct SccInfo {
 		std::vector<Scc> sccs;
-		Map<size_t,int> scc_inds;
-		std::vector<Set<size_t>> scc_dag;
+		Map<uint32_t,int> scc_inds;
+		std::vector<Set<uint32_t>> scc_dag;
 	};
-	using NodeFun = std::function<void(size_t)>;
+	using NodeFun = std::function<void(uint32_t)>;
 protected:
 	friend class _SccMaker;
 	mutable Opt<SccInfo> _scc_info_opt;
-	mutable Opt<Map<size_t,Ref<Set<size_t>>>> _trancl_opt;
+	mutable Opt<Map<uint32_t,Ref<Set<uint32_t>>>> _trancl_opt;
 public:
 	virtual ~GraphInterface() {}
 	virtual void iter_nodes( NodeFun const& ) const& = 0;
-	virtual void iter_nexts( size_t src, NodeFun const& ) const& = 0;
+	virtual void iter_nexts( uint32_t src, NodeFun const& ) const& = 0;
 	virtual SccInfo const& scc_info() const&;
-	Map<size_t,Ref<Set<size_t>>> trancl() &&;
-	Map<size_t,Ref<Set<size_t>>> const& trancl() const&;
+	Map<uint32_t,Ref<Set<uint32_t>>> trancl() &&;
+	Map<uint32_t,Ref<Set<uint32_t>>> const& trancl() const&;
 	std::vector<Scc> const& sccs() const& {
 		return scc_info().sccs;
 	}
@@ -46,21 +46,21 @@ public:
 	/** turn node iterator function and adjacency function into a graph */
 	Graph(
 		std::function<void(NodeFun const&)>&&,
-		std::function<Set<size_t>const&(size_t)>&&
+		std::function<Set<uint32_t>const&(uint32_t)>&&
 	);
 	/** Turn an adjacency map into a graph. */
-	Graph( Map<size_t,Set<size_t>>&& map );
+	Graph( Map<uint32_t,Set<uint32_t>>&& map );
 	/** Turn an adjacency ref map into a graph. */
-	Graph( Map<size_t,Ref<Set<size_t>>>&& map );
+	Graph( Map<uint32_t,Ref<Set<uint32_t>>>&& map );
 	/** Wrap an adjacency map as a graph. */
-	Graph( Map<size_t,Set<size_t>>const& map );
+	Graph( Map<uint32_t,Set<uint32_t>>const& map );
 	/** Wrap an adjacency ref map into a graph. */
-	Graph( Map<size_t,Ref<Set<size_t>>>const& map );
+	Graph( Map<uint32_t,Ref<Set<uint32_t>>>const& map );
 	struct Acyclic;
 	void iter_nodes( NodeFun const& f ) const& override {
 		return _ptr->iter_nodes(f);
 	}
-	void iter_nexts( size_t src, NodeFun const& f ) const& override {
+	void iter_nexts( uint32_t src, NodeFun const& f ) const& override {
 		return _ptr->iter_nexts(src,f);
 	}
 	static void test();
@@ -79,17 +79,17 @@ private:
 	std::unique_ptr<GraphInterface::Acyclic> _ptr;
 public:
 	/** Turn an acyclic adjacency map into a graph. */
-	Acyclic( OrdMap<size_t,Set<size_t>>&& map );
+	Acyclic( OrdMap<uint32_t,Set<uint32_t>>&& map );
 	/** Wrap an acyclic adjacency map as a graph. */
-	Acyclic( OrdMap<size_t,Set<size_t>>const& map );
+	Acyclic( OrdMap<uint32_t,Set<uint32_t>>const& map );
 	/** Turn an acyclic adjacency vector into a graph. */
-	Acyclic( std::vector<Set<size_t>>&& map );
+	Acyclic( std::vector<Set<uint32_t>>&& map );
 	/** Wrap an acyclic adjacency vector as a graph. */
-	Acyclic( std::vector<Set<size_t>>const& map );
+	Acyclic( std::vector<Set<uint32_t>>const& map );
 	void iter_nodes( NodeFun const& f ) const& override {
 		return _ptr->iter_nodes(f);
 	}
-	void iter_nexts( size_t src, NodeFun const& f ) const& override {
+	void iter_nexts( uint32_t src, NodeFun const& f ) const& override {
 		return _ptr->iter_nexts(src,f);
 	}
 };

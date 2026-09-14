@@ -17,7 +17,7 @@ static void _switch(
 		it->second();
 	}
 }
-void Problem::insert_rule( Trs::Rules& rules, Trs::Rule const& rule, size_t rule_ind ) & {
+void Problem::insert_rule( Trs::Rules& rules, Trs::Rule const& rule, uint32_t rule_ind ) & {
 	auto [ref,fl] = rules.emplace(rule_ind,rule);
 	if( !fl ) throw Error("#duplicate-rule-no",to_string(rule_ind));
 	next_rule = std::max(next_rule,rule_ind) + 1;
@@ -31,7 +31,7 @@ bool Problem::reads_sym_decl( Reader& eis ) & {
 	if( eis.reads_sym("fun") ) {
 		string fun = eis.read_sym();
 		unsigned char arity = 255;
-		Opt<size_t> index = {};
+		Opt<uint32_t> index = {};
 		if( auto num = eis.reads_nat() ) {
 			if( arity != 255 ) {
 				throw Error("#duplicate-arity",fun,to_string(*num));
@@ -65,7 +65,7 @@ bool Problem::reads_sym_decl( Reader& eis ) & {
 	return false;
 }
 
-void Problem::read_rule_decl( Reader& eis, Trs::Reader& tis, Opt<size_t> rule_indo ) & {
+void Problem::read_rule_decl( Reader& eis, Trs::Reader& tis, Opt<uint32_t> rule_indo ) & {
 		std::set<std::string> vars;
 		auto l = tis.read([&]( auto const& var ){
 			vars.emplace(var);
@@ -91,7 +91,7 @@ void Problem::read_rule_decl( Reader& eis, Trs::Reader& tis, Opt<size_t> rule_in
 			}
 		}
 		auto const& rule = Trs::Rule(l,r,weight.value_or(1));
-		size_t rule_ind = rule_indo ? *rule_indo : next_rule;
+		uint32_t rule_ind = rule_indo ? *rule_indo : next_rule;
 		auto& rules = [&]()->Trs::Rules&{
 			if( !index || *index == 1 ) {// main rule
 				if( auto rank = main.sig.find(l.fun()) ) {
@@ -144,7 +144,7 @@ Problem::Problem( istream& is ) : next_rule(0) {
 				} else if( eis.reads_sym("rule") ) {
 					read_rule_decl(eis,tis,{});
 				} else if( eis.reads_sym("rule-n") ) {
-					size_t rule_ind = eis.read_nat();
+					uint32_t rule_ind = eis.read_nat();
 					read_rule_decl(eis,tis,rule_ind);
 				} else {
 					throw Error{"#unknown-command",eis.read_exp()};
@@ -160,14 +160,14 @@ Problem::Problem( istream& is ) : next_rule(0) {
 static void collect_dps(
 	Trs::Sig& sig, Trs::Rules& dps,
 	Trs::Term const& l, Trs::Rank& lrank, Trs::Term const& r,
-	Problem& p, Set<size_t>& org_uses, Map<size_t,Set<size_t>>& dp_uses
+	Problem& p, Set<uint32_t>& org_uses, Map<uint32_t,Set<uint32_t>>& dp_uses
 ) {
 	for( auto const& a : r.args() ) {// first look arguments
 		collect_dps(sig,dps,l,lrank,a,p,org_uses,dp_uses);
 	}
 	if( auto rrank = sig.find(r.fun()) ) {// f(...) -> g(...)
 		if( !rrank->defined_by.empty() ) {
-			Set<size_t> this_uses;// collect rules which this dp uses
+			Set<uint32_t> this_uses;// collect rules which this dp uses
 			for( auto const& a : r.args() ) {
 				collect_dps(sig,dps,l,lrank,a,p,this_uses,dp_uses);
 			}
@@ -178,7 +178,7 @@ static void collect_dps(
 			// register those this dp will use
 			dp_uses.emplace(p.next_rule,std::move(this_uses));
 			p.insert_rule(dps,Trs::Rule(l,r));
-			for( size_t i : rrank->defined_by ) {// the origin also uses the rules that define g
+			for( uint32_t i : rrank->defined_by ) {// the origin also uses the rules that define g
 				if( auto const& rule = p.main.rules.find(i) ) {
 					auto const& [l2,r2,w] = *rule;
 					if( may_reach(p.main,r,l2,8,false) ) {
@@ -202,7 +202,7 @@ void Problem::make_dps() & {
 			cerr << "(var-lhs " << org << ')' << endl;
 			throw Answer::NO;
 		}
-		Set<size_t> uses;// collect here rules that the original uses
+		Set<uint32_t> uses;// collect here rules that the original uses
 		collect_dps(main.sig,dps,l,*lrank,rule.second,*this,uses,uses_map);
 		uses_map.emplace(org,std::move(uses));
 	}
@@ -212,14 +212,14 @@ void Problem::make_dps() & {
 static void term_use(
 	Trs const& trs,
 	Trs::Term const& s,
-	Set<size_t>& uses
+	Set<uint32_t>& uses
 ) {
 	auto const& [f,ss] = *s;
 	for( auto const& a : ss ) {// use subterms
 		term_use(trs,a,uses);
 	}
 	if( auto rrank = trs.sig.find(f) ) {
-		for( size_t i : rrank->defined_by ) {// uses the rules that define the root
+		for( uint32_t i : rrank->defined_by ) {// uses the rules that define the root
 			if( auto const& rule = trs.rules.find(i) ) {
 				auto const& [l,r,w] = *rule;
 				if( may_reach(trs,s,l,8,false) ) {
@@ -233,14 +233,14 @@ void Problem::init_uses() & {
 	assert( mode == DP );
 	for( auto const& [i,rule] : main.rules ) {
 		auto const& [l,r,w] = rule;
-		auto uses = Set<size_t>{};
+		auto uses = Set<uint32_t>{};
 		term_use(main,r,uses);
 		uses_map.emplace(i,std::move(uses));
 	}
 	for( auto const& comp : components ) {
 		for( auto const& [i,dp] : comp.rules ) {
 			auto const& [l,r,w] = dp;
-			auto uses = Set<size_t>{};
+			auto uses = Set<uint32_t>{};
 			term_use(main,r,uses);
 			uses_map.emplace(i,std::move(uses));
 		}

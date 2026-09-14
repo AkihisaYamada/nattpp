@@ -8,29 +8,29 @@
 
 using namespace std;
 
-static Set<size_t> const EMPTY = {};
+static Set<uint32_t> const EMPTY = {};
 
 struct _FunGraph final : GraphInterface {
 private:
 	std::function<void(NodeFun const&)> _node_iter;
-	std::function<Set<size_t>const&(size_t)> _nexts;
+	std::function<Set<uint32_t>const&(uint32_t)> _nexts;
 public:
 	_FunGraph(
 		std::function<void(NodeFun const&)>&& node_iter,
-		std::function<Set<size_t>const&(size_t)>&& nexts ) :
-		_node_iter(std::move(node_iter)), _nexts(std::move(nexts)) {}
+		std::function<Set<uint32_t>const&(uint32_t)>&& nexts
+	) : _node_iter(std::move(node_iter)), _nexts(std::move(nexts)) {}
 	void iter_nodes( NodeFun const& f ) const& override {
 		_node_iter(f);
 	}
-	void iter_nexts( size_t src, NodeFun const& f ) const& override {
+	void iter_nexts( uint32_t src, NodeFun const& f ) const& override {
 		for( auto const& next : _nexts(src) ) f(next);
 	}
 };
-Graph::Graph( std::function<void(NodeFun const&)>&& node_iter, std::function<Set<size_t>const&(size_t)>&& nexts ) :
+Graph::Graph( std::function<void(NodeFun const&)>&& node_iter, std::function<Set<uint32_t>const&(uint32_t)>&& nexts ) :
 	_ptr(Ref<_FunGraph>::make(std::move(node_iter),std::move(nexts))) {}
 
 struct _MapCLVGraph final : GraphInterface {
-	using Body = Map<size_t,Set<size_t>>;
+	using Body = Map<uint32_t,Set<uint32_t>>;
 private:
 	Body const& _body;
 public:
@@ -38,71 +38,71 @@ public:
 	void iter_nodes( NodeFun const& f ) const& override {
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
-	void iter_nexts( size_t src, NodeFun const& f ) const& override {
+	void iter_nexts( uint32_t src, NodeFun const& f ) const& override {
 		if( auto const& nexts = _body.find(src) ) {
 			for( auto const& next : *nexts ) f(next);
 		}
 	}
 };
-Graph::Graph( Map<size_t,Set<size_t>>const& map ) :
+Graph::Graph( Map<uint32_t,Set<uint32_t>>const& map ) :
 	_ptr( Ref<_MapCLVGraph>::make(map) ) {}
 
 struct _RefMapCLVGraph final : GraphInterface {
-	using Body = Map<size_t,Ref<Set<size_t>>>;
+	using Body = Map<uint32_t,Ref<Set<uint32_t>>>;
 private:
 	Body const& _body;
 public:
-	_RefMapCLVGraph( Map<size_t,Ref<Set<size_t>>>const& org ) : _body(org) {}
+	_RefMapCLVGraph( Map<uint32_t,Ref<Set<uint32_t>>>const& org ) : _body(org) {}
 	void iter_nodes( NodeFun const& f ) const& override {
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
-	void iter_nexts( size_t src, NodeFun const& f ) const& override {
+	void iter_nexts( uint32_t src, NodeFun const& f ) const& override {
 		if( auto const& nexts = _body.find(src) ) {
 			for( auto const& next : **nexts ) f(next);
 		}
 	}
 };
-Graph::Graph( Map<size_t,Ref<Set<size_t>>>const& map ) :
+Graph::Graph( Map<uint32_t,Ref<Set<uint32_t>>>const& map ) :
 	_ptr( Ref<_RefMapCLVGraph>::make(map) ) {}
 
 struct _MapGraph final : GraphInterface {
-	using Body = Map<size_t,Set<size_t>>;
+	using Body = Map<uint32_t,Set<uint32_t>>;
 private:
 	Body _body;
 public:
-	_MapGraph( Map<size_t,Set<size_t>>&& org ) : _body(std::move(org)) {}
+	_MapGraph( Map<uint32_t,Set<uint32_t>>&& org ) : _body(std::move(org)) {}
 	void iter_nodes( NodeFun const& f ) const& override {
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
-	void iter_nexts( size_t src, NodeFun const& f ) const& override {
+	void iter_nexts( uint32_t src, NodeFun const& f ) const& override {
 		if( auto const& nexts = _body.find(src) ) {
 			for( auto const& next : *nexts ) f(next);
 		}
 	}
 };
-Graph::Graph( Map<size_t,Set<size_t>>&& map ) :
+Graph::Graph( Map<uint32_t,Set<uint32_t>>&& map ) :
 	_ptr( Ref<_MapGraph>::make(std::move(map)) ) {}
 
 struct _RefMapGraph final : GraphInterface {
-	using Body = Map<size_t,Ref<Set<size_t>>>;
+	using Body = Map<uint32_t,Ref<Set<uint32_t>>>;
 private:
 	Body _body;
 public:
-	_RefMapGraph( Map<size_t,Ref<Set<size_t>>>&& org ) : _body(std::move(org)) {}
+	_RefMapGraph( Map<uint32_t,Ref<Set<uint32_t>>>&& org ) : _body(std::move(org)) {}
 	void iter_nodes( NodeFun const& f ) const& override {
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
-	void iter_nexts( size_t src, NodeFun const& f ) const& override {
+	void iter_nexts( uint32_t src, NodeFun const& f ) const& override {
 		if( auto const& nexts = _body.find(src) ) {
 			for( auto const& next : **nexts ) f(next);
 		}
 	}
 };
-Graph::Graph( Map<size_t,Ref<Set<size_t>>>&& map ) :
+Graph::Graph( Map<uint32_t,Ref<Set<uint32_t>>>&& map ) :
 	_ptr( Ref<_RefMapGraph>::make(std::move(map)) ) {}
 
 struct _AcyclicMapConstRefGraph final : GraphInterface::Acyclic {
-	using Body = OrdMap<size_t,Set<size_t>>;
+	using Body = OrdMap<uint32_t,Set<uint32_t>>;
 private:
 	Body const& _body;
 public:
@@ -110,17 +110,17 @@ public:
 	void iter_nodes( NodeFun const& f ) const& override {
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
-	void iter_nexts( size_t src, NodeFun const& f ) const& override {
+	void iter_nexts( uint32_t src, NodeFun const& f ) const& override {
 		if( auto const& nexts = _body.find(src) ) {
 			for( auto const& next : *nexts ) f(next);
 		}
 	}
 };
-Graph::Acyclic::Acyclic( OrdMap<size_t,Set<size_t>>const& map ) :
+Graph::Acyclic::Acyclic( OrdMap<uint32_t,Set<uint32_t>>const& map ) :
 	_ptr( std::make_unique<_AcyclicMapConstRefGraph>(map) ) {}
 
 struct _AcyclicMapGraph final : GraphInterface::Acyclic {
-	using Body = OrdMap<size_t,Set<size_t>>;
+	using Body = OrdMap<uint32_t,Set<uint32_t>>;
 private:
 	Body _body;
 public:
@@ -128,17 +128,17 @@ public:
 	void iter_nodes( NodeFun const& f ) const& override {
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
-	void iter_nexts( size_t src, std::function<void(size_t)> const& f ) const& override {
+	void iter_nexts( uint32_t src, std::function<void(uint32_t)> const& f ) const& override {
 		if( auto const& nexts = _body.find(src) ) {
 			for( auto const& next : *nexts ) f(next);
 		}
 	}
 };
-Graph::Acyclic::Acyclic( OrdMap<size_t,Set<size_t>>&& map ) :
+Graph::Acyclic::Acyclic( OrdMap<uint32_t,Set<uint32_t>>&& map ) :
 	_ptr( std::make_unique<_AcyclicMapGraph>(std::move(map)) ) {}
 
 struct _AcyclicVecConstRefGraph final : GraphInterface::Acyclic {
-	using Body = std::vector<Set<size_t>>;
+	using Body = std::vector<Set<uint32_t>>;
 private:
 	Body const& _body;
 public:
@@ -146,33 +146,33 @@ public:
 	void iter_nodes( NodeFun const& f ) const& override {
 		for( auto node = 0; node < _body.size(); node++ ) f(node);
 	}
-	void iter_nexts( size_t src, NodeFun const& f ) const& override {
+	void iter_nexts( uint32_t src, NodeFun const& f ) const& override {
 		if( src < _body.size() ) {
 			for( auto const& next : _body[src] ) f(next);
 		}
 	}
 };
 
-Graph::Acyclic::Acyclic( std::vector<Set<size_t>>const& map ) :
+Graph::Acyclic::Acyclic( std::vector<Set<uint32_t>>const& map ) :
 	_ptr( std::make_unique<_AcyclicVecConstRefGraph>(map) ) {}
 
 struct _AcyclicVecGraph final : GraphInterface::Acyclic {
-	using Body = std::vector<Set<size_t>>;
+	using Body = std::vector<Set<uint32_t>>;
 private:
 	Body _body;
 public:
 	_AcyclicVecGraph( Body&& org ) : _body(std::move(org)) {}
-	void iter_nodes( std::function<void(size_t)> const& f ) const& override {
+	void iter_nodes( std::function<void(uint32_t)> const& f ) const& override {
 		for( auto node = 0; node < _body.size(); node++ ) f(node);
 	}
-	void iter_nexts( size_t src, std::function<void(size_t)> const& f ) const& override {
+	void iter_nexts( uint32_t src, std::function<void(uint32_t)> const& f ) const& override {
 		if( src < _body.size() ) {
 			for( auto const& next : _body[src] ) f(next);
 		}
 	}
 };
 
-Graph::Acyclic::Acyclic( std::vector<Set<size_t>>&& map ) :
+Graph::Acyclic::Acyclic( std::vector<Set<uint32_t>>&& map ) :
 	_ptr( std::make_unique<_AcyclicVecGraph>(std::move(map)) ) {}
 
 static auto const MAX = std::numeric_limits<int>::max();
@@ -185,16 +185,16 @@ struct _SccMaker {
 	 * {0..}: represents the node's SCC, which is already closed
 	 * {..< 0}: represents the farthest depth the node can reach back
 	 */
-	Map<size_t,int>& table;
+	Map<uint32_t,int>& table;
 	/** Stack of nodes with backlinks */
-	std::stack<size_t> node_stack;
+	std::stack<uint32_t> node_stack;
 	/** Stack containing adjacent SCCs */
-	std::stack<size_t> scc_stack;
+	std::stack<uint32_t> scc_stack;
 	std::vector<Graph::Scc>& sccs;
-	std::vector<Set<size_t>>& scc_dag;
+	std::vector<Set<uint32_t>>& scc_dag;
 	int depth;
 
-	int visit( size_t u ) {
+	int visit( uint32_t u ) {
 		auto const [state,fl] = table.emplace(u,depth);
 		if( !fl ) {// already visited
 			return state;
@@ -202,8 +202,8 @@ struct _SccMaker {
 		bool loop = false, back = false;
 		depth--;
 		// remember how many nodes were stacked
-		size_t node_stack_size = node_stack.size();
-		size_t scc_stack_size = scc_stack.size();
+		uint32_t node_stack_size = node_stack.size();
+		uint32_t scc_stack_size = scc_stack.size();
 		g.iter_nexts( u, [&]( auto v ){
 			auto vstate = visit(v);
 			if( vstate >= 0 ) {// v's SCC is known
@@ -228,7 +228,7 @@ struct _SccMaker {
 			scc_node.emplace(next);
 		}
 		if( loop ) {// nontrivial
-			auto& scc = *sccs.emplace_back(Set<size_t>{}).ref<Set<size_t>>();
+			auto& scc = *sccs.emplace_back(Set<uint32_t>{}).ref<Set<uint32_t>>();
 			scc.emplace(u);
 			while( node_stack.size() != node_stack_size ) {// things pushed after u belongs to the SCC
 				auto v = node_stack.top();
@@ -259,9 +259,9 @@ GraphInterface::SccInfo const& GraphInterface::scc_info() const& {
 	return *_scc_info_opt;
 }
 Graph::Acyclic GraphInterface::Acyclic::acyc_trancl() const {
-	OrdMap<size_t,Set<size_t>> map;
+	OrdMap<uint32_t,Set<uint32_t>> map;
 	iter_nodes([&]( auto const& src ){
-		auto [nexts,fl] = map.emplace(src,Set<size_t>());
+		auto [nexts,fl] = map.emplace(src,Set<uint32_t>());
 		assert(fl);
 		iter_nexts(src,[&]( auto const& tgt ){
 			for( auto const& next : *ASSERTED(map.find(tgt)) ) {
@@ -277,9 +277,9 @@ Printable print_sccs( std::vector<Graph::Scc> const& sccs ){
 	return Printable([&]( ostream& os )->ostream&{
 		os << "(sccs";
 		for( auto const& scc : sccs ) {
-			if( auto triv = scc.ref<size_t>() ) {
+			if( auto triv = scc.ref<uint32_t>() ) {
 				os << "\n  " << *triv << flush;
-			} else if( auto nodes = scc.ref<Set<size_t>>() ){
+			} else if( auto nodes = scc.ref<Set<uint32_t>>() ){
 				os << "\n  (" << print_list(*nodes) << ')' << flush;
 			}
 		}
@@ -296,27 +296,27 @@ Printable print_map( auto const& map ){
 	});	
 }
 
-Map<size_t,Ref<Set<size_t>>> const& GraphInterface::trancl() const& {
+Map<uint32_t,Ref<Set<uint32_t>>> const& GraphInterface::trancl() const& {
 	if( !_trancl_opt ) {
 		_trancl_opt = {{}};
 		auto const& [sccs,scc_inds,scc_dag] = scc_info();
 		auto scc_trancl = Graph::Acyclic(scc_dag).acyc_trancl();
-		std::vector<Ref<Set<size_t>>> scc_reachables;
-		scc_trancl.iter_nodes([&]( size_t scc )->void{
-			auto& reachables = scc_reachables.emplace_back(Ref<Set<size_t>>::make());
-			scc_trancl.iter_nexts(scc,[&]( size_t next_scc ){
+		std::vector<Ref<Set<uint32_t>>> scc_reachables;
+		scc_trancl.iter_nodes([&]( uint32_t scc )->void{
+			auto& reachables = scc_reachables.emplace_back(Ref<Set<uint32_t>>::make());
+			scc_trancl.iter_nexts(scc,[&]( uint32_t next_scc ){
 				// nodes reachable from the next SCC are reachable
 				for( auto const& node : *scc_reachables[next_scc] ) {
 					reachables->emplace(node);
 				}
 				// if next is a trivial SCC, then mark the node reachable, since it is not so from the SCC 
-				if( auto const& triv = sccs[next_scc].ref<size_t>() ) {
+				if( auto const& triv = sccs[next_scc].ref<uint32_t>() ) {
 					reachables->emplace(*triv);
 				}
 			});
-			if( auto const& triv = sccs[scc].ref<size_t>() ) {// trivial SCC
+			if( auto const& triv = sccs[scc].ref<uint32_t>() ) {// trivial SCC
 					_trancl_opt->emplace(*triv,reachables);// the node reaches where the SCC reaches
-			} else if( auto const& nodes = sccs[scc].ref<Set<size_t>>() ) {
+			} else if( auto const& nodes = sccs[scc].ref<Set<uint32_t>>() ) {
 				for( auto const& node : *nodes ) {
 					_trancl_opt->emplace(node,reachables);// the node reaches where the SCC reaches
 					reachables->emplace(node);// the node is reachable
@@ -328,7 +328,7 @@ Map<size_t,Ref<Set<size_t>>> const& GraphInterface::trancl() const& {
 	}
 	return *_trancl_opt;
 }
-Map<size_t,Ref<Set<size_t>>> GraphInterface::trancl() && {
+Map<uint32_t,Ref<Set<uint32_t>>> GraphInterface::trancl() && {
 	return std::move(trancl());
 }
 

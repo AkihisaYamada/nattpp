@@ -182,7 +182,7 @@ int main( int argc, char* argv[] ) try {
 				return order_some_rule(*ord,p.main.rules,[&](auto&&rem){
 					if( print_proofs )
 						*prf << "(remove-rule\n  " << ord->print(p.main.sig) << "\n " << print_list(rem) << ')' << endl;
-					for( size_t i : rem ) {
+					for( uint32_t i : rem ) {
 						p.main.rules.erase(i);
 					}
 				});
@@ -208,10 +208,10 @@ int main( int argc, char* argv[] ) try {
 			auto dps = std::move(p.components.front().rules);
 			p.components.pop_front();
 			Graph dg = [&]{
-				Map<size_t,Set<size_t>> dgmap;
+				Map<uint32_t,Set<uint32_t>> dgmap;
 				for( auto const& [i,dp] : dps ) {
 					auto const& [l1,r1,w] = dp;
-					auto [nexts,fl] = dgmap.emplace(i,Set<size_t>{});
+					auto [nexts,fl] = dgmap.emplace(i,Set<uint32_t>{});
 					for( auto const& j : ASSERTED(p.main.sig.find(r1.fun()))->depends ) {
 						auto const& [l2,r2,w2] = *ASSERTED(dps.find(j));
 						if( may_reach(p.main,r1,l2,8,false) ) {
@@ -224,7 +224,7 @@ int main( int argc, char* argv[] ) try {
 			if( print_dg ) cerr << "(dependency-graph " << dg.print_nodes() << ')' << endl;
 			auto sccs = dg.sccs();
 			for( auto const& scc : sccs ) {
-				if( auto const& nodes = scc.ref<Set<size_t>>() ) {
+				if( auto const& nodes = scc.ref<Set<uint32_t>>() ) {
 					auto& back = p.components.emplace_back();
 					for( auto const& dp : *nodes ) {
 						back.rules.emplace(dp,*ASSERTED(dps.find(dp)));
@@ -237,7 +237,7 @@ int main( int argc, char* argv[] ) try {
 			}
 			if( print_proofs ) *prf << "(scc" << p.components.front().rules << ')' << endl;
 		}
-		size_t target_ind = 2;
+		uint32_t target_ind = 2;
 		auto dp_removes = [&]( pair<int,unique_ptr<UsableRuleOrder>>& pair ){
 			auto& [subsig,subcomp] = p.components.front();
 			auto& [stage,ord] = pair;
@@ -260,7 +260,7 @@ int main( int argc, char* argv[] ) try {
 					for( auto [f,rank] : subsig ) pr_sym(f);
 					*prf << ")\n  " << print_list(rem) << "\n  :usables (" << print_list(usables) << "))" << endl;
 				}
-				for( size_t i : rem ) {
+				for( uint32_t i : rem ) {
 					subcomp.erase(i);
 				}
 			});
@@ -305,7 +305,7 @@ int main( int argc, char* argv[] ) try {
 			cout << "MAYBE" << endl;
 			if( print_on_fail ) {
 				if( p.mode == Problem::DP ) {
-					auto usables = Set<size_t>();
+					auto usables = Set<uint32_t>();
 					for( auto const& comp : p.components ) {
 						for( auto const& [i,dp] : comp.rules ) {
 							for( auto const& u : **ASSERTED(p.usable_graph.find(i)) ) {

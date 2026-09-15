@@ -65,7 +65,7 @@ public:
 		}
 		auto ret = solver().let(compare_inner(l,r));
 		if( log() & PAIR ) {
-			std::cerr << "; " << print_name() << ": (<=? " << l << ' ' << r << ") := " << ret << std::endl;
+			std::cerr << "; " << print_name() << ": (>=? " << l << ' ' << r << ") := " << ret << std::endl;
 		}
 		_table.emplace(std::pair{l,r},ret);
 		return ret;
@@ -261,7 +261,7 @@ public:
 	Smt::Compare compare_inner( Exp const& l, Exp const& r ) override {
 		A li = intp(l), ri = intp(r);
 		if( _log & PAIR ) {
-			std::cerr << "; (<=? " << l << ' ' << r << ")\n;   " << li << "\n;   " << ri << std::endl;
+			std::cerr << "; (>=? " << l << ' ' << r << ")\n;   " << li << "\n;   " << ri << std::endl;
 		}
 		return order(li,ri,_solver);
 	}

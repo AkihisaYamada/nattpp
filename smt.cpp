@@ -43,8 +43,8 @@ Set<std::string> const Smt::FUNS = {
 	TRUE_F, FALSE_F, AND, OR, NOT, IMP, ITE, ADD, MUL, EQ, GE, LE, GT, CONS, CAR, CDR, LIST, NTH
 };
 
-Smt::PostExp const Smt::TRUE = PostExp(TRUE_F);
-Smt::PostExp const Smt::FALSE = PostExp(FALSE_F);
+Smt::PostExp const Smt::TRUE = PostExp(Term<Fun>(TRUE_F));
+Smt::PostExp const Smt::FALSE = PostExp(Term<Fun>(FALSE_F));
 
 ostream& operator<<( ostream& os, Smt::Rat const& r ) {
 	if( r.denom() == 1 ) {
@@ -314,30 +314,36 @@ Opt<std::tuple<Smt::PostExp,Smt::PostExp,Smt::PostExp>> Smt::PostExp::is_ite() c
 }
 
 Smt::PreExp& operator+=( Smt::PreExp& x, Smt::PreExp const& y ) {
-	if( x.is_post() && []( auto const& e ){ return e == 0; } ) {
-		return x = y;
-	}
-	if( y.is_post() && []( auto const& e ){ return e == 0; } ) {
-		return x;
-	}
-	auto xapp = x._un.ref<Ref<Smt::PreExp::App>>();
-	auto const& yapp = y.is_app();
-	if( xapp && (**xapp).fun == Smt::ADD ) {
-		auto& xargs = (**xapp).args;
-		if( yapp && yapp->fun == Smt::ADD ) {
-			for( auto const& yarg : yapp->args ) {
-				xargs.emplace_back(yarg);
-			}
-		} else {
-			xargs.emplace_back(y);
+	auto yapp = y.is_app();
+	auto yp = y.is_post();
+	if( auto xp = x._un.ref<Smt::PostExp>() ) {
+		if( *xp == 0 ) {
+			return x = y;
 		}
-		return x;
+		if( yp ) {
+			*xp += *yp;
+			return x;
+		}
+	} else if( auto xapp = x._un.ref<Ref<Smt::PreExp::App>>() ) {
+		if( (**xapp).fun == Smt::ADD ) {
+			auto& xargs = (**xapp).args;
+			if( yapp && yapp->fun == Smt::ADD ) {
+				for( auto const& yarg : yapp->args ) {
+					xargs.emplace_back(yarg);
+				}
+			} else if( yp && *yp == 0 ) {
+			} else {
+				xargs.emplace_back(y);
+			}
+			return x;
+		}
 	}
 	auto args = std::vector<Smt::PreExp>{x};
 	if( yapp && yapp->fun == Smt::ADD ) {
 		for( auto const& yarg : yapp->args ) {
 			args.emplace_back(yarg);
 		}
+	} else if( yp && *yp == 0 ) {
 	} else {
 		args.emplace_back(y);
 	}

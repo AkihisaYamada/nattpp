@@ -194,8 +194,8 @@ public:
 	public:
 		PostExp( PostExp const& ) = default;
 		PostExp( PostExp && ) = default;
-		PostExp( bool b ) : _term( b ? TRUE : FALSE ) {}
-		PostExp( auto* ) = delete;
+		template<class T> requires std::same_as<T,bool>// trick to disallow match after cast to bool
+		PostExp( T b ) : _term( b ? TRUE : FALSE ) {}
 		PostExp( uint64_t i ) : _term(Val(i)) {}
 		PostExp( int i ) : _term(Val(i)) {}
 		PostExp( Val v ) : _term(v) {}
@@ -231,10 +231,10 @@ public:
 			return is_bool().value_or_throw(Error("#exp:expected-bool",exp()));
 		}
 		bool operator==( bool b ) const {
-			return is_bool() && ( b ? []( bool const& b ){ return b; } : []( bool const& b ){ return !b; } );
+			return is_bool() && [b]( auto const& x ){ return x == b; };
 		}
 		bool operator==( int n ) const {
-			return is_val() && [n]( auto const& val ) { return val == n; };
+			return is_val() && [n]( auto const& val ){ return val == n; };
 		}
 		Val as_val() const& {
 			auto opt = is_val();

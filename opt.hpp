@@ -62,7 +62,7 @@ public:
 		return std::move(def);
 	}
 	/** @brief Refers to the value or the default. */
-	T const& value_or( T const& def ) const & {
+	T const& value_or( T const& def ) const& {
 		if(_opt) return *_opt;
 		return def;
 	}
@@ -70,6 +70,9 @@ public:
 	T operator||( std::function<T()> const& def ) const& {
 		if(_opt) return *_opt;
 		return def();
+	}
+	bool operator&&( std::function<bool(T const&)> const& f ) const& {
+		return _opt && f(*_opt);
 	}
 	template<typename E>
 	T value_or_throw( E const& err ) {
@@ -162,7 +165,7 @@ public:
 		assert(*this);
 		return _ptr;
 	}
-	bool operator&&( std::function<bool(T&)> f ) const {
+	bool operator&&( std::function<bool(T&)> const& f ) const {
 		return *this && f(*_ptr);
 	}
 	template<typename U>

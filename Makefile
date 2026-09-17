@@ -72,17 +72,22 @@ $(DEBUG)/%.o: %.cpp
 # TPDB 
 TPDB=~/TPDB-ARI
 TIMEOUT=60
+NPARA=$(shell nproc) # number of parallel processes
+
+SHELL := /bin/bash
 
 tpdb_result: $(TGT) $(TPDB)
 	rm -f $@
-	time sh -c '\
-		out=$(abspath $@);\
+	out=$(abspath $@);\
+	time (\
 		cd $(TPDB)/TRS_Standard;\
-		for f in */*.ari;\
-		do\
-			(echo -n $$f:\ ; timeout $(TIMEOUT) $(TGT) -q $$f; if [ $$? -eq 124 ]; then echo TIMEOUT; fi) | tee -a $$out;\
-		done'
-	grep -c 'YES\|NO' $@
+		ls */*.ari | xargs -P $(NPARA) -I{} bash -c '\
+			echo "$$0: $$(timeout $(TIMEOUT) $(TGT) -q $$0 || echo TIMEOUT)"\
+		' {} \
+	) | tee -a $$out
+	@ echo -n "YES: "; grep -c ': YES' $@
+	@ echo -n "NO: "; grep -c ': NO' $@
+	@ echo -n "TIMEOUT: "; grep -c ': TIMEOUT' $@
 
 tpdb_negative: $(TGT)
 	rm -f $@

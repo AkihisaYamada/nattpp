@@ -35,13 +35,16 @@ public:
 	std::vector<Scc> const& sccs() const& {
 		return scc_info().sccs;
 	}
+	uint32_t scc_ind( uint32_t node ) const& {
+		return *ASSERTED(scc_info().scc_inds.find(node));
+	}
 	struct Acyclic;
 	Printable print_nodes( std::string_view const& prefix = "\n  (" ) const&;
 };
 
 struct GraphInterface : ConstGraphInterface {
-	virtual bool remove_node( uint32_t node ) & = 0;
-	virtual bool remove_edge( uint32_t src, uint32_t tgt ) & = 0;
+	virtual bool erase_node( uint32_t node ) & = 0;
+	virtual bool erase_edges( uint32_t src, std::function<bool(uint32_t)> const& test ) & = 0;
 };
 
 struct ConstGraph final : ConstGraphInterface {
@@ -86,11 +89,11 @@ public:
 	void iter_nexts( uint32_t src, NodeFun const& f ) const& override {
 		return _ptr->iter_nexts(src,f);
 	}
-	bool remove_node( uint32_t node ) & override {
-		return _ptr->remove_node(node);
+	bool erase_node( uint32_t node ) & override {
+		return _ptr->erase_node(node);
 	}
-	bool remove_edge( uint32_t src, uint32_t tgt ) & override {
-		return _ptr->remove_edge(src,tgt);
+	bool erase_edges( uint32_t src, std::function<bool(uint32_t)> const& test ) & override {
+		return _ptr->erase_edges(src,test);
 	}
 	static void test();
 };

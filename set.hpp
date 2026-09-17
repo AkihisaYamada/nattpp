@@ -34,6 +34,9 @@ public:
 	bool erase( T const& x ) & {
 		return _set.erase(x);
 	}
+	size_t erase_if( std::function<bool(T const&)> const& test ) {
+		return std::erase_if(_set,test);
+	}
 };
 
 template<typename T>

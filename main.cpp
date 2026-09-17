@@ -105,7 +105,7 @@ int main( int argc, char* argv[] ) try {
 		}
 	}
 	if( !default_sort ) {
-		default_sort = {Smt::INT};
+		default_sort = {Smt::REAL};
 	}
 	auto default_smt = [&]()->Smt::Solver{
 		if( default_smt_spec ) {
@@ -223,11 +223,14 @@ int main( int argc, char* argv[] ) try {
 			}();
 			if( print_dg ) cerr << "(dependency-graph " << dg.print_nodes() << ')' << endl;
 			auto sccs = dg.sccs();
-			for( auto const& scc : sccs ) {
-				if( auto const& nodes = scc.ref<Set<uint32_t>>() ) {
+			for( uint32_t i = 0; i < sccs.size(); i++ ) {
+				if( auto const& nodes = sccs[i].ref<Set<uint32_t>>() ) {// nontrivial SCCs
 					auto& back = p.components.emplace_back();
 					for( auto const& dp : *nodes ) {
 						back.rules.emplace(dp,*ASSERTED(dps.find(dp)));
+						dg.erase_edges(dp,[&]( uint32_t next )->bool{// erase edges leaving the SCC
+							return dg.scc_ind(next) != i;
+						});
 					}
 				}
 			}

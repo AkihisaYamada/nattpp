@@ -171,11 +171,11 @@ public:
 			for( auto const& next : *nexts ) f(next);
 		}
 	}
-	bool remove_node( uint32_t node ) & override {
+	bool erase_node( uint32_t node ) & override {
 		return _body.erase(node);
 	}
-	bool remove_edge( uint32_t src, uint32_t tgt ) & override {
-		return _body.find(src) && [&]( Set<uint32_t>& nexts )->bool{ return nexts.erase(tgt); };
+	bool erase_edges( uint32_t src, std::function<bool(uint32_t)> const& test ) & override {
+		return _body.find(src) && [&]( Set<uint32_t>& nexts )->bool{ return nexts.erase_if(test); };
 	}
 };
 Graph::Graph( Map<uint32_t,Set<uint32_t>>&& map ) :

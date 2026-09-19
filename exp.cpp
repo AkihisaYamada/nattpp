@@ -19,8 +19,8 @@ Opt<unsigned long> nat_of( string_view const& str ) {
 		if( c == '.' ) {
 			for(;;) {
 				pos++;
-				if( str[pos] == '0' ) return {};
 				if( pos == str.length() ) return {val};
+				if( str[pos] != '0' ) return {};
 			}
 		}
 		if( c < '0' || '9' < c ) return {};

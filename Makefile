@@ -82,22 +82,21 @@ tpdb_result: $(TGT) $(TPDB)
 	time (\
 		cd $(TPDB)/TRS_Standard;\
 		ls */*.ari | xargs -P $(NPARA) -I{} bash -c '\
-			echo "$$0: $$(timeout $(TIMEOUT) $(TGT) -q $$0 || echo TIMEOUT)"\
+			echo "$$0: $$(timeout $(TIMEOUT) $(TGT) -q $$0; if [ $$? -eq 124 ]; then echo TIMEOUT; fi)"\
 		' {} \
-	) | tee -a $$out
+	) | tee $$out
 	@ echo -n "YES: "; grep -c ': YES' $@
 	@ echo -n "NO: "; grep -c ': NO' $@
 	@ echo -n "TIMEOUT: "; grep -c ': TIMEOUT' $@
 
 tpdb_negative: $(TGT)
 	rm -f $@
-	out=$(abspath $@);\
 	cd $(TPDB)/TRS_Standard;\
-	while read f; do \
-		echo -n $$f:\ ;\
-		(timeout $(TIMEOUT) $(TGT) -q $$f; if [ $$? -eq 124 ]; then echo TIMEOUT; fi) | tee -a $$out;\
-		if grep -q YES $$out; then echo WRONG!; exit 1; fi;\
-	done < "$(PWD)/tpdb_neg.list"
+	cat "$(PWD)/tpdb_neg.list" | xargs -P $(NPARA) -I{} bash -c '\
+		ret=$$(timeout $(TIMEOUT) $(TGT) -q $$0; if [ $$? -eq 124 ]; then echo TIMEOUT; fi); \
+		echo "$$0: $$ret" | tee -a $(abspath $@);\
+		if [ $$ret = YES ]; then echo WRONG!; exit 1; fi\
+	' {}
 	grep -c NO $@
 
 .PHONY: clean test tpdb-negative

@@ -13,8 +13,8 @@ struct Trs {
 	};
 	struct Rank {
 		unsigned char arity;
-		Set<size_t> defined_by;
-		Set<size_t> depends;// dependency pairs 
+		Set<uint32_t> defined_by;
+		Set<uint32_t> depends;// dependency pairs 
 	};
 	using SigFun = std::function<Opt<Rank const&>(std::string const&)>;
 	using Sig = Map<std::string,Rank>;
@@ -29,7 +29,7 @@ struct Trs {
 			return Printable([this]( auto& os )->auto&{ return print_content(os); });
 		}
 	};
-	using Rules = Map<size_t,Rule>;
+	using Rules = Map<uint32_t,Rule>;
 	Sig sig;
 	Rules rules;
 };

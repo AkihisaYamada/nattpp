@@ -38,63 +38,91 @@ int main( int argc, char* argv[] ) try {
 				i++;
 				if( i == argc ) throw Error("#missing-arg",opt);
 			};
-			if( opt == "-q" ) {
-				print_problem = print_proofs = print_steps = print_dp = print_on_fail = false;
-			} else if( opt == "-order-some" ) {
-				if( mode != UNSET ) throw Error("#duplicate-mode",opt);
-				mode = SOME;
-			} else if( opt == "-sort" ) {
-				if( default_sort ) throw Error("#duplicate-sort");
-				require_arg();
-				default_sort.emplace( Smt::BaseSort::of(argv[i]) );
-			} else if( opt == "-proof" ) {
-				if( oprf ) throw Error("#duplicate-proof");
-				require_arg();
-				oprf.emplace(argv[i]);
-			} else if( opt == "-smt" ) {
-				require_arg();
-				default_smt_spec = {Exp::of(argv[i])};
-			} else if( opt == "-log" ) {
-				if( default_log != -1 ) throw Error("#duplicate-log");
-				require_arg();
-				default_log = TermOrder::log_of(argv[i]);
-			} else if( opt == "-print-on-fail" ) {
-				print_on_fail = true;
-			} else if( opt == "-print-dp" ) {
-				print_dp = true;
-			} else if( opt == "-print-dg" ) {
-				print_dg = true;
-			} else if( opt == "-print-usables" ) {
-				print_usables = true;
-			} else if( opt == "-a" ) {// general remover
-				require_arg();
-				rem_specs.push_back(Exp::of(argv[i]));
-				default_strategy = false;
-				use_dp = true;
-				use_marked_dprem = true;
-			} else if( opt == "-r" ) {// rule remover
-				require_arg();
-				rulerem_specs.push_back(Exp::of(argv[i]));
-				default_strategy = false;
-			} else if( opt == "-d" ) {// dp remover
-				require_arg();
-				dprem_specs.push_back(Exp::of(argv[i]));
-				default_strategy = false;
-				use_dp = true;
-			} else if( opt == "-udp" ) {// unmarked dps only
-				use_dp = true;
-				use_unmarked_dprem = true;
-				use_marked_dprem = false;
-			} else if( opt == "-umdp" ) {// unmarked and marked dps
-				use_dp = true;
-				use_unmarked_dprem = true;
-			} else if( opt == "-mdp" ) {// marked dps only
-				use_dp = true;
-				use_unmarked_dprem = false;
-				use_marked_dprem = true;
-			} else {
+			OrdMap<std::string,std::pair<std::string,std::function<void(void)>>> map = {
+				{ "-q", { ":\tquiet mode", [&]{
+					print_problem = print_proofs = print_steps = print_dp = print_on_fail = false;
+				}}},
+				{ "-order-some", { ":\torder some rule", [&]{
+					if( mode != UNSET ) throw Error("#duplicate-mode",opt);
+					mode = SOME;
+				}}},
+				{ "-sort", { " <sort>:\tspecify default SMT sort", [&]{
+					if( default_sort ) throw Error("#duplicate-sort");
+					require_arg();
+					default_sort.emplace( Smt::BaseSort::of(argv[i]) );
+				}}},
+				{ "-proof", { " <out>:\tspecify proof output", [&]{
+					if( oprf ) throw Error("#duplicate-proof");
+					require_arg();
+					oprf.emplace(argv[i]);
+				}}},
+				{ "-smt", { " <exp>:\tspecify SMT", [&]{
+					require_arg();
+					default_smt_spec = {Exp::of(argv[i])};
+				}}},
+				{ "-log", { " <lvl>:\tlog level", [&]{
+					if( default_log != -1 ) throw Error("#duplicate-log");
+					require_arg();
+					default_log = TermOrder::log_of(argv[i]);
+				}}},
+				{ "-print-on-fail", { ":\tprint remaining problem on unsuccessful proof", [&]{
+					print_on_fail = true;
+				}}},
+				{ "-print-dp", { ":\tprint dependency pairs", [&]{
+					print_dp = true;
+				}}},
+				{ "-print-dg", { ":\tprint dependency graph", [&]{
+					print_dg = true;
+				}}},
+				{ "-print-usables", { ":\tprint usable rules", [&]{
+					print_usables = true;
+				}}},
+				{ "-a" , { " <ord>:\tgeneral remover", [&]{
+					require_arg();
+					rem_specs.push_back(Exp::of(argv[i]));
+					default_strategy = false;
+					use_dp = true;
+					use_marked_dprem = true;
+				}}},
+				{ "-r", { " <ord>:\trule remover", [&]{
+					require_arg();
+					rulerem_specs.push_back(Exp::of(argv[i]));
+					default_strategy = false;
+				}}},
+				{ "-d", { " <ord>:\tdp remover", [&]{
+					require_arg();
+					dprem_specs.push_back(Exp::of(argv[i]));
+					default_strategy = false;
+					use_dp = true;
+				}}},
+				{ "-udp", { ":\tunmarked dps only", [&]{
+					use_dp = true;
+					use_unmarked_dprem = true;
+					use_marked_dprem = false;
+				}}},
+				{ "-umdp", { ":\tunmarked and marked dps", [&]{
+					use_dp = true;
+					use_unmarked_dprem = true;
+				}}},
+				{ "-mdp", { ":\tmarked dps only", [&]{
+					use_dp = true;
+					use_unmarked_dprem = false;
+					use_marked_dprem = true;
+				}}},
+				{ "-h", { ":\tshow this help", [&]{
+					cout << "usage: " << argv[0] << " [<option>...] [<input>]" << endl << "options:" << endl;
+					for( auto const& [opt,body] : map ) {
+						auto const& [help,fun] = body;
+						cout << "  " << opt << help << endl;
+					}
+					exit(0);
+				}}}
+			};
+			auto const& body = map.find(opt);
+			if( !body ) {
 				throw Error("#unknown-option",argv[i]);
 			}
+			body->second();
 		} else {
 			if( ois ) throw Error("#too-many-arguments",argv[i]);
 			ois.emplace(argv[i]);

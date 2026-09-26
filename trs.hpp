@@ -39,7 +39,7 @@ inline std::ostream& operator<<( std::ostream& os, Trs::Rule const& rule ) {
 }
 inline std::ostream& operator<<( std::ostream& os, Trs::Rules const& rules ) {
 	for( auto const& [n,rule] : rules ) {
-		os << "\n  (rule-n " << n << ' ' << rule.print_content() << ')' << std::flush;
+		os << "\n  (rule " << rule.print_content() << " :number " << n << ')' << std::flush;
 	}
 	return os;
 }

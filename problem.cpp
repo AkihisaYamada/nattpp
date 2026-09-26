@@ -65,7 +65,7 @@ bool Problem::reads_sym_decl( Reader& eis ) & {
 	return false;
 }
 
-void Problem::read_rule_decl( Reader& eis, Trs::Reader& tis, Opt<uint32_t> rule_indo ) & {
+void Problem::read_rule_decl( Reader& eis, Trs::Reader& tis ) & {
 		std::set<std::string> vars;
 		auto l = tis.read([&]( auto const& var ){
 			vars.emplace(var);
@@ -76,16 +76,20 @@ void Problem::read_rule_decl( Reader& eis, Trs::Reader& tis, Opt<uint32_t> rule_
 			}
 		});
 		Opt<int> weight;
-		Opt<int> index;
+		Opt<uint32_t> rule_indo;
+		Opt<int> set_index;
 		while( auto key = eis.reads_key() ) {
 			if( *key == ":cost" ) {
 				if( weight ) throw Error{"#duplicate-cost"};
 				int i = eis.read_int();
 				weight = {i};
 			} else if( *key == ":index" ) {
-				if( index ) throw Error{"#duplicate-index"};
+				if( set_index ) throw Error{"#duplicate-index"};
 				int i = eis.read_nat([&](auto n){ return 0 < n && n <= components.size()+1; });
-				index = {i};
+				set_index = {i};
+			} else if( *key == ":number" ) {
+				if( rule_indo ) throw Error{"#duplicate-rule-number"};
+				rule_indo = {eis.read_nat()};
 			} else {
 				throw Error{"#unknown-key",*key};
 			}
@@ -93,13 +97,13 @@ void Problem::read_rule_decl( Reader& eis, Trs::Reader& tis, Opt<uint32_t> rule_
 		auto const& rule = Trs::Rule(l,r,weight.value_or(1));
 		uint32_t rule_ind = rule_indo ? *rule_indo : next_rule;
 		auto& rules = [&]()->Trs::Rules&{
-			if( !index || *index == 1 ) {// main rule
+			if( !set_index || *set_index == 1 ) {// main rule
 				if( auto rank = main.sig.find(l.fun()) ) {
 					rank->defined_by.emplace(rule_ind);
 				}
 				return main.rules;
 			} else {
-				return components[*index-2].rules;
+				return components[*set_index-2].rules;
 			};
 		}();
 		if( rule_indo ) {
@@ -142,10 +146,7 @@ Problem::Problem( istream& is ) : next_rule(0) {
 			while( eis.opens() ) {
 				if( reads_sym_decl(eis) ) {
 				} else if( eis.reads_sym("rule") ) {
-					read_rule_decl(eis,tis,{});
-				} else if( eis.reads_sym("rule-n") ) {
-					uint32_t rule_ind = eis.read_nat();
-					read_rule_decl(eis,tis,rule_ind);
+					read_rule_decl(eis,tis);
 				} else {
 					throw Error{"#unknown-command",eis.read_exp()};
 				};
@@ -288,20 +289,20 @@ ostream& Problem::print( ostream& os ) const& {
 		os << "\n  (fun " << f << ' ' << rank << ')' << flush;
 	}
 	for( auto const& [n,rule] : main.rules ) {
-		os << "\n  (rule-n " << n << ' ' << rule.print_content() << ')' << flush;
+		os << "\n  (rule " << rule.print_content() << " :number " << n << ')' << flush;
 	}
 	int subno = 1;
 	for( auto it = components.begin(); it != components.end(); it++ ) {
 		auto const& [sig,rules] = *it;
-		subno++;
-		os << "\n  (set-n " << subno;
+		os << "\n  (set";
 		for( auto const& [f,rank] : sig ) {
 			os << "\n    (fun " << f << ' ' << rank << ')' << flush;
 		}
 		for( auto const& [n,rule] : rules ) {
-			os << "\n    (rule-n " << n << ' ' << rule.print_content() << ')' << flush;
+			os << "\n    (rule " << rule.print_content() << " :number " << n << ')' << flush;
 		}
-		os << ')' << flush;
+		os << "\n   :number " << subno << ')' << flush;
+		subno++;
 	}
 	return os << ')';
 }

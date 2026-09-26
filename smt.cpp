@@ -822,7 +822,7 @@ int Smt::test() try {
 	cout << "this is Smt::test()." << endl;
 	cout << 1 + PostExp("x") << endl;
 	cout << !!(PostExp(0) + [](auto&){ return PostExp("x"); }) << endl;
-	cout << ite(PostExp("p"), PostExp(3) * PostExp("x") * PostExp("y"), PostExp(0)) << endl;
+	cout << ite(PostExp("p"), 3 * PostExp("x") * PostExp("y"), PostExp(0)) << endl;
 	cout << !(Smt::eq(PostExp("x"),PostExp("y")) && Smt::ge(PostExp("y"),3)) << endl;
 	auto z3 = Smt::Solver::of({"z3","QF_LIA",":tee","cout"});
 	auto x = z3.declare_const("x","Int");

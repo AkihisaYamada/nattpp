@@ -13,9 +13,12 @@ struct TermOrder {
 	virtual std::ostream& print_sym_info( std::ostream& os, std::string const& f ) = 0;
 	virtual Smt::Compare compare( Exp const& l, Exp const& r ) = 0;
 	virtual Smt::PostExp mono() = 0;
+	/** collapsing: f(...x_i...) = x_i for some i */
 	virtual Smt::PostExp fun_triv( std::string const& f ) = 0;
-	virtual Smt::PostExp arg_infl( std::string const& f, size_t i ) = 0;
-	virtual Smt::PostExp arg_used( std::string const& f, size_t i ) = 0;
+	/** inflationary: f(...x_i...) >= x_i */
+	virtual Smt::PostExp arg_infl( std::string const& f, uint16_t i ) = 0;
+	/** used: f(...x_i...) depends on x_i */
+	virtual Smt::PostExp arg_used( std::string const& f, uint16_t i ) = 0;
 	virtual void extend_sig( Trs::Sig const& sig ) {
 		for( auto const& [f,rank] : sig ) {
 			extend_sig(f,rank);
@@ -90,8 +93,8 @@ public:
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override { return _ref->print_sym_info(os,f); }
 	Smt::PostExp mono() override { return _ref->mono(); }
 	Smt::PostExp fun_triv( std::string const& f ) override { return _ref->fun_triv(f); }
-	Smt::PostExp arg_infl( std::string const& f, size_t i ) override { return _ref->arg_infl(f,i); }
-	Smt::PostExp arg_used( std::string const& f, size_t i ) override { return _ref->arg_used(f,i); }
+	Smt::PostExp arg_infl( std::string const& f, uint16_t i ) override { return _ref->arg_infl(f,i); }
+	Smt::PostExp arg_used( std::string const& f, uint16_t i ) override { return _ref->arg_used(f,i); }
 };
 
 struct TrsOrder : TermOrder {
@@ -115,8 +118,8 @@ public:
 	Smt::Compare compare( Exp const& l, Exp const& r ) override { return _ref->compare(l,r); }
 	Smt::PostExp mono() override { return _ref->mono(); }
 	Smt::PostExp fun_triv( std::string const& f ) override { return _ref->fun_triv(f); }
-	Smt::PostExp arg_infl( std::string const& f, size_t i ) override { return _ref->arg_infl(f,i); }
-	Smt::PostExp arg_used( std::string const& f, size_t i ) override { return _ref->arg_used(f,i); }
+	Smt::PostExp arg_infl( std::string const& f, uint16_t i ) override { return _ref->arg_infl(f,i); }
+	Smt::PostExp arg_used( std::string const& f, uint16_t i ) override { return _ref->arg_used(f,i); }
 };
 
 struct UsableRuleOrder : TrsOrder {
@@ -147,8 +150,8 @@ public:
 	Smt::Compare compare( Exp const& l, Exp const& r ) final override { return _ref->compare(l,r); }
 	Smt::PostExp mono() final override { return _ref->mono(); }
 	Smt::PostExp fun_triv( std::string const& f ) override { return _ref->fun_triv(f); }
-	Smt::PostExp arg_infl( std::string const& f, size_t i ) final override { return _ref->arg_infl(f,i); }
-	Smt::PostExp arg_used( std::string const& f, size_t i ) final override { return _ref->arg_used(f,i); }
+	Smt::PostExp arg_infl( std::string const& f, uint16_t i ) final override { return _ref->arg_infl(f,i); }
+	Smt::PostExp arg_used( std::string const& f, uint16_t i ) final override { return _ref->arg_used(f,i); }
 };
 struct UsableRuleOrder::_Trivial final : UsableRuleOrder {
 private:
@@ -170,8 +173,8 @@ public:
 	Smt::Compare compare( Exp const& l, Exp const& r ) final override { return _ref->compare(l,r); }
 	Smt::PostExp mono() final override { return _ref->mono(); }
 	Smt::PostExp fun_triv( std::string const& f ) override { return _ref->fun_triv(f); }
-	Smt::PostExp arg_infl( std::string const& f, size_t i ) final override { return _ref->arg_infl(f,i); }
-	Smt::PostExp arg_used( std::string const& f, size_t i ) final override { return _ref->arg_used(f,i); }
+	Smt::PostExp arg_infl( std::string const& f, uint16_t i ) final override { return _ref->arg_infl(f,i); }
+	Smt::PostExp arg_used( std::string const& f, uint16_t i ) final override { return _ref->arg_used(f,i); }
 };
 inline std::unique_ptr<UsableRuleOrder> UsableRuleOrder::make_triv( std::unique_ptr<TrsOrder>&& org ) {
 	return std::make_unique<_Trivial>(std::move(org));
@@ -201,10 +204,10 @@ public:
 	Smt::PostExp fun_triv( std::string const& f ) override {
 		return true;
 	}
-	Smt::PostExp arg_infl( std::string const& f, size_t i ) override {
+	Smt::PostExp arg_infl( std::string const& f, uint16_t i ) override {
 		return true;
 	}
-	Smt::PostExp arg_used( std::string const& f, size_t i ) override {
+	Smt::PostExp arg_used( std::string const& f, uint16_t i ) override {
 		return true;
 	}
 	Smt::Compare rule_compare( size_t, Trs::Term const&, Trs::Term const& ) override {
@@ -283,10 +286,10 @@ public:
 	Smt::PostExp fun_triv( std::string const& f ) override {
 		return ASSERTED(deriver.sig.find(f))->triv;
 	}
-	Smt::PostExp arg_infl( std::string const& f, size_t i ) override {
+	Smt::PostExp arg_infl( std::string const& f, uint16_t i ) override {
 		return ASSERTED(deriver.sig.find(f))->args[i].infl;
 	}
-	Smt::PostExp arg_used( std::string const& f, size_t i ) override {
+	Smt::PostExp arg_used( std::string const& f, uint16_t i ) override {
 		return ASSERTED(deriver.sig.find(f))->args[i].used;
 	}
 };
@@ -295,7 +298,7 @@ struct PathOrder final : MemoizedTermOrder {
 	struct Status {
 		struct Straight {};
 		struct Mapped {
-			size_t post_arity;
+			uint16_t post_arity;
 		};
 	private:
 		Sum<Straight,Mapped> _sum;
@@ -303,8 +306,8 @@ struct PathOrder final : MemoizedTermOrder {
 		Status( Straight const& ) : _sum(Straight()) {}
 		Status( Mapped b ) : _sum(b) {}
 		bool is_straight() { return (bool)_sum.ref<Straight>(); }
-		Opt<size_t> post_arity() {
-			return _sum.ref<Mapped>() >>= [&]( auto b )->Opt<size_t>{ return {b.post_arity}; };
+		Opt<uint16_t> post_arity() {
+			return _sum.ref<Mapped>() >>= [&]( auto b )->Opt<uint16_t>{ return {b.post_arity}; };
 		}
 	};
 	struct StatusFun {
@@ -314,13 +317,13 @@ struct PathOrder final : MemoizedTermOrder {
 	};
 private:
 	struct _SymInfo {
-		size_t arity;
+		uint16_t arity;
 		Status status;
 		Smt::PostExp prec, collapse, empty;
-		std::function<Smt::PostExp(size_t,size_t)> map;// map(i,k) i-th argument is mapped to k-th position
-		std::function<Smt::PostExp(size_t)> mapped;// mapped(i) if the i-th argument is mapped
-		std::function<Smt::PostExp(size_t)> occupied;// occupied(k) if some argument is mapped to k-th position
-		std::function<Smt::PostExp(size_t)> used;// flags if the corresponding argument is used
+		std::function<Smt::PostExp(uint16_t,uint16_t)> map;// map(i,k) i-th argument is mapped to k-th position
+		std::function<Smt::PostExp(uint16_t)> mapped;// mapped(i) if the i-th argument is mapped
+		std::function<Smt::PostExp(uint16_t)> occupied;// occupied(k) if some argument is mapped to k-th position
+		std::function<Smt::PostExp(uint16_t)> used;// flags if the corresponding argument is used
 	};
 	std::unique_ptr<TermOrder> _weight;
 	Map<std::string,_SymInfo> _info;
@@ -347,10 +350,10 @@ public:
 	Smt::PostExp fun_triv( std::string const& f ) override {
 		return ASSERTED(_info.find(f))->collapse;
 	}
-	Smt::PostExp arg_infl( std::string const& f, size_t i ) override {
+	Smt::PostExp arg_infl( std::string const& f, uint16_t i ) override {
 		return ASSERTED(_info.find(f))->mapped(i);
 	}
-	Smt::PostExp arg_used( std::string const& f, size_t i ) override {
+	Smt::PostExp arg_used( std::string const& f, uint16_t i ) override {
 		return ASSERTED(_info.find(f))->used(i);
 	}
 };
@@ -362,7 +365,7 @@ Smt::Compare lex_compare( F const& comp, std::vector<T> const& ls, std::vector<T
 	auto all_ge = Smt::TRUE, gt = Smt::FALSE;
 	auto ln = ls.size();
 	auto rn = rs.size();
-	for( size_t i = 0;; i++ ) {
+	for( uint16_t i = 0;; i++ ) {
 		if( i == ln ) {
 			if( i == rn ) {
 				return { gt || all_ge, gt };
@@ -382,17 +385,17 @@ template<typename F, typename T>
 Smt::Compare mapped_lex_compare(
 	Smt::Solver& solver,
 	F const& comp,
-	std::function<Smt::PostExp(size_t)> const& locc,// occupancy of post-positions. locc(i+1) => loc(i) is assumed 
-	std::function<Smt::PostExp(size_t)> const& rocc,
-	std::function<Smt::PostExp(size_t,size_t)> const& lmap,
-	std::function<Smt::PostExp(size_t,size_t)> const& rmap,
+	std::function<Smt::PostExp(uint16_t)> const& locc,// occupancy of post-positions. locc(i+1) => loc(i) is assumed 
+	std::function<Smt::PostExp(uint16_t)> const& rocc,
+	std::function<Smt::PostExp(uint16_t,uint16_t)> const& lmap,
+	std::function<Smt::PostExp(uint16_t,uint16_t)> const& rmap,
 	std::vector<T> const& ls,
 	std::vector<T> const& rs
 ) {
 	auto all_ge = Smt::TRUE, gt = Smt::FALSE;
 	auto lin = ls.size();
 	auto rin = rs.size();
-	for( size_t k = 0;; k++ ) {
+	for( uint16_t k = 0;; k++ ) {
 		auto const& locck = locc(k);
 		auto const& rocck = rocc(k);
 		all_ge = solver.let(Smt::BOOL,all_ge);
@@ -404,15 +407,15 @@ Smt::Compare mapped_lex_compare(
 			return { gt || !locck && all_ge, gt || locck && all_ge };
 		}
 		gt = gt || (all_ge &&
-			Smt::PostExp::disj( 0, lin, [&]( size_t const& i ){
-				return lmap(i,k) && Smt::PostExp::conj( 0, rin, [&]( size_t const& j ){// notice: [l] > []
+			Smt::PostExp::disj( 0, lin, [&]( uint16_t const& i ){
+				return lmap(i,k) && Smt::PostExp::conj( 0, rin, [&]( uint16_t const& j ){// notice: [l] > []
 					return rmap(j,k).imp(comp(ls[i],rs[j]).gt);
 				} );
 			} )
 		);
 		all_ge = all_ge && (!locck && !rocck ||// [] >= []
-			Smt::PostExp::disj( 0, lin, [&]( size_t const& i ){// [l] >= [r]
-				return lmap(i,k) && Smt::PostExp::disj( 0, rin, [&]( size_t const& j ){
+			Smt::PostExp::disj( 0, lin, [&]( uint16_t const& i ){// [l] >= [r]
+				return lmap(i,k) && Smt::PostExp::disj( 0, rin, [&]( uint16_t const& j ){
 					return rmap(j,k) && comp(ls[i],rs[j]).ge;
 				} );
 			} )

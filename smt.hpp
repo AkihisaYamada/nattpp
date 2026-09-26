@@ -25,20 +25,20 @@ public:
 		bool operator==( Smt::BaseSort const& y ) const& = default;
 	};
 	class Rat {
-		int64_t _numen, _denom;
+		int64_t _numen; uint64_t _denom;
 	public:
 		Rat( int64_t i ) : _numen(i), _denom(1) {}
-		Rat( int64_t numen, int64_t denom ) {
+		Rat( int64_t numen, uint64_t denom ) {
 			int64_t gcd = std::gcd(numen,denom);
 			_numen = numen/gcd;
 			_denom = denom/gcd;
 		}
 		friend bool operator==( Rat const&, Rat const& ) = default;
 		int64_t numen() const { return _numen; }
-		int64_t denom() const { return _denom; }
+		uint64_t denom() const { return _denom; }
 		friend Rat operator+( Rat const& x, Rat const& y ) {
-			int64_t n = std::gcd(x._denom,y._denom);
-			int64_t m = y._denom/n;
+			uint64_t n = std::gcd(x._denom,y._denom);
+			uint64_t m = y._denom/n;
 			return Rat( x._numen * m + y._numen * (x._denom / n), x._denom * m );
 		}
 		friend Rat& operator+=( Rat& x, Rat const& y ) {
@@ -56,7 +56,7 @@ public:
 			return z+=y;
 		}
 		friend auto operator<=>(Rat const& x, Rat const& y) {
-			return (long long)x._numen * y._denom <=> (long long)y._numen * x._denom;
+			return x._numen * y._denom <=> y._numen * x._denom;
 		}
 	};
 	class Val {
@@ -367,11 +367,8 @@ public:
 			};
 		}
 		friend PreExp& operator+=( PreExp& x, PreExp const& y );
-		PreExp mul( PreExp const& y ) const {
-			return PreExp(MUL,{*this,y});
-		}
-		friend PreExp& operator*=( PreExp& x, PreExp const& y ) {
-			return x = x.mul(y);
+		friend PreExp operator*( PreExp const& x, PreExp const& y ) {
+			return PreExp(MUL,{x,y});
 		}
 		PreExp cons( PreExp const& y ) const {
 			return PreExp(CONS,{*this,y});
@@ -602,8 +599,8 @@ inline Smt::PreExp operator||( Smt::PreExp const& x, Smt::PreExp const& y ) {
 inline Smt::PreExp operator+( Smt::PreExp x, Smt::PreExp const& y ) {
 	return x += y;
 }
-inline Smt::PreExp operator*( Smt::PreExp const& x, Smt::PreExp const& y ) {
-	return x.mul(y);
+inline Smt::PreExp operator*( Smt::PostExp const& x, Smt::PreExp const& y ) {
+	return Smt::PreExp(x) * y;
 }
 inline Smt::PreExp operator,( Smt::PreExp const& x, Smt::PreExp const& y ) {
 	return x.cons(y);

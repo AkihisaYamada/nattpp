@@ -294,7 +294,7 @@ static Exp const _TRIV = Exp("=>","#triv",Exp("=","_","0"));// trivial requires 
 
 static Exp const _CONST = Exp("var",":constrain",_TRIV);
 static Exp const _POSCONST =
-	Exp("var",":constrain", Exp( "and", Exp(">=","_","0"), _TRIV ) );
+	Exp( "var", ":constrain", Exp( "and", Exp(">=","_","0"), _TRIV ) );
 
 static Exp _bool_constrain( Exp const& c ) {
 	return Exp("var",":sort","Bool",":constrain",c);
@@ -313,11 +313,7 @@ Exp const Template::MONO_POLY2 = Exp("arity",
 	Exp("otherwise",Exp("+",Exp("args","+",Exp("*",_1_OR_2,"arg")),_POSCONST))
 );
 static Exp const _SUMCOEFF = _0_or_1_constrain(Exp("and",_MONO,_INFL,_USED));
-Exp const Template::SUM = Exp("arity",
-	Exp("0",_POSCONST),
-	Exp("1",Exp("+",Exp("*",_SUMCOEFF,"arg"),_POSCONST)),
-	Exp("otherwise",Exp("+",Exp("args","+",Exp("*",_SUMCOEFF,"arg")),_POSCONST))
-);
+Exp const Template::SUM = Exp("+",Exp("args","+",Exp("*",_SUMCOEFF,"arg")),_POSCONST);
 Exp const Template::SIMP_MAX = Exp("arity",
 	Exp("0",_POSCONST),
 	Exp("otherwise",Exp("args","max",Exp("+","arg",_POSCONST)))

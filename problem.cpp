@@ -5,6 +5,8 @@
 
 using namespace std;
 
+Answer const Answer::YES = Answer("YES"), Answer::NO = Answer("NO"), Answer::MAYBE("MAYBE");
+
 static void _switch(
 	string const& key,
 	map<string,function<void(void)>> map,
@@ -140,7 +142,7 @@ Problem::Problem( istream& is ) : next_rule(0) {
 			eis.close();// of format
 			Trs::SigFun sig_fun = [&](string const& sym ){ return main.sig.find(sym); };
 			if( number && *number > 1 ) {
-				components = std::deque<Trs>(*number-1);
+				components = std::deque<Component>(*number-1);
 			}
 			auto tis = Trs::Reader(eis,sig_fun);
 			while( eis.opens() ) {
@@ -193,7 +195,7 @@ static void collect_dps(
 
 void Problem::make_dps() & {
 	assert( mode == SN );
-	auto& [dpsig,dps] = components.emplace_back();
+	auto& [dpsig,dps,dg/* CAUTION: dg is not initialized */] = components.emplace_back();
 	mode = DP;
 	Pos pos;
 	for( auto const& [org,rule] : main.rules ) {
@@ -265,7 +267,7 @@ Trs::Rule mark_dp( Trs::Sig const& sig, Trs::Sig& extra_sig, Trs::Rule const& dp
 }
 void Problem::mark_dps() & {
 	auto mdps = Trs::Rules();
-	auto& [msig,udps] = components.front();
+	auto& [msig,udps,dg] = components.front();
 	assert(msig.empty());
 	for( auto uit = udps.begin(); uit != udps.end(); uit = udps.erase(uit) ) {// iterate while removing
 		auto [uind,udp] = *uit;
@@ -293,7 +295,7 @@ ostream& Problem::print( ostream& os ) const& {
 	}
 	int subno = 1;
 	for( auto it = components.begin(); it != components.end(); it++ ) {
-		auto const& [sig,rules] = *it;
+		auto const& [sig,rules,graph] = *it;
 		os << "\n  (set";
 		for( auto const& [f,rank] : sig ) {
 			os << "\n    (fun " << f << ' ' << rank << ')' << flush;
@@ -301,7 +303,8 @@ ostream& Problem::print( ostream& os ) const& {
 		for( auto const& [n,rule] : rules ) {
 			os << "\n    (rule " << rule.print_content() << " :number " << n << ')' << flush;
 		}
-		os << "\n   :number " << subno << ')' << flush;
+		os << "\n   (edges (" << ConstGraph(graph).print_nodes("\n          (") << "))"
+		   << "\n   :number " << subno << ')' << flush;
 		subno++;
 	}
 	return os << ')';

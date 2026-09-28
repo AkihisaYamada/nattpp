@@ -194,8 +194,7 @@ int main( int argc, char* argv[] ) try {
 				cerr << "(usables" << ConstGraph(p.usable_graph).print_nodes() << ')' << endl;
 			}
 		} else {
-			if( auto it = p.extra_var.begin(); it != p.extra_var.end() ) {
-				auto const& [no,var] = *it;
+			for( auto const& [no,var] : p.extra_var ) {
 				if( print_proofs ) *prf << "(extra-var " << var << " :rule " << no << ')' << endl;
 				throw Answer::NO;
 			}
@@ -217,10 +216,9 @@ int main( int argc, char* argv[] ) try {
 			};
 			do {
 				if( p.main.rules.empty() ) throw Answer::YES;
-			} while(
-				std::ranges::any_of(rule_removers,rule_removes) ||
-				std::ranges::any_of(both_removers,rule_removes)
-			);
+				if( std::ranges::any_of(rule_removers,rule_removes) ) continue;
+				if( std::ranges::any_of(both_removers,rule_removes) ) continue;
+			} while(0);
 
 			if( !use_dp ) throw Answer::MAYBE;
 
@@ -256,8 +254,11 @@ int main( int argc, char* argv[] ) try {
 					auto& back = p.components.emplace_back();
 					for( auto const& dp : *nodes ) {
 						back.rules.emplace(dp,*ASSERTED(dps.find(dp)));
-						dg.erase_edges(dp,[&]( uint32_t next )->bool{// erase edges leaving the SCC
-							return dg.scc_ind(next) != i;
+						auto& nexts = back.graph.emplace(dp,Set<uint32_t>{}).first;
+						dg.iter_nexts( dp, [&]( uint32_t next ){// copy edges inside SCC
+							if( dg.scc_ind(next) == i ) {
+								nexts.emplace(next);
+							}
 						});
 					}
 				}
@@ -270,7 +271,7 @@ int main( int argc, char* argv[] ) try {
 		}
 		uint32_t target_ind = 2;
 		auto dp_removes = [&]( pair<int,unique_ptr<UsableRuleOrder>>& pair ){
-			auto& [subsig,subcomp] = p.components.front();
+			auto& [subsig,subcomp,subgraph] = p.components.front();
 			auto& [stage,ord] = pair;
 			if( print_steps ) cerr << "; trying " << ord->print_name() << "... " << endl;
 			if( stage == 0 ) {

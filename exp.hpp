@@ -192,14 +192,6 @@ struct Exp : Term<std::string> {
 	static void test();
 };
 
-struct Answer : Exp {
-private:
-	Answer() = delete;
-	Answer( Exp const& other ) : Exp(other) {}
-public:
-	static Answer const YES, NO, MAYBE;
-};
-
 class Reader {
 	std::istream& _is;
 	class LPar {};

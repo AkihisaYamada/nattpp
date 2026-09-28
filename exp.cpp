@@ -5,8 +5,6 @@
 
 using namespace std;
 
-Answer const Answer::YES = Answer("YES"), Answer::NO = Answer("NO"), Answer::MAYBE("MAYBE");
-
 ostream& operator<<( ostream& os, Pos const& pos ) {
 	return os << '(' << print_list( pos.begin(), pos.end(), []( auto c ){ return (unsigned int)(*c)+1; } ) << ')';
 }

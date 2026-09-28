@@ -39,7 +39,10 @@ public:
 		return *ASSERTED(scc_info().scc_inds.find(node));
 	}
 	struct Acyclic;
-	Printable print_nodes( std::string_view const& prefix = "\n  (" ) const&;
+	Printable print_nodes( std::string_view const& pref, std::string_view const& sep ) const&;
+	Printable print_nodes( std::string_view const& sep ) const& {
+		return print_nodes(sep,sep);
+	}
 };
 
 struct GraphInterface : ConstGraphInterface {
@@ -127,7 +130,7 @@ public:
 };
 
 inline std::ostream& operator<<( std::ostream& os, ConstGraphInterface const& g ) {
-	return os << "(" << g.print_nodes(" (") << ')';
+	return os << "(" << g.print_nodes(""," ") << ')';
 }
 
 #endif

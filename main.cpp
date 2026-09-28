@@ -99,15 +99,18 @@ int main( int argc, char* argv[] ) try {
 					use_dp = true;
 					use_unmarked_dprem = true;
 					use_marked_dprem = false;
+					default_strategy = false;
 				}}},
 				{ "-umdp", { ":\tunmarked and marked dps", [&]{
 					use_dp = true;
 					use_unmarked_dprem = true;
+					default_strategy = false;
 				}}},
 				{ "-mdp", { ":\tmarked dps only", [&]{
 					use_dp = true;
 					use_unmarked_dprem = false;
 					use_marked_dprem = true;
+					default_strategy = false;
 				}}},
 				{ "-h", { ":\tshow this help", [&]{
 					cout << "usage: " << argv[0] << " [<option>...] [<input>]" << endl << "options:" << endl;
@@ -190,8 +193,8 @@ int main( int argc, char* argv[] ) try {
 			marked = true;
 			p.init_uses();
 			if( print_usables ) {
-				cerr << "(uses_graph" << ConstGraph(p.uses_map).print_nodes() << ')' << endl;
-				cerr << "(usables" << ConstGraph(p.usable_graph).print_nodes() << ')' << endl;
+				cerr << "(uses_graph" << ConstGraph(p.uses_map).print_nodes("\n  ") << ')' << endl;
+				cerr << "(usables" << ConstGraph(p.usable_graph).print_nodes("\n  ") << ')' << endl;
 			}
 		} else {
 			for( auto const& [no,var] : p.extra_var ) {
@@ -227,8 +230,8 @@ int main( int argc, char* argv[] ) try {
 			if( print_proofs ) *prf << "(make_dp)" << endl;
 			if( print_dp ) cerr << p << endl;
 			if( print_usables ) {
-				cerr << "(uses_graph" << ConstGraph(p.uses_map).print_nodes() << ')' << endl;
-				cerr << "(usables" << ConstGraph(p.usable_graph).print_nodes() << ')' << endl;
+				cerr << "(uses_graph" << ConstGraph(p.uses_map).print_nodes("\n  ") << ')' << endl;
+				cerr << "(usables" << ConstGraph(p.usable_graph).print_nodes("\n  ") << ')' << endl;
 			}
 			// SCC decomposition
 			auto dps = std::move(p.components.front().rules);
@@ -247,7 +250,7 @@ int main( int argc, char* argv[] ) try {
 				}
 				return std::move(dgmap);
 			}();
-			if( print_dg ) cerr << "(dependency-graph " << dg.print_nodes() << ')' << endl;
+			if( print_dg ) cerr << "(dependency-graph" << dg.print_nodes("\n  ") << ')' << endl;
 			auto sccs = dg.sccs();
 			for( uint32_t i = 0; i < sccs.size(); i++ ) {
 				if( auto const& nodes = sccs[i].ref<Set<uint32_t>>() ) {// nontrivial SCCs
@@ -345,9 +348,11 @@ int main( int argc, char* argv[] ) try {
 							}
 						}
 					}
-					for( auto it = p.main.rules.begin(); it != p.main.rules.end(); it++ ) {
-						if( !usables.find(it->first) ) {
-							p.main.rules.erase(it);
+					for( auto it = p.main.rules.begin(); it != p.main.rules.end(); ) {
+						if( usables.find(it->first) ) {
+							it++;
+						} else {
+							it = p.main.rules.erase(it);
 						}
 					}
 				}

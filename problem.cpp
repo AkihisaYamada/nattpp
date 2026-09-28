@@ -303,8 +303,8 @@ ostream& Problem::print( ostream& os ) const& {
 		for( auto const& [n,rule] : rules ) {
 			os << "\n    (rule " << rule.print_content() << " :number " << n << ')' << flush;
 		}
-		os << "\n   (edges (" << ConstGraph(graph).print_nodes("\n          (") << "))"
-		   << "\n   :number " << subno << ')' << flush;
+		os << "\n    (edges" << ConstGraph(graph).print_nodes("\n      ") << ")"
+		   << "\n    :number " << subno << ')' << flush;
 		subno++;
 	}
 	return os << ')';

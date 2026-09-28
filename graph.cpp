@@ -342,18 +342,16 @@ Map<uint32_t,Ref<Set<uint32_t>>> ConstGraphInterface::trancl() && {
 	return std::move(trancl());
 }
 
-Printable ConstGraphInterface::print_nodes( std::string_view const& _pref ) const& {
+Printable ConstGraphInterface::print_nodes( std::string_view const& pref, std::string_view const& _sep ) const& {
 	return Printable([&]( std::ostream& os )->std::ostream&{
-		std::string_view pref = _pref;
+		std::string_view sep = pref;
 		iter_nodes([&]( auto const& src ){
-			os << pref << src << " (";
-			pref = "\n  (";
-			std::string_view pref2 = "";
+			os << sep << "(node " << src;
+			sep = _sep;
 			iter_nexts(src,[&]( auto const& tgt ){
-				os << pref2 << tgt;
-				pref2 = " ";
+				os << ' ' << tgt;
 			});
-			os << "))" << flush;
+			os << ')' << flush;
 		});
 		return os;
 	});
@@ -374,7 +372,7 @@ void Graph::test() {
 	});
 	cout << g << endl;
 	cout << print_sccs(g.sccs());
-	cout << "(trancl " << ConstGraph(g.trancl()).print_nodes() << ')' << endl;
+	cout << "(trancl" << ConstGraph(g.trancl()).print_nodes("\n  ","\n  ") << ')' << endl;
 	auto g2 = ConstGraph({
 		{0,{1}},
 		{1,{2}},
@@ -383,5 +381,5 @@ void Graph::test() {
 	});
 	cout << g2 << endl;
 	cout << print_sccs(g2.sccs());
-	cout << "(trancl " << ConstGraph(g2.trancl()).print_nodes() << ')' << endl;
+	cout << "(trancl" << ConstGraph(g2.trancl()).print_nodes("\n  ","\n  ") << ')' << endl;
 }

@@ -77,17 +77,15 @@ NPARA=$(shell nproc) # number of parallel processes
 SHELL := /bin/bash
 
 tpdb_result: $(TGT) $(TPDB)
-	rm -f $@
-	systemd-run --scope --user --unit=myunit bash -c \
-	'(	cd $(TPDB)/TRS_Standard;\
+	systemd-run --user --scope -p MemoryMax=8G --unit=myunit bash -c '\
+		cd $(TPDB)/TRS_Standard;\
 		(	ls */*.ari | xargs -P $(NPARA) -I{} bash -c '\''\
 				echo "$$0: $$(timeout $(TIMEOUT) $(TGT) -q $$0; if [ $$? -eq 124 ]; then echo TIMEOUT; fi)"\
-			'\'' {};\
+			'\'' {}\
 		);\
 		(	systemctl --user show myunit.scope -p CPUUsageNSec --value |\
 			awk '\''{printf "%.3f s\n", $$1 / 1e9}'\''\
-		)\
-	)' | tee $@
+		)' | tee -a $@
 	@ echo -n "YES: "; grep -c ': YES' $@
 	@ echo -n "NO: "; grep -c ': NO' $@
 	@ echo -n "TIMEOUT: "; grep -c ': TIMEOUT' $@

@@ -105,7 +105,7 @@ void Problem::read_rule_decl( Reader& eis, Trs::Reader& tis ) & {
 				}
 				return main.rules;
 			} else {
-				return components[*set_index-2].rules;
+				return components[*set_index-2].nodes;
 			};
 		}();
 		if( rule_indo ) {
@@ -162,31 +162,32 @@ Problem::Problem( istream& is ) : next_rule(0) {
 
 static void collect_dps(
 	Trs::Sig& sig, Trs::Rules& dps,
-	Trs::Term const& l, Trs::Rank& lrank, Trs::Term const& r,
+	Trs::Term const& l, Trs::Rank& finfo, Trs::Term const& r,
 	Problem& p, Set<uint32_t>& org_uses, Map<uint32_t,Set<uint32_t>>& dp_uses
 ) {
-	for( auto const& a : r.args() ) {// first look arguments
-		collect_dps(sig,dps,l,lrank,a,p,org_uses,dp_uses);
-	}
-	if( auto rrank = sig.find(r.fun()) ) {// f(...) -> g(...)
-		if( !rrank->defined_by.empty() ) {
-			Set<uint32_t> this_uses;// collect rules which this dp uses
-			for( auto const& a : r.args() ) {
-				collect_dps(sig,dps,l,lrank,a,p,this_uses,dp_uses);
-			}
-			lrank.depends.emplace(p.next_rule);// assign this dp to f
-			for( auto const& used : this_uses ) {
-				org_uses.emplace(used);// origin uses those rules which this dp uses
-			}
-			// register those this dp will use
-			dp_uses.emplace(p.next_rule,std::move(this_uses));
-			p.insert_rule(dps,Trs::Rule(l,r));
-			for( uint32_t i : rrank->defined_by ) {// the origin also uses the rules that define g
-				if( auto const& rule = p.main.rules.find(i) ) {
-					auto const& [l2,r2,w] = *rule;
-					if( may_reach(p.main,r,l2,8,false) ) {
-						org_uses.emplace(i);
-					}
+	auto const& [g,rs] = *r;
+	auto ginfo = sig.find(g);
+	if( !ginfo || ginfo->defined_by.empty() ) {// rhs is a variable or constructor
+		for( auto const& a : rs ) {// just look into arguments
+			collect_dps(sig,dps,l,finfo,a,p,org_uses,dp_uses);
+		}
+	} else {// rhs is defined
+		Set<uint32_t> this_uses;// collect rules which this dp uses
+		for( auto const& a : rs ) {
+			collect_dps(sig,dps,l,finfo,a,p,this_uses,dp_uses);
+		}
+		finfo.depends.emplace(p.next_rule);// assign this dp to f
+		for( auto const& used : this_uses ) {
+			org_uses.emplace(used);// origin uses those rules which this dp uses
+		}
+		// register those this dp will use
+		dp_uses.emplace(p.next_rule,std::move(this_uses));
+		p.insert_rule(dps,Trs::Rule(l,r));
+		for( uint32_t i : ginfo->defined_by ) {// the origin also uses the rules that define g
+			if( auto const& rule = p.main.rules.find(i) ) {
+				auto const& [l2,r2,w] = *rule;
+				if( may_reach(p.main,r,l2,8,false) ) {
+					org_uses.emplace(i);
 				}
 			}
 		}
@@ -200,7 +201,8 @@ void Problem::make_dps() & {
 	Pos pos;
 	for( auto const& [org,rule] : main.rules ) {
 		auto const& l = rule.first;
-		auto lrank = main.sig.find(l.fun());
+		auto const& [f,ls] = *l;
+		auto lrank = main.sig.find(f);
 		if( !lrank ) {
 			cerr << "(var-lhs " << org << ')' << endl;
 			throw Answer::NO;
@@ -241,7 +243,7 @@ void Problem::init_uses() & {
 		uses_map.emplace(i,std::move(uses));
 	}
 	for( auto const& comp : components ) {
-		for( auto const& [i,dp] : comp.rules ) {
+		for( auto const& [i,dp] : comp.nodes ) {
 			auto const& [l,r,w] = dp;
 			auto uses = Set<uint32_t>{};
 			term_use(main,r,uses);

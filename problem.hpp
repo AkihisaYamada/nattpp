@@ -26,7 +26,7 @@ struct Problem {
 	Map<uint32_t,Ref<Set<uint32_t>>> usable_graph;// will be ready by make_dps
 	struct Component {
 		Trs::Sig sig;
-		Trs::Rules rules;
+		Trs::Rules nodes;
 		Map<uint32_t,Set<uint32_t>> graph;
 	};
 	std::deque<Component> components;

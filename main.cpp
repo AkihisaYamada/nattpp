@@ -167,7 +167,7 @@ int main( int argc, char* argv[] ) try {
 		use_dp = false;
 	} else if( p.mode == Problem::SAT ) {
 		for( auto const& component : p.components ) {
-			for( auto const& [i,pair] : component.rules ) {
+			for( auto const& [i,pair] : component.nodes ) {
 				if( may_reach(p.main,pair.first,pair.second,8,true) ) {
 					cout << "unknown" << endl;
 					exit(1);
@@ -234,7 +234,7 @@ int main( int argc, char* argv[] ) try {
 				cerr << "(usables" << ConstGraph(p.usable_graph).print_nodes("\n  ") << ')' << endl;
 			}
 			// SCC decomposition
-			auto dps = std::move(p.components.front().rules);
+			auto dps = std::move(p.components.front().nodes);
 			p.components.pop_front();
 			Graph dg = [&]{
 				Map<uint32_t,Set<uint32_t>> dgmap;
@@ -256,7 +256,7 @@ int main( int argc, char* argv[] ) try {
 				if( auto const& nodes = sccs[i].ref<Set<uint32_t>>() ) {// nontrivial SCCs
 					auto& back = p.components.emplace_back();
 					for( auto const& dp : *nodes ) {
-						back.rules.emplace(dp,*ASSERTED(dps.find(dp)));
+						back.nodes.emplace(dp,*ASSERTED(dps.find(dp)));
 						auto& nexts = back.graph.emplace(dp,Set<uint32_t>{}).first;
 						dg.iter_nexts( dp, [&]( uint32_t next ){// copy edges inside SCC
 							if( dg.scc_ind(next) == i ) {
@@ -270,7 +270,7 @@ int main( int argc, char* argv[] ) try {
 				if( print_steps ) cerr << "; no SCC" << endl;
 				throw Answer::YES;
 			}
-			if( print_proofs ) *prf << "(scc" << p.components.front().rules << ')' << endl;
+			if( print_proofs ) *prf << "(scc" << p.components.front().nodes << ')' << endl;
 		}
 		uint32_t target_ind = 2;
 		auto dp_removes = [&]( pair<int,unique_ptr<UsableRuleOrder>>& pair ){
@@ -306,12 +306,12 @@ int main( int argc, char* argv[] ) try {
 			dp_removers.emplace_back(0,UsableRuleOrder::make(p.main,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log))));
 		}
 		for(;;) {
-			if( p.components.front().rules.empty() ) {
+			if( p.components.front().nodes.empty() ) {
 				p.components.pop_front();
 				target_ind++;
 				marked = false;
 				if( p.components.empty() ) throw Answer::YES;
-				if( print_proofs ) *prf << "(scc" << p.components.front().rules << ')' << endl;
+				if( print_proofs ) *prf << "(scc" << p.components.front().nodes << ')' << endl;
 				continue;
 			}
 			if( !marked ) {
@@ -321,7 +321,7 @@ int main( int argc, char* argv[] ) try {
 				}
 				if( use_marked_dprem ) {
 					p.mark_dps();
-					if( print_proofs ) *prf << "(mark_dp" << p.components.front().rules << ')' << endl;
+					if( print_proofs ) *prf << "(mark_dp" << p.components.front().nodes << ')' << endl;
 					marked = true;
 					continue;
 				}
@@ -342,7 +342,7 @@ int main( int argc, char* argv[] ) try {
 				if( p.mode == Problem::DP ) {
 					auto usables = Set<uint32_t>();
 					for( auto const& comp : p.components ) {
-						for( auto const& [i,dp] : comp.rules ) {
+						for( auto const& [i,dp] : comp.nodes ) {
 							for( auto const& u : **ASSERTED(p.usable_graph.find(i)) ) {
 								usables.emplace(u);
 							}

@@ -14,7 +14,6 @@ struct Trs {
 	struct Rank {
 		unsigned char arity;
 		Set<uint32_t> defined_by;
-		Set<uint32_t> depends;// dependency pairs 
 	};
 	using SigFun = std::function<Opt<Rank const&>(std::string const&)>;
 	using Sig = Map<std::string,Rank>;

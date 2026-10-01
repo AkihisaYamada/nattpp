@@ -26,10 +26,7 @@ int main( int argc, char* argv[] ) try {
 	int default_log = -1;
 	bool default_strategy = true;
 	bool use_dp = true;
-	bool use_unmarked_dprem = false;
-	bool use_marked_dprem = true;
 	vector<Exp> rulerem_specs;
-	vector<Exp> rem_specs;
 	vector<Exp> dprem_specs;
 	for( int i = 1; i < argc; i++ ) {
 		if( argv[i][0] == '-' ) {
@@ -77,39 +74,19 @@ int main( int argc, char* argv[] ) try {
 				{ "-print-usables", { ":\tprint usable rules", [&]{
 					print_usables = true;
 				}}},
-				{ "-a" , { " <ord>:\tgeneral remover", [&]{
-					require_arg();
-					rem_specs.push_back(Exp::of(argv[i]));
-					default_strategy = false;
-					use_dp = true;
-					use_marked_dprem = true;
-				}}},
 				{ "-r", { " <ord>:\trule remover", [&]{
 					require_arg();
 					rulerem_specs.push_back(Exp::of(argv[i]));
 					default_strategy = false;
 				}}},
-				{ "-d", { " <ord>:\tdp remover", [&]{
+				{ "-d", { " <ord>:\tdependency pair remover", [&]{
 					require_arg();
 					dprem_specs.push_back(Exp::of(argv[i]));
 					default_strategy = false;
 					use_dp = true;
 				}}},
-				{ "-udp", { ":\tunmarked dps only", [&]{
+				{ "-dp", { ":\tcompute dependency pairs", [&]{
 					use_dp = true;
-					use_unmarked_dprem = true;
-					use_marked_dprem = false;
-					default_strategy = false;
-				}}},
-				{ "-umdp", { ":\tunmarked and marked dps", [&]{
-					use_dp = true;
-					use_unmarked_dprem = true;
-					default_strategy = false;
-				}}},
-				{ "-mdp", { ":\tmarked dps only", [&]{
-					use_dp = true;
-					use_unmarked_dprem = false;
-					use_marked_dprem = true;
 					default_strategy = false;
 				}}},
 				{ "-h", { ":\tshow this help", [&]{
@@ -183,14 +160,7 @@ int main( int argc, char* argv[] ) try {
 		for( auto x : rulerem_specs ) {
 			rule_removers.emplace_back(0,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log)));
 		}
-		vector<pair<int,unique_ptr<UsableRuleOrder>>> both_removers;
-		for( auto x : rem_specs ) {
-			both_removers.emplace_back(0,UsableRuleOrder::make_triv(TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log))));
-		}
-		bool marked = false;
 		if( p.mode == Problem::DP ) {
-			use_unmarked_dprem = false;
-			marked = true;
 			p.init_uses();
 			if( print_usables ) {
 				cerr << "(uses_graph" << ConstGraph(p.uses_map).print_nodes("\n  ") << ')' << endl;
@@ -220,52 +190,22 @@ int main( int argc, char* argv[] ) try {
 			do {
 				if( p.main.rules.empty() ) throw Answer::YES;
 				if( std::ranges::any_of(rule_removers,rule_removes) ) continue;
-				if( std::ranges::any_of(both_removers,rule_removes) ) continue;
 			} while(0);
 
 			if( !use_dp ) throw Answer::MAYBE;
 
-			if( print_steps ) cerr << "; taking DPs" << endl;
-			p.make_dps();// compute DPs
 			if( print_proofs ) *prf << "(make_dp)" << endl;
+			p.make_dps();// compute DPs
 			if( print_dp ) cerr << p << endl;
 			if( print_usables ) {
 				cerr << "(uses_graph" << ConstGraph(p.uses_map).print_nodes("\n  ") << ')' << endl;
 				cerr << "(usables" << ConstGraph(p.usable_graph).print_nodes("\n  ") << ')' << endl;
 			}
-			// SCC decomposition
-			auto dps = std::move(p.components.front().nodes);
-			p.components.pop_front();
-			Graph dg = [&]{
-				Map<uint32_t,Set<uint32_t>> dgmap;
-				for( auto const& [i,dp] : dps ) {
-					auto const& [l1,r1,w] = dp;
-					auto [nexts,fl] = dgmap.emplace(i,Set<uint32_t>{});
-					for( auto const& j : ASSERTED(p.main.sig.find(r1.fun()))->depends ) {
-						auto const& [l2,r2,w2] = *ASSERTED(dps.find(j));
-						if( may_reach(p.main,r1,l2,8,false) ) {
-							nexts.emplace(j);
-						}
-					}
-				}
-				return std::move(dgmap);
-			}();
-			if( print_dg ) cerr << "(dependency-graph" << dg.print_nodes("\n  ") << ')' << endl;
-			auto sccs = dg.sccs();
-			for( uint32_t i = 0; i < sccs.size(); i++ ) {
-				if( auto const& nodes = sccs[i].ref<Set<uint32_t>>() ) {// nontrivial SCCs
-					auto& back = p.components.emplace_back();
-					for( auto const& dp : *nodes ) {
-						back.nodes.emplace(dp,*ASSERTED(dps.find(dp)));
-						auto& nexts = back.graph.emplace(dp,Set<uint32_t>{}).first;
-						dg.iter_nexts( dp, [&]( uint32_t next ){// copy edges inside SCC
-							if( dg.scc_ind(next) == i ) {
-								nexts.emplace(next);
-							}
-						});
-					}
-				}
+			if( print_dg ) {
+				cerr << "(dependency-graph" << ConstGraph(p.components.front().graph).print_nodes("\n  ") << ')' << endl;
 			}
+			// SCC decomposition
+			p.decomp_sccs();
 			if( p.components.empty() ) {
 				if( print_steps ) cerr << "; no SCC" << endl;
 				throw Answer::YES;
@@ -274,16 +214,12 @@ int main( int argc, char* argv[] ) try {
 		}
 		uint32_t target_ind = 2;
 		auto dp_removes = [&]( pair<int,unique_ptr<UsableRuleOrder>>& pair ){
-			auto& [subsig,subcomp,subgraph] = p.components.front();
+			auto& [subcomp,subgraph] = p.components.front();
 			auto& [stage,ord] = pair;
 			if( print_steps ) cerr << "; trying " << ord->print_name() << "... " << endl;
 			if( stage == 0 ) {
 				ord->extend_sig(p.main.sig);
 				stage = 1;
-			}
-			if( marked && stage < target_ind ) {
-				ord->extend_sig(subsig);
-				stage = target_ind;
 			}
 			return order_some_dp(*ord,p,subcomp,[&]( auto&& rem, auto const& usables ){
 				if( print_proofs ) {
@@ -292,7 +228,6 @@ int main( int argc, char* argv[] ) try {
 						*prf << "\n    (" << f << ord->print_sym_info(f) << ')';
 					};
 					for( auto [f,rank] : p.main.sig ) pr_sym(f);
-					for( auto [f,rank] : subsig ) pr_sym(f);
 					*prf << ")\n  " << print_list(rem) << "\n  :usables (" << print_list(usables) << "))" << endl;
 				}
 				for( uint32_t i : rem ) {
@@ -309,26 +244,11 @@ int main( int argc, char* argv[] ) try {
 			if( p.components.front().nodes.empty() ) {
 				p.components.pop_front();
 				target_ind++;
-				marked = false;
 				if( p.components.empty() ) throw Answer::YES;
 				if( print_proofs ) *prf << "(scc" << p.components.front().nodes << ')' << endl;
 				continue;
 			}
-			if( !marked ) {
-				if( use_unmarked_dprem ) {
-					if( std::ranges::any_of(both_removers,dp_removes) ) continue;
-					if( std::ranges::any_of(dp_removers,dp_removes) ) continue;
-				}
-				if( use_marked_dprem ) {
-					p.mark_dps();
-					if( print_proofs ) *prf << "(mark_dp" << p.components.front().nodes << ')' << endl;
-					marked = true;
-					continue;
-				}
-			} else {
-				if( std::ranges::any_of(both_removers,dp_removes) ) continue;
-				if( std::ranges::any_of(dp_removers,dp_removes) ) continue;
-			}
+			if( std::ranges::any_of(dp_removers,dp_removes) ) continue;
 			throw Answer::MAYBE;
 		}
 	} catch( Answer a ) {

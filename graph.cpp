@@ -185,6 +185,31 @@ ConstGraph::ConstGraph( Map<uint32_t,Set<uint32_t>>&& map ) :
 	_ptr( Ref<_MapGraph>::make(std::move(map)) ) {
 }
 
+struct _MapRefGraph final : GraphInterface {
+	using Body = Map<uint32_t,Set<uint32_t>>;
+private:
+	Body& _body;
+public:
+	_MapRefGraph( Map<uint32_t,Set<uint32_t>>& org ) : _body(org) {}
+	void iter_nodes( NodeFun const& f ) const& override {
+		for( auto const& [node,nexts] : _body ) f(node);
+	}
+	void iter_nexts( uint32_t src, NodeFun const& f ) const& override {
+		if( auto const& nexts = _body.find(src) ) {
+			for( auto const& next : *nexts ) f(next);
+		}
+	}
+	bool erase_node( uint32_t node ) & override {
+		return _body.erase(node);
+	}
+	bool erase_edges( uint32_t src, std::function<bool(uint32_t)> const& test ) & override {
+		return _body.find(src) && [&]( Set<uint32_t>& nexts )->bool{ return nexts.erase_if(test); };
+	}
+};
+Graph::Graph( Map<uint32_t,Set<uint32_t>>& map ) :
+	_ptr( Ref<_MapRefGraph>::make(map) ) {
+}
+
 static auto const MAX = std::numeric_limits<int>::max();
 static auto const MIN = std::numeric_limits<int>::min();
 

@@ -85,6 +85,8 @@ public:
 	Graph( Ref<GraphInterface>&& org ) : _ptr(std::move(org)) {}
 	/** Turn an adjacency map into a graph. */
 	Graph( Map<uint32_t,Set<uint32_t>>&& map );
+	/** Wraps an adjacency map as a graph. */
+	Graph( Map<uint32_t,Set<uint32_t>>& map );
 	struct Acyclic;
 	void iter_nodes( NodeFun const& f ) const& override {
 		return _ptr->iter_nodes(f);

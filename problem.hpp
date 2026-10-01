@@ -25,7 +25,6 @@ struct Problem {
 	Map<uint32_t,Set<uint32_t>> uses_map;// will be ready by make_dps
 	Map<uint32_t,Ref<Set<uint32_t>>> usable_graph;// will be ready by make_dps
 	struct Component {
-		Trs::Sig sig;
 		Trs::Rules nodes;
 		Map<uint32_t,Set<uint32_t>> graph;
 	};
@@ -45,8 +44,8 @@ public:
 	void insert_rule( Trs::Rules& rules, Trs::Rule const& rule, uint32_t rule_ind ) &;
 	void insert_rule( Trs::Rules& rules, Trs::Rule const& rule ) &;
 	void make_dps() &;
+	void decomp_sccs() &;
 	void init_uses() &;
-	void mark_dps() &;
 	std::ostream& print( std::ostream& os ) const &;
 	bool reads_sym_decl( Reader& eis ) &;
 	void read_rule_decl( Reader& eis, Trs::Reader& tis ) &;

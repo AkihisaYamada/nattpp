@@ -36,6 +36,8 @@ public:
 	}
 	Opt<T&> find( K const& k ) & { return find<K const&>(k); }
 	Opt<T const&> find( K const& k ) const & { return find<K const&>(k); }
+	void merge(Map& other) { M::merge(static_cast<M&>(other)); }
+	void merge(Map&& other) { M::merge(static_cast<M&&>(other)); }
 };
 
 template<typename K, typename T>

@@ -85,7 +85,7 @@ tpdb_result: $(TGT) $(TPDB)
 		);\
 		(	systemctl --user show myunit.scope -p CPUUsageNSec --value |\
 			awk '\''{printf "%.3f s\n", $$1 / 1e9}'\''\
-		)' | tee -a $@
+		)' | tee $@
 	@ echo -n "YES: "; grep -c ': YES' $@
 	@ echo -n "NO: "; grep -c ': NO' $@
 	@ echo -n "TIMEOUT: "; grep -c ': TIMEOUT' $@

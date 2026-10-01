@@ -282,14 +282,16 @@ void Problem::decomp_sccs() & {
 	for( uint32_t i = 0; i < sccs.size(); i++ ) {
 		if( auto const& nodes = sccs[i].ref<Set<uint32_t>>() ) {// nontrivial SCCs
 			auto& back = components.emplace_back();
-			for( auto const& dp : *nodes ) {
-				back.nodes.emplace(dp,*ASSERTED(dps.find(dp)));
-				auto& nexts = back.graph.emplace(dp,Set<uint32_t>{}).first;
-				dg.iter_nexts( dp, [&]( uint32_t next ){// copy edges inside SCC
-					if( dg.scc_ind(next) == i ) {
-						nexts.emplace(next);
-					}
-				});
+			for( auto const& dpind : *nodes ) {
+				if( auto const& dpop = dps.find(dpind) ) {
+					back.nodes.emplace(dpind,*dpop);
+					auto& nexts = back.graph.emplace(dpind,Set<uint32_t>{}).first;
+					dg.iter_nexts(dpind,[&]( uint32_t next ){// copy edges inside SCC
+						if( dg.scc_ind(next) == i ) {
+							nexts.emplace(next);
+						}
+					});
+				}
 			}
 		}
 	}

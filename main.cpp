@@ -248,7 +248,16 @@ int main( int argc, char* argv[] ) try {
 				if( print_proofs ) *prf << "(scc" << p.components.front().nodes << ')' << endl;
 				continue;
 			}
-			if( std::ranges::any_of(dp_removers,dp_removes) ) continue;
+			if( std::ranges::any_of(dp_removers,dp_removes) ) {
+				// SCC decomposition
+				p.decomp_sccs();
+				if( p.components.empty() ) {
+					if( print_steps ) cerr << "; no more SCC" << endl;
+					throw Answer::YES;
+				}
+				if( print_proofs ) *prf << "(scc" << p.components.front().nodes << ')' << endl;
+				continue;
+			}
 			throw Answer::MAYBE;
 		}
 	} catch( Answer a ) {

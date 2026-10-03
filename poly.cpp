@@ -167,21 +167,24 @@ ostream& operator<<( ostream& os, Poly::Sig const& f ) {
 }
 
 
-Algebra<Template::Sym,Poly> const Poly::ALGEBRA =
-[]( Template::Sym const& f, std::vector<Poly> const& args )->Poly {
-	if( auto const& smt = f.is_smt() ) return *smt;
-	if( auto const& sym = f.is_fun() ) {
-		if( sym->name == Smt::ADD ) return sum(args);
-		if( sym->name == Smt::MUL ) return prod(args);
-		if( sym->name == Smt::ITE ) {
-			assert( args.size() == 3 );
-			return ite(args[0],args[1],args[2]);
+Algebra<Template::Sym,Poly> Poly::algebra_of_range( Poly::Range ran ) {
+	return [ran]( Template::Sym const& f, std::vector<Poly> const& args )->Poly {
+		if( auto const& smt = f.is_smt() ) return *smt;
+		if( auto const& sym = f.is_fun() ) {
+			if( sym->name == Smt::ADD ) return sum(args);
+			if( sym->name == Smt::MUL ) return prod(args);
+			if( sym->name == Smt::ITE ) {
+				assert( args.size() == 3 );
+				return ite(args[0],args[1],args[2]);
+			}
+			throw Error("#poly","\"unknown fun\"",sym->name);
 		}
-		throw Error("#poly","\"unknown fun\"",sym->name);
-	}
-	if( auto const& var = f.is_var() ) return Poly::Var(*var,Poly::POS);
-	assert(false);
-};
+		if( auto const& var = f.is_var() ) return Poly::Var(*var,ran);
+		assert(false);
+	};
+}
+Algebra<Template::Sym,Poly> const Poly::POS_ALGEBRA = algebra_of_range(POS);
+
 
 Algebra<Template::Sym,MPoly> const MPoly::ALGEBRA =
 []( Template::Sym const& f, std::vector<MPoly> const& args )->MPoly {

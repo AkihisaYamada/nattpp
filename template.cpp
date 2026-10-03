@@ -377,10 +377,10 @@ void Template::test() {
 	sig.emplace("a",0);
 	auto der = Template::Deriver(SUM,z3,false,INIT&DEBUG);
 	der.extend_sig(sig);
-	auto der_intp = der.derive(Poly::ALGEBRA);
+	auto der_intp = der.derive(Poly::POS_ALGEBRA);
 	auto e = Exp("f",Exp("g","x"),"a");
 	cout << der << endl;
-	auto der_term = der.derive(Poly::ALGEBRA);
+	auto der_term = der.derive(Poly::POS_ALGEBRA);
 	cout << "der⟦" << "(g x)" << "⟧ = " << der_term(Exp("g","x")) << endl;
 	cout << "der⟦a⟧ = " << der_term("a") << endl;
 	cout << "der⟦" << e << "⟧ = " << der_term(e) << endl;

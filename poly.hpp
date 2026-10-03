@@ -102,7 +102,8 @@ public:
 	Smt::PreExp ge( Poly const& p2 ) const;
 	friend Poly ite( Poly const& c, Poly const& p1, Poly const& p2 );
 	friend Smt::Compare order( Poly const& p1, Poly const& p2, Smt::Solver& solver );
-	static Algebra<Template::Sym,Poly> const ALGEBRA;
+	static Algebra<Template::Sym,Poly> algebra_of_range( Range ran );
+	static Algebra<Template::Sym,Poly> const POS_ALGEBRA;
 	static int test();
 };
 

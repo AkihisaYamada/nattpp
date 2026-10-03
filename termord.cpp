@@ -399,15 +399,15 @@ std::unique_ptr<TermOrder> TermOrder::make(
 	} else if( f == "mono-sum" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<Poly>>(Poly::ALGEBRA,Template::MONO_SUM,mk_smt(),true,log);
+		return std::make_unique<DerivedTermOrder<Poly>>(Poly::POS_ALGEBRA,Template::MONO_SUM,mk_smt(),true,log);
 	} else if( f == "sum" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<Poly>>(Poly::ALGEBRA,Template::SUM,mk_smt(),false,log);
+		return std::make_unique<DerivedTermOrder<Poly>>(Poly::POS_ALGEBRA,Template::SUM,mk_smt(),false,log);
 	} else if( f == "mono-bpoly" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<Poly>>(Poly::ALGEBRA,Template::MONO_POLY2,mk_smt(),true,log);
+		return std::make_unique<DerivedTermOrder<Poly>>(Poly::POS_ALGEBRA,Template::MONO_POLY2,mk_smt(),true,log);
 	} else if( f == "mat2b" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
@@ -428,6 +428,12 @@ std::unique_ptr<TermOrder> TermOrder::make(
 		x.process_keys( n, solver_key || log_key );
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::ALGEBRA,Template::IMAX,mk_smt(),false,log);
+	} else if( f == "posneg" ) {
+		x.process_keys( n, solver_key || log_key );
+		set_log();
+		return std::make_unique<DerivedTermOrder<TupleVal<Poly>>>(
+			tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::NEG}),Template::POSNEG,mk_smt(),false,log
+		);
 	} else if( f == "template" ) {
 		Exp t = x.get_arg(n);
 		x.process_keys( n, solver_key || log_key || mono_key );

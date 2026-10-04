@@ -103,6 +103,7 @@ public:
 	friend Poly ite( Poly const& c, Poly const& p1, Poly const& p2 );
 	friend Smt::Compare order( Poly const& p1, Poly const& p2, Smt::Solver& solver );
 	static Algebra<Template::Sym,Poly> algebra_of_range( Range ran );
+	static Algebra<Template::Sym,Poly> const ALGEBRA;
 	static Algebra<Template::Sym,Poly> const POS_ALGEBRA;
 	static int test();
 };
@@ -111,6 +112,7 @@ struct MPoly {
 private:
 	std::vector<Poly> _set;
 public:
+	using Var = Poly::Var;
 	/** -∞ */
 	MPoly() {}
 	template<typename T> requires std::is_constructible_v<Poly,T>
@@ -118,7 +120,8 @@ public:
 	std::vector<Poly> const& set() const& {
 		return _set;
 	}
-	static Algebra<Template::Sym,MPoly> const ALGEBRA;
+	static Algebra<Template::Sym,MPoly> algebra_of_range( Poly::Range ran );
+	static Algebra<Template::Sym,MPoly> const ALGEBRA, POS_ALGEBRA;
 	friend MPoly ite( MPoly const& c, MPoly const& p1, MPoly const& p2 );
 	friend MPoly operator+( MPoly const& x, MPoly const& y );
 	friend MPoly operator*( MPoly const& x, MPoly const& y );

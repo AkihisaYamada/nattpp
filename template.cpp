@@ -4,6 +4,19 @@
 
 using namespace std;
 
+std::ostream& operator<<( std::ostream& os, Template::Sym const& sym ) {
+	if( auto const& e = sym.is_smt() ) {
+		return os << *e;
+	}
+	if( auto const& f = sym.is_fun() ) {
+		return os << f->name;
+	}
+	if( auto const& f = sym.is_var() ) {
+		return os << *f;
+	}
+	assert(false);
+}
+
 ArgTerm<Template::Sym>& operator+=( ArgTerm<Template::Sym>& x, ArgTerm<Template::Sym> const& y ) {
 	auto xf = x.fun().ref<Template::Sym>();
 	auto yf = y.fun().ref<Template::Sym>();
@@ -365,6 +378,23 @@ Exp const Template::MAT2B = Exp("tp",
 			Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),Exp("prj1","arg"),"0")
 		)),
 		_POSCONST
+	)
+);
+Exp const Template::POSNEG = Exp("tp",
+	Exp("max",
+		Exp("+",
+			Exp("args","+",
+				Exp("+",
+					Exp("ite",_bool_constrain(_USED),Exp("prj0","arg"),"0"),
+					Exp("ite",_bool_constrain(_USED),Exp("prj1","arg"),"0")
+				)
+			),
+			"var"
+		),"0"
+	),
+	Exp("+",
+		Exp("args","+",Exp("ite",_bool_constrain(_USED),Exp("prj1","arg"),"0")),
+		Exp("var",":constrain",Exp("<=","_","0"))
 	)
 );
 

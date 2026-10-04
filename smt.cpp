@@ -255,7 +255,7 @@ Smt::PostExp Smt::gt( PostExp const& x, PostExp const& y ) {
 	if( x._term.args().empty() ) {
 		if( auto xi = x.is_val() ) {
 			if( auto yi = y.is_val() ) {
-				return *xi < *yi;
+				return *xi > *yi;
 			}
 		}
 		if( x == y ) {
@@ -313,29 +313,28 @@ Opt<std::tuple<Smt::PostExp,Smt::PostExp,Smt::PostExp>> Smt::PostExp::is_ite() c
 	return {};
 }
 
-Smt::PreExp& operator+=( Smt::PreExp& x, Smt::PreExp const& y ) {
+Smt::PreExp operator+( Smt::PreExp const& x, Smt::PreExp const& y ) {
 	auto yapp = y.is_app();
 	auto yp = y.is_post();
 	if( auto xp = x._un.ref<Smt::PostExp>() ) {
 		if( *xp == 0 ) {
-			return x = y;
+			return y;
 		}
 		if( yp ) {
-			*xp += *yp;
-			return x;
+			return *xp + *yp;
 		}
 	} else if( auto xapp = x._un.ref<Ref<Smt::PreExp::App>>() ) {
 		if( (**xapp).fun == Smt::ADD ) {
-			auto& xargs = (**xapp).args;
+			auto args = (**xapp).args;
 			if( yapp && yapp->fun == Smt::ADD ) {
 				for( auto const& yarg : yapp->args ) {
-					xargs.emplace_back(yarg);
+					args.emplace_back(yarg);
 				}
 			} else if( yp && *yp == 0 ) {
 			} else {
-				xargs.emplace_back(y);
+				args.emplace_back(y);
 			}
-			return x;
+			return Smt::PreExp(Smt::ADD,std::move(args));
 		}
 	}
 	auto args = std::vector<Smt::PreExp>{x};
@@ -347,7 +346,7 @@ Smt::PreExp& operator+=( Smt::PreExp& x, Smt::PreExp const& y ) {
 	} else {
 		args.emplace_back(y);
 	}
-	return x = Smt::PreExp(Smt::ADD,std::move(args));
+	return Smt::PreExp(Smt::ADD,std::move(args));
 }
 
 Smt::BaseSort Smt::BaseSort::of( Exp const& exp ) {
@@ -541,20 +540,20 @@ Smt::PostExp Smt::PostExp::operator!() const {
 	}
 	return Term<Fun>(NOT,*this);
 }
-Smt::PostExp& operator+=( Smt::PostExp& x, Smt::PostExp const& y ) {
+Smt::PostExp operator+( Smt::PostExp const& x, Smt::PostExp const& y ) {
 	if( auto num = x.is_val() ) {
 		if( *num == 0 ) {
-			return x = y;
+			return y;
 		}
 		if( auto num2 = y.is_val() ) {
-			return x = *num + *num2;
+			return *num + *num2;
 		}
 	} else if( auto num2 = y.is_val() ) {
 		if( *num2 == 0 ) {
 			return x;
 		}
 	}
-	return x = Term<Smt::Fun>(Smt::ADD,x,y);
+	return Term<Smt::Fun>(Smt::ADD,x,y);
 }
 Smt::PostExp& Smt::PostExp::mul_eq( Smt::PostExp const& y, bool linear ) & {
 	if( auto num = is_val() ) {
@@ -637,12 +636,10 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 		}
 		if( fun == EQ ) {
 			assert( args.size() == 2 );
-			auto earg1 = expand(args[0]), earg2 = expand(args[1]);
-			return eq(earg1,earg2);
+			return eq(expand(args[0]),expand(args[1]));
 		}
 		if( fun == GE ) {
 			assert( args.size() == 2 );
-			auto earg1 = expand(args[0]), earg2 = expand(args[1]);
 			return ge(expand(args[0]),expand(args[1]));
 		}
 		if( fun == LE ) {

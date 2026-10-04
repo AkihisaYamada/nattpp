@@ -423,16 +423,16 @@ std::unique_ptr<TermOrder> TermOrder::make(
 	} else if( f == "max" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::ALGEBRA,Template::MAX,mk_smt(),false,log);
+		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::POS_ALGEBRA,Template::MAX,mk_smt(),false,log);
 	} else if( f == "imax" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::ALGEBRA,Template::IMAX,mk_smt(),false,log);
+		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::POS_ALGEBRA,Template::IMAX,mk_smt(),false,log);
 	} else if( f == "posneg" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<TupleVal<Poly>>>(
-			tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::NEG}),Template::POSNEG,mk_smt(),false,log
+		return std::make_unique<DerivedTermOrder<TupleVal<MPoly>>>(
+			tuple_algebra<Poly::Range,MPoly>({Poly::POS,Poly::NEG}),Template::POSNEG,mk_smt(),false,log
 		);
 	} else if( f == "template" ) {
 		Exp t = x.get_arg(n);

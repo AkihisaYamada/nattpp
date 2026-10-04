@@ -246,7 +246,7 @@ public:
 		PostExp disj( PostExp const& y ) const &;
 		PostExp imp( PostExp const& y ) const;
 		PostExp operator!() const;
-		friend PostExp& operator+=( PostExp& x, PostExp const& y );
+		friend PostExp operator+( PostExp const& x, PostExp const& y );
 		PostExp& mul_eq( PostExp const&, bool linear ) &;
 		PostExp cons( PostExp const& y ) const {
 			return Term<Fun>(CONS,*this,y);
@@ -366,7 +366,7 @@ public:
 				return ret;
 			};
 		}
-		friend PreExp& operator+=( PreExp& x, PreExp const& y );
+		friend PreExp operator+( PreExp const& x, PreExp const& y );
 		friend PreExp operator*( PreExp const& x, PreExp const& y ) {
 			return PreExp(MUL,{x,y});
 		}
@@ -582,8 +582,8 @@ inline Smt::PostExp operator&&( Smt::PostExp const& x, Smt::PostExp const& y ) {
 inline Smt::PostExp operator||( Smt::PostExp const& x, Smt::PostExp const& y ) {
 	return x.disj(y);
 }
-inline Smt::PostExp operator+( Smt::PostExp x, Smt::PostExp const& y ) {
-	return x += y;
+inline Smt::PostExp& operator+=( Smt::PostExp& x, Smt::PostExp const& y ) {
+	return x = x + y;
 }
 inline Smt::PostExp operator,( Smt::PostExp const& x, Smt::PostExp const& y ) {
 	return x.cons(y);
@@ -596,8 +596,8 @@ inline Smt::PreExp operator||( Smt::PreExp const& x, Smt::PreExp const& y ) {
 	return x.disj(y);
 }
 
-inline Smt::PreExp operator+( Smt::PreExp x, Smt::PreExp const& y ) {
-	return x += y;
+inline Smt::PreExp& operator+=( Smt::PreExp& x, Smt::PreExp const& y ) {
+	return x = x+y;
 }
 inline Smt::PreExp operator*( Smt::PostExp const& x, Smt::PreExp const& y ) {
 	return Smt::PreExp(x) * y;

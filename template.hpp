@@ -87,17 +87,5 @@ ArgTerm<Template::Sym> ite(
 );
 ArgTerm<Template::Sym>& max_eq( ArgTerm<Template::Sym>& x, ArgTerm<Template::Sym> const& y );
 
-inline std::ostream& operator<<( std::ostream& os, Template::Sym const& sym ) {
-	if( auto const& e = sym.is_smt() ) {
-		return os << *e;
-	}
-	if( auto const& f = sym.is_fun() ) {
-		return os << f->name;
-	}
-	if( auto const& f = sym.is_var() ) {
-		return os << *f;
-	}
-	assert(false);
-}
-
+std::ostream& operator<<( std::ostream& os, Template::Sym const& sym );
 #endif

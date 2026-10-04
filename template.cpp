@@ -247,6 +247,18 @@ Term<Sum<Template::Sym,Arg>> Template::Deriver::_deriver_of(
 		}
 		throw Error{"#no-matching-arity",f};
 	}
+	if( fun == "index" ) {
+		while( auto const& arg = exp.gets_arg(n) ) {
+			auto const& ind = arg->fun();
+			if( ind == "otherwise" || stoi(ind) == pos ) {
+				size_t j = 0;
+				auto const& aarg = arg->get_arg(j);
+				arg->get_end(j);
+				return _deriver_of(aarg,f,rank,pos,finfo);
+			}
+		}
+		throw Error{"#no-matching-index",f};
+	}
 	if( fun == "#mono" ) {
 		return mono;
 	}
@@ -334,7 +346,18 @@ Exp const Template::SIMP_MAX = Exp("arity",
 Exp const Template::MAX = Exp("arity",
 	Exp("0",_POSCONST),
 	Exp("1",Exp("+",Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),"arg","0"),_POSCONST)),
-	Exp("otherwise",Exp("args","max",Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),Exp("+","arg",_POSCONST),"0")))
+	Exp("otherwise",
+		Exp("args","max",
+			Exp("index",
+				Exp("0",// c_0 * arg_0 + a_0
+					Exp("+",Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),"arg","0"),_POSCONST)
+				),
+				Exp("otherwise",// c_i * (arg_i + a_i)
+					Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),Exp("+","arg",_POSCONST),"0")
+				)
+			)
+		)
+	)
 );
 Exp const Template::IMAX = Exp("arity",
 	Exp("0",_POSCONST),
@@ -381,16 +404,21 @@ Exp const Template::MAT2B = Exp("tp",
 	)
 );
 Exp const Template::POSNEG = Exp("tp",
-	Exp("max",
-		Exp("+",
-			Exp("args","+",
+	Exp("arity",
+		Exp("0",_POSCONST),
+		Exp("otherwise",
+			Exp("max",
 				Exp("+",
-					Exp("ite",_bool_constrain(_USED),Exp("prj0","arg"),"0"),
-					Exp("ite",_bool_constrain(_USED),Exp("prj1","arg"),"0")
-				)
-			),
-			"var"
-		),"0"
+					Exp("args","+",
+						Exp("+",
+							Exp("ite",_bool_constrain(_USED),Exp("prj0","arg"),"0"),
+							Exp("ite",_bool_constrain(_USED),Exp("prj1","arg"),"0")
+						)
+					),
+					"var"
+				),"0"
+			)
+		)
 	),
 	Exp("+",
 		Exp("args","+",Exp("ite",_bool_constrain(_USED),Exp("prj1","arg"),"0")),

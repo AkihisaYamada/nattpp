@@ -306,12 +306,8 @@ ostream& Problem::print( ostream& os ) const& {
 		default: assert(false);
 	}
 	os << flush;
-	for( auto const& [f,rank] : main.sig ) {
-		os << "\n  (fun " << f << ' ' << rank << ')' << flush;
-	}
-	for( auto const& [n,rule] : main.rules ) {
-		os << "\n  (rule " << rule.print_content() << " :number " << n << ')' << flush;
-	}
+	Trs::print_sig(os,main.sig,"\n  ");
+	Trs::print_rules(os,main.rules,"\n  ");
 	int subno = 1;
 	for( auto it = components.begin(); it != components.end(); it++ ) {
 		auto const& [rules,graph] = *it;

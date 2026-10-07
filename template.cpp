@@ -365,7 +365,14 @@ Exp const Template::IMAX = Exp("arity",
 	Exp("otherwise",
 		Exp("max",
 			Exp("args","max",
-				Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),Exp("+","arg",_CONST),"0")
+				Exp("index",
+					Exp("0",// c_0 * arg_0 + a_0
+						Exp("+",Exp("ite",_bool_constrain(_USED),"arg","0"),_CONST)
+					),
+					Exp("otherwise",// c_i * (arg_i + a_i)
+						Exp("ite",_bool_constrain(_USED),Exp("+","arg",_CONST),"0")
+					)
+				)
 			),
 			"0"
 		)

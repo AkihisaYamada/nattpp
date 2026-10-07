@@ -2,10 +2,43 @@
 
 using namespace std;
 
+void Trs::insert_rule( uint32_t i, Rule const& rule ) & {
+	auto const& [l,r,w] = rule;
+	auto [ref,fl] = rules.emplace(i,rule);
+	assert(fl);
+	ASSERTED(sig.find(l.fun()))->defined_by.emplace(i);
+}
+
+void Trs::erase_rule( uint32_t i ) & {
+	auto const& [l,r,w] = *ASSERTED(rules.find(i));
+	ASSERTED(sig.find(l.fun()))->defined_by.erase(i);
+	rules.erase(i);
+}
+
+std::ostream& Trs::Rank::print_content( std::ostream& os, bool definers ) const& {
+	os << (int)arity;
+	if( definers ) {
+		os << " :defined_by (" << print_list(defined_by) << ')';
+	}
+	return os;
+}
+
 std::ostream& Trs::Rule::print_content( std::ostream& os ) const& {
 	os << first << ' ' << second;
 	if( weight != 1 ) {
 		os << " :cost " << weight;
+	}
+	return os;
+}
+std::ostream& Trs::print_sig( std::ostream& os, Sig const& sig, std::string_view const& sep ) {
+	for( auto const& [f,rank] : sig ) {
+		os << sep << "(fun " << f << ' ' << rank.print_content(true) << ')' << std::flush;
+	}
+	return os;
+}
+std::ostream& Trs::print_rules( std::ostream& os, Rules const& rules, std::string_view const& sep ) {
+	for( auto const& [n,rule] : rules ) {
+		os << sep << "(rule " << rule.print_content() << " :number " << n << ')' << std::flush;
 	}
 	return os;
 }

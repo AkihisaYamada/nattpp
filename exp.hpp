@@ -104,6 +104,12 @@ public:
 		}
 		return ret;
 	}
+	void iter( std::function<void(Term const&)> const& f ) const& {
+		for( auto const& arg : args() ) {
+			arg.iter(f);
+		}
+		f(*this);
+	}
 	Term const& at( Pos const& pos ) const&;
 	Term& operator=( Term && other ) & {
 		_ref = std::move(other._ref);

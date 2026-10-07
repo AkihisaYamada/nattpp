@@ -8,21 +8,28 @@
 using namespace std;
 
 std::string escape( std::string const& str ) {
+	static constexpr char const h[] = "0123456789ABCDEF";
 	auto ss = std::ostringstream();
-	for( auto const& c : str ) {
-		switch(c) {
-		case '#':  ss << "<sh>"; break;
-		case '|':  ss << "<hl>"; break;
-		case '\'': ss << "<sq>"; break;
-		case '\"': ss << "<dq>"; break;
-		case '`':  ss << "<bq>"; break;
-		case ',':  ss << "<cm>"; break;
-		case ':':  ss << "<cl>"; break;
-		case ';':  ss << "<sc>"; break;
-		case '<':  ss << "<lb>"; break;
-		case '>':  ss << "<rb>"; break;
-		case '\\': ss << "<bs>"; break;
-		default: ss << c; break;
+	for( unsigned char c : str ) {
+		if( c & 128 ) {
+			ss << '&' << h[c>>4] << h[c&15];
+		} else {
+			switch(c) {
+			case '&':  ss << "&am"; break;
+			case ' ':  ss << "&sp"; break;
+			case '#':  ss << "&sh"; break;
+			case '|':  ss << "&hl"; break;
+			case '\'': ss << "&sq"; break;
+			case '"':  ss << "&dq"; break;
+			case '`':  ss << "&bq"; break;
+			case ',':  ss << "&cm"; break;
+			case ':':  ss << "&cl"; break;
+			case ';':  ss << "&sc"; break;
+			case '[':  ss << "&lb"; break;
+			case ']':  ss << "&rb"; break;
+			case '\\': ss << "&bs"; break;
+			default: ss << c; break;
+			}
 		}
 	}
 	return ss.str();
@@ -48,7 +55,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
 	if( _info.find(f) ) return;
 	auto& sol = solver();
 	auto const& sort = sol.logic().base_sort();
-	if( _log & DEBUG ) cerr << "; fun " << f << ' ' << rank << endl;
+	if( _log & DEBUG ) cerr << "; fun " << f << ' ' << rank.print_content() << endl;
 	_weight->extend_sig(f,rank);
 	auto prec = sol.declare_const("p"+escape(f),sol.logic().base_sort());//sol.declare_fresh(sort);
 	sol.ass( Smt::ge(prec,0) );

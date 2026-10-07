@@ -1,4 +1,4 @@
-SRCS=exp.cpp trs.cpp proc.cpp smt.cpp algebra.cpp template.cpp poly.cpp termord.cpp problem.cpp deprem.cpp graph.cpp reach.cpp
+SRCS=exp.cpp trs.cpp proc.cpp smt.cpp algebra.cpp template.cpp poly.cpp termord.cpp problem.cpp deprem.cpp graph.cpp reach.cpp freeze.cpp
 MAIN_SRC=main.cpp
 TEST_SRC=test.cpp
 TGT=$(PWD)/natt++
@@ -96,7 +96,7 @@ tpdb_negative: $(TGT)
 	cat "$(PWD)/tpdb_neg.list" | xargs -P $(NPARA) -I{} bash -c '\
 		ret=$$(timeout $(TIMEOUT) $(TGT) -q $$0; if [ $$? -eq 124 ]; then echo TIMEOUT; fi); \
 		echo "$$0: $$ret" | tee -a $(abspath $@);\
-		if [ $$ret = YES ]; then echo WRONG!; exit 1; fi\
+		if [ $$ret = YES ]; then echo WRONG!; exit -1; fi\
 	' {}
 	grep -c NO $@
 

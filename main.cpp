@@ -9,6 +9,12 @@
 
 using namespace std;
 
+bool bool_of( std::string const& str ) {
+	if( str == "true" ) return true;
+	if( str == "false" ) return false;
+	throw Error("#malformed-bool",str);
+}
+
 int main( int argc, char* argv[] ) try {
 	Opt<ifstream> ois;
 	Opt<ofstream> oprf;
@@ -16,6 +22,7 @@ int main( int argc, char* argv[] ) try {
 	bool print_problem = true;
 	bool print_steps = true;
 	bool print_proofs = true;
+	bool print_freezed = true;
 	bool print_dp = false;
 	bool print_dg = false;
 	bool print_usables = false;
@@ -25,6 +32,7 @@ int main( int argc, char* argv[] ) try {
 	Opt<Smt::BaseSort> default_sort;
 	int default_log = -1;
 	bool default_strategy = true;
+	bool allow_freezing = true;
 	bool use_dp = true;
 	vector<Exp> rulerem_specs;
 	vector<Exp> dprem_specs;
@@ -37,7 +45,7 @@ int main( int argc, char* argv[] ) try {
 			};
 			OrdMap<std::string,std::pair<std::string,std::function<void(void)>>> map = {
 				{ "-q", { ":\tquiet mode", [&]{
-					print_problem = print_proofs = print_steps = print_dp = print_on_fail = false;
+					print_problem = print_proofs = print_steps = print_freezed = print_dp = print_on_fail = false;
 				}}},
 				{ "-order-some", { ":\torder some rule", [&]{
 					if( mode != UNSET ) throw Error("#duplicate-mode",opt);
@@ -52,6 +60,10 @@ int main( int argc, char* argv[] ) try {
 					if( oprf ) throw Error("#duplicate-proof");
 					require_arg();
 					oprf.emplace(argv[i]);
+				}}},
+				{ "-freeze", { " <bool>:\tfreezing", [&]{
+					require_arg();
+					allow_freezing = bool_of(argv[i]);
 				}}},
 				{ "-smt", { " <exp>:\tspecify SMT", [&]{
 					require_arg();
@@ -157,10 +169,6 @@ int main( int argc, char* argv[] ) try {
 	}
 
 	try {
-		vector<pair<int,unique_ptr<TrsOrder>>> rule_removers;
-		for( auto x : rulerem_specs ) {
-			rule_removers.emplace_back(0,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log)));
-		}
 		if( p.mode == Problem::DP ) {
 			p.init_uses();
 			if( print_usables ) {
@@ -172,7 +180,6 @@ int main( int argc, char* argv[] ) try {
 				if( print_proofs ) *prf << "(extra-var " << var << " :rule " << no << ')' << endl;
 				throw Answer::NO;
 			}
-			// rule removal loop
 			auto rule_removes = [&]( auto& pair ) {
 				auto& [stage,ord] = pair;
 				if( print_steps ) cerr << "; trying " << ord->print_name() << "... " << endl;
@@ -184,14 +191,37 @@ int main( int argc, char* argv[] ) try {
 					if( print_proofs )
 						*prf << "(remove-rule\n  " << ord->print(p.main.sig) << "\n " << print_list(rem) << ')' << endl;
 					for( uint32_t i : rem ) {
-						p.main.rules.erase(i);
+						p.main.erase_rule(i);
 					}
 				});
 			};
+			// rule removal loop
+			vector<pair<int,unique_ptr<TrsOrder>>> rule_removers;
+			for( auto x : rulerem_specs ) {
+				rule_removers.emplace_back(0,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log)));
+			}
 			do {
 				if( p.main.rules.empty() ) throw Answer::YES;
 				if( std::ranges::any_of(rule_removers,rule_removes) ) continue;
 			} while(0);
+
+			if( allow_freezing ) {
+				if( print_steps ) cerr << "; trying freezing..." << endl;
+				if( p.freeze() ) {
+					if( print_freezed ) {
+						Trs::print_sig(*prf << "(freeze",p.main.sig,"\n  ");
+						Trs::print_rules(*prf,p.main.rules,"\n  ") << ')' << endl;
+					}
+					vector<pair<int,unique_ptr<TrsOrder>>> freezed_removers;
+					for( auto x : rulerem_specs ) {
+						freezed_removers.emplace_back(0,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log)));
+					}
+					do {
+						if( p.main.rules.empty() ) throw Answer::YES;
+						if( std::ranges::any_of(freezed_removers,rule_removes) ) continue;
+					} while(0);
+				}
+			}
 
 			if( !use_dp ) throw Answer::MAYBE;
 

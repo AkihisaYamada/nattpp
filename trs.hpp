@@ -14,6 +14,10 @@ struct Trs {
 	struct Rank {
 		unsigned char arity;
 		Set<uint32_t> defined_by;
+		std::ostream& print_content( std::ostream& os, bool definers = false ) const&;
+		Printable print_content( bool definers = false ) const& {
+			return Printable([this,definers]( auto& os )->auto&{ return print_content(os,definers); });
+		}
 	};
 	using SigFun = std::function<Opt<Rank const&>(std::string const&)>;
 	using Sig = Map<std::string,Rank>;
@@ -31,6 +35,10 @@ struct Trs {
 	using Rules = Map<uint32_t,Rule>;
 	Sig sig;
 	Rules rules;
+	void insert_rule( uint32_t i, Rule const& rule ) &;
+	void erase_rule( uint32_t i ) &;
+	static std::ostream& print_sig( std::ostream& os, Sig const& sig, std::string_view const& sep );
+	static std::ostream& print_rules( std::ostream& os, Rules const& rules, std::string_view const& sep );
 };
 
 inline std::ostream& operator<<( std::ostream& os, Trs::Rule const& rule ) {
@@ -41,9 +49,6 @@ inline std::ostream& operator<<( std::ostream& os, Trs::Rules const& rules ) {
 		os << "\n  (rule " << rule.print_content() << " :number " << n << ')' << std::flush;
 	}
 	return os;
-}
-inline std::ostream& operator<<( std::ostream& os, Trs::Rank const& rank ) {
-	return os << (int)rank.arity;
 }
 
 class Trs::Reader {

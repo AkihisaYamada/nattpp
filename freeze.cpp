@@ -32,8 +32,9 @@ bool Problem::freeze() & {
 				}
 				fargs[i] = false;
 			}
-			if( ASSERTED(main.sig.find(f))->defined_by.empty() ) return true;// constructor can be frozen
-			return fret = pot;// freezable defined symbol can be frozen
+			fret = pot;
+			return fret ||// frozen defined symbol can be frozen further, or
+				ASSERTED(main.sig.find(f))->defined_by.empty();// constructor can be frozen
 		}
 		return false;// variable cannot be frozen
 	};
@@ -54,7 +55,8 @@ bool Problem::freeze() & {
 	}
 	// step 2: introduce frozen symbols, freeze lhs, and update defined symbols
 	std::vector<Trs::Rule> freezers;// freezer rules
-	Algebra<std::string,Term<std::string>> lalg = [&]( std::string const& f, std::vector<Term<std::string>> const& args ){
+	Algebra<std::string,Term<std::string>> lalg =
+	[&]( std::string const& f, std::vector<Term<std::string>> const& args ){
 		if( auto finfo = freeze_info.find(f) ) {
 			auto& [fargs,fret] = *finfo;
 			if( fret ) {
@@ -115,7 +117,7 @@ bool Problem::freeze() & {
 				for( uint16_t i = 0; i < fargs.size(); i++ ) {
 					if( fargs[i] ) {
 						auto const& g = args[i].fun();
-						if( main.sig.find(g) && []( auto const& grank ){ return !grank.defined_by.empty(); } ) {
+						if( main.sig.find(g) && []( auto const& grank ){ return grank.defined_by.empty(); } ) {
 							ff.append(1,' ') += g;
 							ret_args.append_range(args[i].args());
 							continue;

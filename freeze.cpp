@@ -5,35 +5,41 @@
 
 struct FreezeType {
 	std::vector<bool> args;
-	bool ret;
-	// initially, all positions are freezable, not locked
-	FreezeType( uint16_t arity ) : args(arity,true), ret(true) {}
+	bool frozen;
+	bool visited;
 };
 
 bool Problem::freeze() & {
 	// three step freezing
 	Map<std::string,FreezeType> freeze_info;
 	for( auto const& [f,finfo] : main.sig ) {
-		freeze_info.emplace(f,FreezeType(finfo.arity));
+		freeze_info.emplace(f,FreezeType{
+			std::vector<bool>(finfo.arity,true),
+			true,
+			false
+		});
 	}
 	// step 1: enumerate freezable positions
 	Algebra<std::string,bool> pre = [&]( std::string const& f, std::vector<bool>&& args ){
 		if( auto finfo = freeze_info.find(f) ) {
-			auto& [fargs,fret] = *finfo;
+			auto& [fargs,frozen,visited] = *finfo;
 			size_t n = fargs.size();
 			assert( args.size() == n );
-			bool pot = false;
-			for( uint16_t i = 0; i < n; i++ ) {
-				if( args[i] ) {// argument is frozen or constructor
-					if( fargs[i] ) {
-						pot = true;// potential to freeze
-						continue;
+			visited = true;
+			if( frozen ) {
+				bool pot = false;
+				for( uint16_t i = 0; i < n; i++ ) {
+					if( args[i] ) {// argument is frozen or constructor
+						if( fargs[i] ) {
+							pot = true;// potential to freeze
+							continue;
+						}
 					}
+					fargs[i] = false;
 				}
-				fargs[i] = false;
+				frozen = pot;
 			}
-			fret = pot;
-			return fret ||// frozen defined symbol can be frozen further, or
+			return frozen ||// frozen defined symbol can be frozen further, or
 				ASSERTED(main.sig.find(f))->defined_by.empty();// constructor can be frozen
 		}
 		return false;// variable cannot be frozen
@@ -46,7 +52,7 @@ bool Problem::freeze() & {
 	{
 		bool freezable = false;
 		for( auto const& [f,finfo] : freeze_info ) {
-			if( finfo.ret ) {
+			if( finfo.visited && finfo.frozen ) {
 				freezable = true;
 				main.sig[f].defined_by.clear();// forget raw symbols were defined
 			}
@@ -58,8 +64,8 @@ bool Problem::freeze() & {
 	Algebra<std::string,Term<std::string>> lalg =
 	[&]( std::string const& f, std::vector<Term<std::string>> const& args ){
 		if( auto finfo = freeze_info.find(f) ) {
-			auto& [fargs,fret] = *finfo;
-			if( fret ) {
+			auto& [fargs,ffrozen,fvisited] = *finfo;
+			if( fvisited && ffrozen ) {
 				std::string ff = "[" + f;
 				std::vector<Term<std::string>> ret_args;
 				for( uint16_t i = 0; i < fargs.size(); i++ ) {
@@ -109,8 +115,8 @@ bool Problem::freeze() & {
 	// step 3: freeze rhss
 	Algebra<std::string,Term<std::string>> ralg = [&]( std::string const& f, std::vector<Term<std::string>> const& args ){
 		if( auto finfo = freeze_info.find(f) ) {
-			auto& [fargs,fret] = *finfo;
-			if( fret ) {
+			auto& [fargs,ffrozen,fvisited] = *finfo;
+			if( ffrozen ) {
 				std::string ff = "[" + f;
 				std::vector<Term<std::string>> ret_args;
 				bool freezable = true;// check if all freezing positions are supplied constructor

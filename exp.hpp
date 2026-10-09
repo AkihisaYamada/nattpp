@@ -220,6 +220,7 @@ class Reader {
 		return "#none";
 	}
 	std::string _read_string_literal() &;
+	std::string _read_bar_rest() &;
 public:
 	Reader( std::istream& is ) : _is(is), _fetched(None()) {}
 	template<typename... Args>

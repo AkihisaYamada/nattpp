@@ -54,6 +54,16 @@ static string read_sym_rest( istream& is, int c ) {
 		}
 	}
 }
+string Reader::_read_bar_rest() & {
+	string str;
+	for(;;) {
+		switch( auto c = _is.get() ) {
+		case '|': return str;
+		case ' ': case '\t': case '\n': throw error("#space-in-sym");
+		default: str.push_back(c);
+		}
+	}
+}
 string Reader::_read_string_literal() & {
 	string str = "\"";
 	for(;;) {
@@ -95,6 +105,9 @@ void Reader::_fetch() {
 				return;
 			case ')':
 				_fetched = RPar();
+				return;
+			case '|':
+				_fetched = Sym(_read_bar_rest());
 				return;
 			case '"':
 				_fetched = Str(_read_string_literal());

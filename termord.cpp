@@ -11,26 +11,16 @@ std::string escape( std::string const& str ) {
 	static constexpr char const h[] = "0123456789ABCDEF";
 	auto ss = std::ostringstream();
 	for( unsigned char c : str ) {
-		if( c & 128 ) {
-			ss << '&' << h[c>>4] << h[c&15];
-		} else {
-			switch(c) {
-			case '&':  ss << "&am"; break;
-			case ' ':  ss << "&sp"; break;
-			case '#':  ss << "&sh"; break;
-			case '|':  ss << "&hl"; break;
-			case '\'': ss << "&sq"; break;
-			case '"':  ss << "&dq"; break;
-			case '`':  ss << "&bq"; break;
-			case ',':  ss << "&cm"; break;
-			case ':':  ss << "&cl"; break;
-			case ';':  ss << "&sc"; break;
-			case '[':  ss << "&lb"; break;
-			case ']':  ss << "&rb"; break;
-			case '\\': ss << "&bs"; break;
-			default: ss << c; break;
-			}
+		if( isalnum(c) ) {
+			ss << c;
+			continue;
 		}
+		switch(c) {
+		case '+': case '-': case '*': case '/': case '@': case '$': case '^': case '&': case '_': case '=': case '<': case '>': case '~': case '.': case '!': case '?':
+			ss << c;
+			continue;
+		}
+		ss << '%' << h[c>>4] << h[c&15];
 	}
 	return ss.str();
 }

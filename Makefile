@@ -76,28 +76,14 @@ NPARA=$(shell nproc) # number of parallel processes
 
 SHELL := /bin/bash
 
-tpdb_result: $(TGT) $(TPDB)
-	systemd-run --user --scope -p MemoryMax=8G --unit=myunit bash -c '\
-		cd $(TPDB)/TRS_Standard;\
-		(	ls */*.ari | xargs -P $(NPARA) -I{} bash -c '\''\
-				echo "$$0: $$(timeout $(TIMEOUT) $(TGT) -q $$0; if [ $$? -eq 124 ]; then echo TIMEOUT; fi)"\
-			'\'' {}\
-		);\
-		(	systemctl --user show myunit.scope -p CPUUsageNSec --value |\
-			awk '\''{printf "%.3f s\n", $$1 / 1e9}'\''\
-		)' | tee $@
-	@ echo -n "YES: "; grep -c ': YES' $@
-	@ echo -n "NO: "; grep -c ': NO' $@
-	@ echo -n "TIMEOUT: "; grep -c ': TIMEOUT' $@
-
 tpdb_negative: $(TGT)
 	rm -f $@
 	cd $(TPDB)/TRS_Standard;\
-	cat "$(PWD)/tpdb_neg.list" | xargs -P $(NPARA) -I{} bash -c '\
-		ret=$$(timeout $(TIMEOUT) $(TGT) -q $$0; if [ $$? -eq 124 ]; then echo TIMEOUT; fi); \
-		echo "$$0: $$ret" | tee -a $(abspath $@);\
+	cat "$(PWD)/tpdb_neg.list" | xargs -P $(NPARA) -n 1 bash -c '\
+		ret=$$(timeout $(TIMEOUT) $(TGT) -q $$1; if [ $$? -eq 124 ]; then echo TIMEOUT; fi); \
+		echo "$$1: $$ret" | tee -a $(abspath $@);\
 		if [ $$ret = YES ]; then echo WRONG!; exit -1; fi\
-	' {}
+	' _
 	grep -c NO $@
 
 .PHONY: clean test tpdb-negative

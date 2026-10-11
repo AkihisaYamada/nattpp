@@ -73,6 +73,7 @@ bool Problem::freeze() & {
 						ff.append(1,' ') += args[i].fun();
 						ret_args.append_range(args[i].args());
 					} else {// raw position
+						ff.append(" _");
 						ret_args.emplace_back(args[i]);
 					}
 				}
@@ -123,6 +124,7 @@ bool Problem::freeze() & {
 				for( uint16_t i = 0; i < fargs.size(); i++ ) {
 					if( fargs[i] ) {
 						auto const& g = args[i].fun();
+						// freeze only if a constructor/frozen symbol is supplied
 						if( main.sig.find(g) && []( auto const& grank ){ return grank.defined_by.empty(); } ) {
 							ff.append(1,' ') += g;
 							ret_args.append_range(args[i].args());
@@ -132,6 +134,7 @@ bool Problem::freeze() & {
 						freezable = false;
 						break;
 					} else {
+						ff.append(" _");
 						ret_args.emplace_back(std::move(args[i]));
 					}
 				}

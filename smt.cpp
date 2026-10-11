@@ -437,7 +437,7 @@ Smt::PostExp Smt::Solver::define_fun(
 
 Smt::PostExp Smt::Reader::read_post_exp() {
 	if( auto sym = reads_sym() ) {
-		if( auto num = nat_of(*sym) ) {
+		if( auto num = is_nat(*sym) ) {
 			return Smt::PostExp(*num);
 		}
 		return Smt::PostExp(*sym);

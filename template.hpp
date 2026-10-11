@@ -55,10 +55,10 @@ struct Template {
 			_solver(solver),
 			mono(mono),
 			log(log) {}
-		void extend_sig( std::string const& f, Trs::Rank const& rank ) &;
-		void extend_sig( Trs::Sig const& sig ) & {
+		void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) &;
+		void extend_sig( Trs::Sig const& sig, Set<std::string> const& heuristic ) & {
 			for( auto [f,rank] : sig ) {
-				extend_sig(f,rank);
+				extend_sig(f,rank,heuristic.contains(f));
 			}
 		}
 	private:
@@ -66,14 +66,15 @@ struct Template {
 			Exp const& exp,
 			std::string const& f,
 			Trs::Rank const& rank,
-			int pos,
-			FunInfo const& finfo
+			Opt<uint16_t> pos,
+			FunInfo const& finfo,
+			bool heuristic
 		);
 	};
 	/** instantiate SMT expressions in templates via get_value */
 	static Algebra<Sum<Sym,Arg>,ArgTerm<Sym>> instantiator( Smt::Solver& solver );
 
-	static ::Exp const SUM, MONO_SUM, MONO_POLY2, SIMP_MAX, MAX, IMAX, MAT2B, MAT2N, POSNEG;
+	static ::Exp const SUM, MONO_SUM, MONO_POLY2, SIMP_MAX, MAX, MAXSUM, IMAX, IMAXSUM, MAT2B, MAT2N, POSNEG;
 
 	static void test();
 };

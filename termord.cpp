@@ -41,12 +41,12 @@ PathOrder::PathOrder(
 {
 	if( log & DEBUG ) cerr << "; monotonicity flag: " << _mono << endl;
 }
-void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank ) {
+void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) {
 	if( _info.find(f) ) return;
 	auto& sol = solver();
 	auto const& sort = sol.logic().base_sort();
 	if( _log & DEBUG ) cerr << "; fun " << f << ' ' << rank.print_content() << endl;
-	_weight->extend_sig(f,rank);
+	_weight->extend_sig(f,rank,heuristic);
 	auto prec = sol.declare_const("p"+escape(f),sol.logic().base_sort());//sol.declare_fresh(sort);
 	sol.ass( Smt::ge(prec,0) );
 	std::string fesc = escape(f);
@@ -421,10 +421,18 @@ std::unique_ptr<TermOrder> TermOrder::make(
 		x.process_keys( n, solver_key || log_key );
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::POS_ALGEBRA,Template::MAX,mk_smt(),false,log);
+	} else if( f == "maxsum" ) {
+		x.process_keys( n, solver_key || log_key );
+		set_log();
+		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::POS_ALGEBRA,Template::MAXSUM,mk_smt(),false,log);
 	} else if( f == "imax" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::POS_ALGEBRA,Template::IMAX,mk_smt(),false,log);
+	} else if( f == "imaxsum" ) {
+		x.process_keys( n, solver_key || log_key );
+		set_log();
+		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::POS_ALGEBRA,Template::IMAXSUM,mk_smt(),false,log);
 	} else if( f == "posneg" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
@@ -516,7 +524,7 @@ void TermOrder::test() {
 			RULE
 		)
 	);
-	lpo->extend_sig(sig);
+	lpo->extend_sig(sig,{});
 	cout << lpo->rule_compare(0,{"+","x","y"},{"x"}).gt << endl;
 
 }

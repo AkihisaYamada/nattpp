@@ -11,8 +11,6 @@
 #include"ref.hpp"
 #include"sum.hpp"
 
-Opt<unsigned long> nat_of( std::string_view const& str );
-
 using Pos = std::vector<unsigned char>;
 
 std::ostream& operator<<( std::ostream& os, Pos const& pos );
@@ -157,6 +155,16 @@ void Term<F>::get_end( size_t i ) const& {
 	if( i != args().size() ) throw Error("#expected-rparen",arg(i));
 }
 
+Opt<unsigned long> is_nat( std::string_view const& str );
+inline unsigned long as_nat( std::string_view const& str ) {
+	return is_nat(str).value_or_throw(Error("#expected-nat",str));
+}
+inline unsigned long as_nat( std::string_view const& str, std::function<bool(unsigned int)> const& test ) {
+	auto ret = as_nat(str);
+	if( !test(ret) ) throw Error("#nat-out-of-range",str);
+	return ret;
+}
+
 /** deleted for inefficiency */
 Opt<std::string_view> is_key( std::string && ) = delete;
 Opt<std::string_view> is_key( Term<std::string> && ) = delete;
@@ -180,6 +188,9 @@ inline Opt<bool> is_bool( std::string const& str ) {
 	if( str == "false" ) return {false};
 	return {};
 }
+inline bool as_bool( std::string const& str ) {
+	return is_bool(str).value_or_throw(Error("#malformed-bool",str));
+}
 
 struct Exp : Term<std::string> {
 	using Term<std::string>::Term;
@@ -189,11 +200,25 @@ struct Exp : Term<std::string> {
 	using KeyValProc = std::function<bool(std::string_view const&,Exp const&)>;
 	/** Processes key-value pairs from the ith argument. */
 	void process_keys( size_t& i, KeyValProc const& f ) const&;
+	Exp get_arg( size_t& i ) const& {
+		return Exp(Term<std::string>::get_arg(i));
+	}
 	Opt<bool> is_bool() const& {
-		return unapplied() >>= []( std::string const& str ){ return ::is_bool(str); };
+		return unapplied() >>= ::is_bool;
 	}
 	bool as_bool() const& {
 		return is_bool().value_or_throw(Error("#expected-bool",*this));
+	}
+	Opt<unsigned long> is_nat() const& {
+		return unapplied() >>= ::is_nat;
+	}
+	unsigned long as_nat() const& {
+		return is_nat().value_or_throw(Error("#expected-nat",*this));
+	}
+	unsigned long as_nat( std::function<bool(unsigned long)> const& test ) const& {
+		auto ret = as_nat();
+		if( test(ret) ) return ret;
+		throw Error("#nat-out-of-range",*this);
 	}
 	static void test();
 };
@@ -286,7 +311,7 @@ public:
 	Opt<unsigned long> reads_nat() {
 		_fetch();
 		if( auto sym = _fetched.ref<Sym>() )
-			if( auto val = nat_of(sym->str) ) {
+			if( auto val = is_nat(sym->str) ) {
 				_fetched = None();
 				return val;
 			}

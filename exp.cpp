@@ -9,7 +9,7 @@ ostream& operator<<( ostream& os, Pos const& pos ) {
 	return os << '(' << print_list( pos.begin(), pos.end(), []( auto c ){ return (unsigned int)(*c)+1; } ) << ')';
 }
 
-Opt<unsigned long> nat_of( string_view const& str ) {
+Opt<unsigned long> is_nat( string_view const& str ) {
 	unsigned long val = 0;
 	unsigned int pos = 0;
 	for(;;) {
@@ -106,9 +106,9 @@ void Reader::_fetch() {
 			case ')':
 				_fetched = RPar();
 				return;
-			case '|':
-				_fetched = Sym(_read_bar_rest());
-				return;
+//			case '|':
+//				_fetched = Sym(_read_bar_rest());
+//				return;
 			case '"':
 				_fetched = Str(_read_string_literal());
 				return;

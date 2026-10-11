@@ -185,12 +185,14 @@ Term<Sum<Template::Sym,Arg>> Template::Deriver::_deriver_of(
 	Exp const& exp,
 	string const& f,
 	Trs::Rank const& rank,
-	int pos,
-	FunInfo const& finfo
+	Opt<uint16_t> poso,
+	FunInfo const& finfo,
+	bool heuristic
 ) {
 	auto const& fun = exp.fun();
 	size_t n = 0;
 	if( fun == "var" ) {
+		uint16_t pos = poso.value_or_throw(Error("#template", "\"var not allowed here\""));
 		Opt<Smt::BaseSort> sort;
 		Opt<Exp> constrain;
 		exp.process_keys(n,[&]( auto const& key, auto const& val ){
@@ -204,6 +206,7 @@ Term<Sum<Template::Sym,Arg>> Template::Deriver::_deriver_of(
 			}
 			return false;
 		});
+		exp.get_end(n);
 		auto const& ret = _solver.declare_fresh( sort ? *sort : _solver.logic().base_sort() );
 		if( constrain ) {
 			_solver.ass(
@@ -219,17 +222,34 @@ Term<Sum<Template::Sym,Arg>> Template::Deriver::_deriver_of(
 		return ret;
 	}
 	if( fun == "arg" ) {
+		exp.process_keys(n,[&]( auto const& key, auto const& val ){
+			if( key == "index" ) {
+				if( poso ) throw Error("#template","\"arg :index is not allowed here\"");
+				poso = {(uint16_t)exp.get_arg(n).as_nat([](auto n){ return n < 256; })};
+				return true;
+			}
+			return false;
+		});
 		exp.get_end(n);
-		return Arg(pos);
+		return Arg(poso.value_or(0));
 	}
 	if( fun == "args" ) {
 		auto const& agg = exp.get_arg(n);
 		auto const& argexp = exp.get_arg(n);
+		Opt<uint16_t> from = {};
+		exp.process_keys(n,[&]( auto const& key, auto const& val ){
+			if( key == "from" ) {
+				if( from ) throw Error("#template","\"duplicate :from\"");
+				from = { (uint16_t)val.as_nat( []( auto n ){ return n < 256; } ) };
+				return true;
+			}
+			return false;
+		});
 		exp.get_end(n);
 		if( auto const& aggfun = agg.unapplied() ) {
 			auto args = vector<Term<Sum<Template::Sym,Arg>>>();
-			for( int i = 0; i < rank.arity; i++ ) {
-				args.emplace_back(_deriver_of(argexp,f,rank,i,finfo));
+			for( uint16_t i = from.value_or(0); i < rank.arity; i++ ) {
+				args.emplace_back(_deriver_of(argexp,f,rank,i,finfo,heuristic));
 			}
 			return app(Template::Fun(*aggfun),std::move(args));
 		}
@@ -242,34 +262,28 @@ Term<Sum<Template::Sym,Arg>> Template::Deriver::_deriver_of(
 				size_t j = 0;
 				auto const& aarg = arg->get_arg(j);
 				arg->get_end(j);
-				return _deriver_of(aarg,f,rank,pos,finfo);
+				return _deriver_of(aarg,f,rank,poso,finfo,heuristic);
 			}
 		}
 		throw Error{"#no-matching-arity",f};
 	}
 	if( fun == "index" ) {
+		uint16_t pos = poso.value_or_throw(Error("#template","\"index not allowed here\""));
 		while( auto const& arg = exp.gets_arg(n) ) {
 			auto const& ind = arg->fun();
 			if( ind == "otherwise" || stoi(ind) == pos ) {
 				size_t j = 0;
 				auto const& aarg = arg->get_arg(j);
 				arg->get_end(j);
-				return _deriver_of(aarg,f,rank,pos,finfo);
+				return _deriver_of(aarg,f,rank,pos,finfo,heuristic);
 			}
 		}
 		throw Error{"#no-matching-index",f};
 	}
-	if( fun == "#mono" ) {
-		return mono;
-	}
-	if( fun == "#infl" ) {
-		return finfo.args[pos].infl;
-	}
-	if( fun == "#used" ) {
-		return finfo.args[pos].used;
-	}
-	if( fun == "#triv" ) {
-		return finfo.triv;
+	if( fun == "heuristic" ) {
+		auto const& e1 = exp.get_arg(n), e2 = exp.get_arg(n);
+		exp.get_end(n);
+		return _deriver_of( heuristic ? e1 : e2, f, rank, poso, finfo, heuristic );
 	}
 	if( auto const& i = is_int(fun) ) {
 		exp.get_end(n);
@@ -277,7 +291,7 @@ Term<Sum<Template::Sym,Arg>> Template::Deriver::_deriver_of(
 	}
 	auto args = vector<Term<Sum<Template::Sym,Arg>>>();
 	while( auto const& arg = exp.gets_arg(n) ) {
-		args.emplace_back(_deriver_of(*arg,f,rank,pos,finfo));
+		args.emplace_back(_deriver_of(*arg,f,rank,poso,finfo,heuristic));
 	}
 	exp.get_end(n);
 	if( fun == Smt::ADD ) {
@@ -289,11 +303,11 @@ Term<Sum<Template::Sym,Arg>> Template::Deriver::_deriver_of(
 	}
 	return app(Template::Fun(fun),std::move(args));
 }
-void Template::Deriver::extend_sig( std::string const& f, Trs::Rank const& rank ) & {
+void Template::Deriver::extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) & {
 	if( sig.find(f) ) return;
 	auto [finfo,fl] = sig.emplace(
 		f, FunInfo{
-			.triv = false//_solver.declare_const("t_"+escape(f),Smt::BOOL),
+			.triv = _solver.declare_const("t_"+escape(f),Smt::BOOL),
 		}
 	);
 	if( log & INIT ) cerr << "; intp triv[" << f << "] := " << finfo.triv << endl;
@@ -309,8 +323,8 @@ void Template::Deriver::extend_sig( std::string const& f, Trs::Rank const& rank 
 		cerr << "; intp infl[" << f << "] := (" << print_list( 0, rank.arity, [&](size_t i){ return finfo.args[i].infl; } ) << ")" << endl;
 		cerr << "; intp used[" << f << "] := (" << print_list( 0, rank.arity, [&](size_t i){ return finfo.args[i].used; } ) << ")" << endl;
 	}
-	assign(f,_deriver_of(_template_exp,f,rank,0,finfo));
-} 
+	assign(f,_deriver_of(_template_exp,f,rank,0,finfo,heuristic));
+}
 
 static Exp const _MONO = Exp("=>","#mono","_");// monotonicity requires non-zero coefficient
 static Exp const _USED = Exp("=>","_","#used");// non-zero coefficient implies used
@@ -359,9 +373,28 @@ Exp const Template::MAX = Exp("arity",
 		)
 	)
 );
+Exp const Template::MAXSUM = Exp("arity",
+	Exp("0",_POSCONST),
+	Exp("1",Exp("+",Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),"arg","0"),_POSCONST)),
+	Exp("otherwise",
+		Exp("heuristic",
+			Exp("args","max",
+				Exp("index",
+					Exp("0",// c_0 * arg_0 + a_0
+						Exp("+",Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),"arg","0"),_POSCONST)
+					),
+					Exp("otherwise",// c_i * (arg_i + a_i)
+						Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),Exp("+","arg",_POSCONST),"0")
+					)
+				)
+			),
+			Exp("+",Exp("args","+",Exp("*",_SUMCOEFF,"arg")),_POSCONST)
+		)
+	)
+);
 Exp const Template::IMAX = Exp("arity",
 	Exp("0",_POSCONST),
-	Exp("1",Exp("ite",_bool_constrain(Exp("and",_USED)),Exp("max",Exp("+","arg",_CONST),"0"),"0")),
+	Exp("1",Exp("max",Exp("+",Exp("ite",_bool_constrain(_USED),"arg","0"),_CONST),"0")),
 	Exp("otherwise",
 		Exp("max",
 			Exp("args","max",
@@ -373,6 +406,27 @@ Exp const Template::IMAX = Exp("arity",
 						Exp("ite",_bool_constrain(_USED),Exp("+","arg",_CONST),"0")
 					)
 				)
+			),
+			"0"
+		)
+	)
+);
+Exp const Template::IMAXSUM = Exp("arity",
+	Exp("0",_POSCONST),
+	Exp("otherwise",
+		Exp("max",
+			Exp("heuristic",
+				Exp("args","max",
+					Exp("index",
+						Exp("0",// c_0 * arg_0 + a_0
+							Exp("+",Exp("ite",_bool_constrain(_USED),"arg","0"),_CONST)
+						),
+						Exp("otherwise",// c_i * (arg_i + a_i)
+							Exp("ite",_bool_constrain(_USED),Exp("+","arg",_CONST),"0")
+						)
+					)
+				),
+				Exp("+",Exp("args","+",Exp("ite",_bool_constrain(_USED),"arg","0")),_CONST)
 			),
 			"0"
 		)
@@ -441,7 +495,7 @@ void Template::test() {
 	sig.emplace("g",1);
 	sig.emplace("a",0);
 	auto der = Template::Deriver(SUM,z3,false,INIT&DEBUG);
-	der.extend_sig(sig);
+	der.extend_sig(sig,{});
 	auto der_intp = der.derive(Poly::POS_ALGEBRA);
 	auto e = Exp("f",Exp("g","x"),"a");
 	cout << der << endl;
@@ -455,7 +509,7 @@ void Template::test() {
 	x *= "foo";
 	cout << x << endl;
 	auto mat2b = Template::Deriver(MAT2B,z3,false,INIT&DEBUG);
-	mat2b.extend_sig(sig);
+	mat2b.extend_sig(sig,{});
 	auto mat_intp = mat2b.derive(tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::POS}));
 	auto gx = Exp("g","x");
 	cout << "mat⟦" << gx << "⟧ = " << mat_intp(gx) << endl;

@@ -9,11 +9,34 @@
 
 using namespace std;
 
-bool bool_of( std::string const& str ) {
-	if( str == "true" ) return true;
-	if( str == "false" ) return false;
-	throw Error("#malformed-bool",str);
+// detects symbols where the same variable occurs in multiple arguments
+void _max_sum_heuristic( Set<std::string>& maxsyms, Trs::Sig const& sig, Trs::Rules const& rules ) {
+	Algebra<std::string,Set<std::string>> alg =
+	[&]( std::string const& f, std::vector<Set<std::string>>&& args ){
+		if( sig.find(f) ) {
+			Set<std::string> val;
+			bool dup = false;
+			for( auto&& arg : args ) {
+				for( auto&& var : arg ) {
+					if( !val.emplace(std::move(var)).second ) {
+						dup = true;
+					}
+				}
+			}
+			if( dup ) {
+				maxsyms.emplace(std::move(f));
+			}
+			return std::move(val);
+		} else {
+			return Set<std::string>{f};
+		}
+	};
+	for( auto const& [i,rule] : rules ) {
+		auto const& [l,r,w] = rule;
+		alg(r);
+	}
 }
+
 
 int main( int argc, char* argv[] ) try {
 	Opt<ifstream> ois;
@@ -63,7 +86,7 @@ int main( int argc, char* argv[] ) try {
 				}}},
 				{ "-freeze", { " <bool>:\tfreezing", [&]{
 					require_arg();
-					allow_freezing = bool_of(argv[i]);
+					allow_freezing = as_bool(argv[i]);
 				}}},
 				{ "-smt", { " <exp>:\tspecify SMT", [&]{
 					require_arg();
@@ -145,8 +168,8 @@ int main( int argc, char* argv[] ) try {
 		dprem_specs.emplace_back("sum");
 		dprem_specs.emplace_back("max");
 		dprem_specs.emplace_back(LPO3_SPEC);
-		dprem_specs.emplace_back(Exp{"path-order",":weight","max",":status","map"});
-		dprem_specs.emplace_back("imax");
+		dprem_specs.emplace_back("imaxsum");
+		dprem_specs.emplace_back(Exp{"path-order",":weight","maxsum",":status","map"});
 		dprem_specs.emplace_back("posneg");
 		dprem_specs.emplace_back("mat2b");
 		use_dp = true;
@@ -168,6 +191,7 @@ int main( int argc, char* argv[] ) try {
 		exit(0);
 	}
 
+	Set<std::string> heuristic;// TODO: improve
 	try {
 		if( p.mode == Problem::DP ) {
 			p.init_uses();
@@ -180,11 +204,27 @@ int main( int argc, char* argv[] ) try {
 				if( print_proofs ) *prf << "(extra-var " << var << " :rule " << no << ')' << endl;
 				throw Answer::NO;
 			}
+			if( allow_freezing ) {
+				if( print_steps ) cerr << "; trying freezing..." << endl;
+				if( p.freeze() ) {
+					if( print_freezed ) {
+						Trs::print_sig(*prf << "(freeze",p.main.sig,"\n  ");
+						Trs::print_rules(*prf,p.main.rules,"\n  ") << ')' << endl;
+					}
+				}
+			}
+			// compute max-sum heuristic. TODO: improve
+			_max_sum_heuristic(heuristic,p.main.sig,p.main.rules);
+			// rule removal loop
+			vector<pair<int,unique_ptr<TrsOrder>>> rule_removers;
+			for( auto x : rulerem_specs ) {
+				rule_removers.emplace_back(0,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log)));
+			}
 			auto rule_removes = [&]( auto& pair ) {
 				auto& [stage,ord] = pair;
 				if( print_steps ) cerr << "; trying " << ord->print_name() << "... " << endl;
 				if( stage < 1 ) {// initialize for signature
-					ord->extend_sig(p.main.sig);
+					ord->extend_sig(p.main.sig,heuristic);
 					stage = 1;
 				}
 				return order_some_rule(*ord,p.main.rules,[&](auto&&rem){
@@ -195,38 +235,17 @@ int main( int argc, char* argv[] ) try {
 					}
 				});
 			};
-			// rule removal loop
-			vector<pair<int,unique_ptr<TrsOrder>>> rule_removers;
-			for( auto x : rulerem_specs ) {
-				rule_removers.emplace_back(0,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log)));
-			}
 			do {
 				if( p.main.rules.empty() ) throw Answer::YES;
 				if( std::ranges::any_of(rule_removers,rule_removes) ) continue;
 			} while(0);
 
-			if( allow_freezing ) {
-				if( print_steps ) cerr << "; trying freezing..." << endl;
-				if( p.freeze() ) {
-					if( print_freezed ) {
-						Trs::print_sig(*prf << "(freeze",p.main.sig,"\n  ");
-						Trs::print_rules(*prf,p.main.rules,"\n  ") << ')' << endl;
-					}
-					vector<pair<int,unique_ptr<TrsOrder>>> freezed_removers;
-					for( auto x : rulerem_specs ) {
-						freezed_removers.emplace_back(0,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log)));
-					}
-					do {
-						if( p.main.rules.empty() ) throw Answer::YES;
-						if( std::ranges::any_of(freezed_removers,rule_removes) ) continue;
-					} while(0);
-				}
-			}
-
 			if( !use_dp ) throw Answer::MAYBE;
 
 			if( print_proofs ) *prf << "(make_dp)" << endl;
 			p.make_dps();// compute DPs
+			// compute max-sum heuristic of dps. TODO: improve
+			_max_sum_heuristic(heuristic,p.main.sig,p.components[0].nodes);
 			if( print_dp ) cerr << p << endl;
 			if( print_usables ) {
 				cerr << "(uses_graph" << ConstGraph(p.uses_map).print_nodes("\n  ") << ')' << endl;
@@ -249,7 +268,7 @@ int main( int argc, char* argv[] ) try {
 			auto& [stage,ord] = pair;
 			if( print_steps ) cerr << "; trying " << ord->print_name() << "... " << endl;
 			if( stage == 0 ) {
-				ord->extend_sig(p.main.sig);
+				ord->extend_sig(p.main.sig,heuristic);
 				stage = 1;
 			}
 			return order_some_dp(*ord,p,subcomp,[&]( auto&& rem, auto const& usables ){
@@ -309,7 +328,7 @@ int main( int argc, char* argv[] ) try {
 						}
 					}
 					for( auto it = p.main.rules.begin(); it != p.main.rules.end(); ) {
-						if( usables.find(it->first) ) {
+						if( usables.contains(it->first) ) {
 							it++;
 						} else {
 							it = p.main.rules.erase(it);

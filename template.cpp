@@ -285,7 +285,7 @@ Term<Sum<Template::Sym,Arg>> Template::Deriver::_deriver_of(
 		exp.get_end(n);
 		return _deriver_of( heuristic ? e1 : e2, f, rank, poso, finfo, heuristic );
 	}
-	if( auto const& i = is_int(fun) ) {
+	if( auto const& i = is_nat(fun) ) {
 		exp.get_end(n);
 		return Smt::PostExp(*i);
 	}
@@ -464,7 +464,7 @@ Exp const Template::MAT2B = Exp("tp",
 		_POSCONST
 	)
 );
-Exp const Template::POSNEG = Exp("tp",
+Exp const Template::SUM_NEGSUM = Exp("tp",
 	Exp("arity",
 		Exp("0",_POSCONST),
 		Exp("otherwise",
@@ -484,6 +484,45 @@ Exp const Template::POSNEG = Exp("tp",
 	Exp("+",
 		Exp("args","+",Exp("ite",_bool_constrain(_USED),Exp("prj1","arg"),"0")),
 		Exp("var",":constrain",Exp("<=","_","0"))
+	)
+);
+Exp const Template::IMAX_NEGSUM = Exp("tp",
+	Exp("tp",
+		// coordinate 0
+		Exp("arity",
+			Exp("0",_POSCONST),
+			Exp("otherwise",
+				Exp("max",
+					Exp("heuristic",
+						Exp("args","max",
+							Exp("index",
+								Exp("0",// c_0 * arg_0 + a_0
+									Exp("+",Exp("ite",_bool_constrain(_USED),Exp("prj0","arg"),"0"),_CONST)
+								),
+								Exp("otherwise",// c_i * (arg_i + a_i)
+									Exp("ite",_bool_constrain(_USED),Exp("+",Exp("prj0","arg"),_CONST),"0")
+								)
+							)
+						),
+						Exp("+",
+							Exp("args","+",
+								Exp("+",
+									Exp("ite",_bool_constrain(_USED),Exp("prj0","arg"),"0"),
+									Exp("ite",_bool_constrain(_USED),Exp("prj1","arg"),"0")
+								)
+							),
+							_CONST
+						)
+					),
+					"0"
+				)
+			)
+		),
+		// coordinate 1
+		Exp("+",
+			Exp("args","+",Exp("ite",_bool_constrain(_USED),Exp("prj1","arg"),"0")),
+			Exp("var",":constrain",Exp("<=","_","0"))
+		)
 	)
 );
 

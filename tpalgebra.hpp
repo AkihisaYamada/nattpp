@@ -43,9 +43,9 @@ Algebra<Template::Sym,TupleVal<T>> tuple_algebra( std::vector<S>&& sorts ) {
 		}
 		if( auto const& sym = f.is_fun() ) {
 			if( int i = sym->name == "prj0" ? 0 : sym->name == "prj1" ? 1 : sym->name == "prj2" ? 2 : -1; i >= 0 ) {
-				if( args.size() != 1 ) throw Error("\"tuple algebra: wrong arity\"");
+				if( args.size() != 1 ) throw Error("#tuple-algebra","\"too many arguments\"",sym->name,std::to_string(args.size()));
 				auto&& arg = args[0];
-				if( arg.vec.size() <= i ) throw Error("\"tuple algebra: bad projection index\"");
+				if( arg.vec.size() <= i ) throw Error("#tuple-algebra","\"bad projection index\"");
 				return {T(arg.vec[i])};
 			}
 			auto vec = std::vector<T>();

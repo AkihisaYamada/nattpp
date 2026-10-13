@@ -9,31 +9,124 @@
 
 using namespace std;
 
+using MSet = OrdMap<std::string,unsigned>;
+using MSets = std::vector<MSet>;
+
+ostream& operator<<( ostream& os, MSet const& X ) {
+	return os << '(' << print_list(X,[]( auto const& xn ){ return Printable([&]( ostream& os )->ostream&{ return os << '(' << xn.first << ' ' << xn.second << ')'; }); }) << ')';
+}
+ostream& operator<<( ostream& os, MSets const& Xs ) {
+	return os << '(' << print_list(Xs) << ')';
+}
+bool operator>=( MSet const& X, MSet const& Y ) {
+	for( auto xit = X.begin(), yit = Y.begin();; xit++ ) {
+		if( yit == Y.end() ) return true;
+		if( xit == X.end() || xit->first > yit->first ) return false;
+		if( xit->first == yit->first ) {
+			if( xit->second < yit->second ) return false;
+			yit++;
+		}
+	}
+}
+
+MSet& map_merge(
+	MSet& X,
+	MSet&& Y,
+	std::function<unsigned&(unsigned&,unsigned)> const& f
+) {
+	auto xit = X.begin(), yit = Y.begin();
+	for(;;) {
+		if( yit == Y.end() ) {
+			return X;
+		}
+		if( xit == X.end() ) {
+			X.merge(std::move(Y));
+			return X;
+		}
+		if( xit->first < yit->first ) {
+			xit++;
+		} else {
+			auto&& y = Y.extract(yit++);
+			if( xit->first == y.key() ) {
+				f( xit->second, y.mapped() );
+				xit++;
+			} else {
+				xit = X.insert(xit,std::move(y));
+			}
+		}
+	}
+}
+MSet& operator+=( MSet& X, MSet&& Y ) {
+	return map_merge(X,std::move(Y),[]( unsigned& x, unsigned y )->unsigned&{ return x += y; });
+}
+MSets operator+( MSets const& Xs, MSets const& Ys ) {
+	MSets ret;
+	for( MSet const& X : Xs ) {
+		for( MSet const& Y : Ys ) {
+			ret.emplace_back(X) += MSet(Y);
+		}
+	}
+	return std::move(ret);
+}
+
+MSet& join_eq( MSet& X, MSet&& Y ) {
+	return map_merge(X,std::move(Y),[]( unsigned& x, unsigned y )->unsigned&{ return x = max(x,y); });
+}
+
 // detects symbols where the same variable occurs in multiple arguments
 void _max_sum_heuristic( Set<std::string>& maxsyms, Trs::Sig const& sig, Trs::Rules const& rules ) {
-	Algebra<std::string,Set<std::string>> alg =
-	[&]( std::string const& f, std::vector<Set<std::string>>&& args ){
+	Algebra<std::string,MSets> lalg =
+	[&]( std::string const& f, std::vector<MSets>&& args ){
+		MSets ret;
 		if( sig.find(f) ) {
-			Set<std::string> val;
-			bool dup = false;
-			for( auto&& arg : args ) {
-				for( auto&& var : arg ) {
-					if( !val.emplace(std::move(var)).second ) {
-						dup = true;
-					}
-				}
+			if( maxsyms.contains(f) ) {
+				for( auto&& arg : args ) ret.append_range(std::move(arg));
+			} else {
+				ret.emplace_back(MSet());
+				for( auto&& arg : args ) ret = ret + arg;
 			}
-			if( dup ) {
-				maxsyms.emplace(std::move(f));
-			}
-			return std::move(val);
 		} else {
-			return Set<std::string>{f};
+			ret.emplace_back(MSet{{f,1}});
 		}
+		return std::move(ret);
 	};
-	for( auto const& [i,rule] : rules ) {
-		auto const& [l,r,w] = rule;
-		alg(r);
+	for(;;) {
+		try {
+			for( auto const& [i,rule] : rules ) {
+				auto const& [l,r,w] = rule;
+				MSets lval = lalg(l);
+				Algebra<std::string,MSets> ralg =
+				[&]( std::string const& g, std::vector<MSets>&& args ){
+					MSets ret;
+					if( sig.find(g) ) {
+						if( maxsyms.contains(g) ) {
+							for( auto&& arg : args ) ret.append_range(std::move(arg));
+						} else {
+							ret.emplace_back(MSet());
+							for( auto&& arg : args ) {
+								ret = ret + arg;
+							}
+							for( auto const& Y : ret ) {
+								for( auto it = lval.begin();; it++ ) {
+									if( it == lval.end() ) {// no lhs candidate can cover the rhs candidate
+										maxsyms.emplace(g);
+										throw false;
+									}
+									if( *it >= Y ) break;// this rhs candidate is covered
+								}
+							}
+						}
+					} else {
+						ret.emplace_back(MSet{{g,1}});
+					}
+					return std::move(ret);
+				};
+				ralg(r);
+			}
+		} catch( bool _ ) {
+			continue;
+		}
+		break;
 	}
 }
 
@@ -46,6 +139,7 @@ int main( int argc, char* argv[] ) try {
 	bool print_steps = true;
 	bool print_proofs = true;
 	bool print_freezed = true;
+	bool print_maxsym = false;
 	bool print_dp = false;
 	bool print_dg = false;
 	bool print_usables = false;
@@ -109,6 +203,9 @@ int main( int argc, char* argv[] ) try {
 				{ "-print-usables", { ":\tprint usable rules", [&]{
 					print_usables = true;
 				}}},
+				{ "-print-maxsum", { ":\tprint max-sum heuristic", [&]{
+					print_maxsym = true;
+				}}},
 				{ "-r", { " <ord>:\trule remover", [&]{
 					require_arg();
 					rulerem_specs.push_back(Exp::of(argv[i]));
@@ -170,7 +267,8 @@ int main( int argc, char* argv[] ) try {
 		dprem_specs.emplace_back(LPO3_SPEC);
 		dprem_specs.emplace_back("imaxsum");
 		dprem_specs.emplace_back(Exp{"path-order",":weight","maxsum",":status","map"});
-		dprem_specs.emplace_back("posneg");
+		dprem_specs.emplace_back("sum_negsum");
+		dprem_specs.emplace_back("imaxsum_negsum");
 		dprem_specs.emplace_back("mat2b");
 		use_dp = true;
 	}
@@ -246,6 +344,7 @@ int main( int argc, char* argv[] ) try {
 			p.make_dps();// compute DPs
 			// compute max-sum heuristic of dps. TODO: improve
 			_max_sum_heuristic(heuristic,p.main.sig,p.components[0].nodes);
+			if( print_maxsym ) cerr << "; max symbols: " << print_list(heuristic) << endl;
 			if( print_dp ) cerr << p << endl;
 			if( print_usables ) {
 				cerr << "(uses_graph" << ConstGraph(p.uses_map).print_nodes("\n  ") << ')' << endl;

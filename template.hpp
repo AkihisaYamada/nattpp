@@ -74,7 +74,8 @@ struct Template {
 	/** instantiate SMT expressions in templates via get_value */
 	static Algebra<Sum<Sym,Arg>,ArgTerm<Sym>> instantiator( Smt::Solver& solver );
 
-	static ::Exp const SUM, MONO_SUM, MONO_POLY2, SIMP_MAX, MAX, MAXSUM, IMAX, IMAXSUM, MAT2B, MAT2N, POSNEG;
+	static ::Exp const SUM, MONO_SUM, MONO_POLY2, SIMP_MAX, MAX, MAXSUM, IMAX, IMAXSUM,
+		MAT2B, MAT2N, SUM_NEGSUM, IMAX_NEGSUM;
 
 	static void test();
 };

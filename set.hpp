@@ -53,6 +53,7 @@ public:
 	}
 	auto begin() & { return _set.begin(); }
 	auto begin() const& { return _set.begin(); }
+	auto begin() && { return std::move(_set).begin(); }
 	auto end() const& { return _set.end(); }
 	bool empty() const& { return _set.empty(); }
 	void clear() & { _set.clear(); }

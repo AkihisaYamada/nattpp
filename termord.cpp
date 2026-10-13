@@ -433,11 +433,17 @@ std::unique_ptr<TermOrder> TermOrder::make(
 		x.process_keys( n, solver_key || log_key );
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::POS_ALGEBRA,Template::IMAXSUM,mk_smt(),false,log);
-	} else if( f == "posneg" ) {
+	} else if( f == "sum_negsum" ) {
 		x.process_keys( n, solver_key || log_key );
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<MPoly>>>(
-			tuple_algebra<Poly::Range,MPoly>({Poly::POS,Poly::NEG}),Template::POSNEG,mk_smt(),false,log
+			tuple_algebra<Poly::Range,MPoly>({Poly::POS,Poly::NEG}),Template::SUM_NEGSUM,mk_smt(),false,log
+		);
+	} else if( f == "imaxsum_negsum" ) {
+		x.process_keys( n, solver_key || log_key );
+		set_log();
+		return std::make_unique<DerivedTermOrder<TupleVal<MPoly>>>(
+			tuple_algebra<Poly::Range,MPoly>({Poly::POS,Poly::NEG}),Template::IMAX_NEGSUM,mk_smt(),false,log
 		);
 	} else if( f == "template" ) {
 		Exp t = x.get_arg(n);

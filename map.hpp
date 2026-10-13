@@ -47,7 +47,7 @@ class OrdMap : std::map<K,T,std::less<>> {
 	using M = std::map<K,T,std::less<>>;
 public:
 	using typename M::value_type, typename M::iterator, typename M::const_iterator;
-	using M::M, M::begin, M::end, M::size, M::empty, M::erase;
+	using M::M, M::begin, M::end, M::size, M::empty, M::erase, M::extract, M::insert;
 	/**
 	 * @brief emplaces a key-value pair.
 	 */
@@ -73,6 +73,8 @@ public:
 	}
 	Opt<T&> find( K const& k ) & { return find<K const&>(k); }
 	Opt<T const&> find( K const& k ) const & { return find<K const&>(k); }
+	void merge(OrdMap& other) { M::merge(static_cast<M&>(other)); }
+	void merge(OrdMap&& other) { M::merge(static_cast<M&&>(other)); }
 };
 
 #endif

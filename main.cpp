@@ -26,7 +26,7 @@ void _max_sum_heuristic( Set<std::string>& maxsyms, Trs::Sig const& sig, Trs::Ru
 		} else {
 			ret.emplace_back(MSet<std::string>{{f,1}});
 		}
-		return std::move(ret);
+		return ret;
 	};
 	for(;;) {
 		try {
@@ -57,7 +57,7 @@ void _max_sum_heuristic( Set<std::string>& maxsyms, Trs::Sig const& sig, Trs::Ru
 					} else {
 						ret.emplace_back(MSet(g));
 					}
-					return std::move(ret);
+					return ret;
 				};
 				ralg(r);
 			}
@@ -206,8 +206,8 @@ int main( int argc, char* argv[] ) try {
 		dprem_specs.emplace_back("imaxsum");
 		dprem_specs.emplace_back(Exp{"path-order",":weight","maxsum",":status","map"});
 		dprem_specs.emplace_back("sum_negsum");
-		dprem_specs.emplace_back("imaxsum_negsum");
 		dprem_specs.emplace_back("mat2b");
+		dprem_specs.emplace_back("imaxsum_negsum");
 		use_dp = true;
 	}
 	if( mode == UNSET && p.mode == Problem::NONE ) {

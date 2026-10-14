@@ -18,7 +18,7 @@ public:
 		BaseSort( char const* name ) : _name(name) {}
 		BaseSort( std::string const& name ) : _name(name) {}
 	public:
-		std::string name() && { return std::move(_name); }
+		std::string name() && { return _name; }
 		std::string const& name() const& { return _name; }
 		static BaseSort of( Exp const& );
 		friend Smt;

@@ -399,10 +399,10 @@ Exp const Template::IMAX = Exp("arity",
 		Exp("max",
 			Exp("args","max",
 				Exp("index",
-					Exp("0",// c_0 * arg_0 + a_0
+					Exp("0",// arg[0]? + a[0]
 						Exp("+",Exp("ite",_bool_constrain(_USED),"arg","0"),_CONST)
 					),
-					Exp("otherwise",// c_i * (arg_i + a_i)
+					Exp("otherwise",// (arg[i] + a[i])?
 						Exp("ite",_bool_constrain(_USED),Exp("+","arg",_CONST),"0")
 					)
 				)
@@ -486,7 +486,7 @@ Exp const Template::SUM_NEGSUM = Exp("tp",
 		Exp("var",":constrain",Exp("<=","_","0"))
 	)
 );
-Exp const Template::IMAX_NEGSUM = Exp("tp",
+Exp const Template::IMAXSUM_NEGSUM = Exp("tp",
 	Exp("tp",
 		// coordinate 0
 		Exp("arity",
@@ -496,11 +496,20 @@ Exp const Template::IMAX_NEGSUM = Exp("tp",
 					Exp("heuristic",
 						Exp("args","max",
 							Exp("index",
-								Exp("0",// c_0 * arg_0 + a_0
-									Exp("+",Exp("ite",_bool_constrain(_USED),Exp("prj0","arg"),"0"),_CONST)
+								Exp("0",// arg[0]_0? + arg[0]_1? + a[i]_0
+									Exp("+",
+										Exp("ite",_bool_constrain(_USED),Exp("prj0","arg"),"0"),
+										Exp("ite",_bool_constrain(_USED),Exp("prj1","arg"),"0"),
+										_CONST
+									)
 								),
-								Exp("otherwise",// c_i * (arg_i + a_i)
-									Exp("ite",_bool_constrain(_USED),Exp("+",Exp("prj0","arg"),_CONST),"0")
+								Exp("otherwise",// (arg[i]_0 + a[i]_0)
+									Exp("ite",_bool_constrain(_USED),
+										Exp("+",
+											Exp("prj0","arg"),
+											_CONST
+										),"0"
+									)
 								)
 							)
 						),

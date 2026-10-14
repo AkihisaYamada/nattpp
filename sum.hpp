@@ -38,7 +38,7 @@ public:
 	template<std::size_t n>
 	Opt<std::variant_alternative_t<n,std::variant<Ts...>>> ref() && {
 		if( auto p = std::get_if<n>(&_un) ) {
-			return std::move(*p);
+			return *p;
 		}
 		return {};
 	}

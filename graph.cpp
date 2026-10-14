@@ -305,7 +305,7 @@ ConstGraph::Acyclic ConstGraphInterface::Acyclic::acyc_trancl() const {
 			nexts.emplace(tgt);
 		});
 	});
-	return std::move(map);
+	return map;
 }
 
 Printable print_sccs( std::vector<ConstGraph::Scc> const& sccs ){
@@ -364,7 +364,7 @@ Map<uint32_t,Ref<Set<uint32_t>>> const& ConstGraphInterface::trancl() const& {
 	return *_trancl_opt;
 }
 Map<uint32_t,Ref<Set<uint32_t>>> ConstGraphInterface::trancl() && {
-	return std::move(trancl());
+	return trancl();
 }
 
 Printable ConstGraphInterface::print_nodes( std::string_view const& pref, std::string_view const& _sep ) const& {

@@ -66,7 +66,7 @@ Poly operator+( Poly const& p1, Poly const& p2 ) {
 	},[&]( auto const& it2 ){
 		ret._map.emplace(*it2);
 	});
-	return std::move(ret);
+	return ret;
 }
 Poly& operator+=( Poly& p1, Poly const& p2 ) {
 	iter2(p1._map,p2._map,[&]( auto const it1, auto const it2 ){
@@ -89,21 +89,21 @@ Poly ite( Poly const& i, Poly const& p1, Poly const& p2 ) {
 	},[&]( auto const& it2 ){
 		ret._map.emplace( it2->first, Smt::ite(ie,0,it2->second) );
 	});
-	return std::move(ret);
+	return ret;
 }
 Poly Poly::monom_mult( Smt::PreExp const& c, Vars const& vs ) const {
 	Poly ret;
 	for( auto& [vs1,c1] : _map ) {
 		ret._map.emplace(vs1 * vs, c * c1);
 	}
-	return std::move(ret);
+	return ret;
 }
 Poly operator*( Poly const& p1, Poly const& p2 ) {
 	Poly ret;
 	for( auto const& [vs2,c2] : p2._map ) {
 		ret += p1.monom_mult(c2,vs2);
 	}
-	return std::move(ret);
+	return ret;
 }
 
 static Smt::PreExp order_sub( Poly const& p1, Poly const& p2 ) {
@@ -218,7 +218,7 @@ MPoly operator+( MPoly const& x, MPoly const& y ) {
 			ret._set.emplace_back( xp + yp );
 		}
 	}
-	return std::move(ret);
+	return ret;
 }
 
 MPoly operator*( MPoly const& x, MPoly const& y ) {
@@ -228,7 +228,7 @@ MPoly operator*( MPoly const& x, MPoly const& y ) {
 			ret._set.emplace_back(xp*yp);
 		}
 	}
-	return std::move(ret);
+	return ret;
 }
 MPoly ite( MPoly const& cm, MPoly const& tm, MPoly const& em ) {
 	assert( cm.set().size() == 1 );
@@ -239,7 +239,7 @@ MPoly ite( MPoly const& cm, MPoly const& tm, MPoly const& em ) {
 			ret._set.emplace_back(ite(cp,tp,ep));
 		}
 	}
-	return std::move(ret);
+	return ret;
 }
 Smt::PreExp MPoly::ge( MPoly const& y ) const {
 	Smt::PreExp ge_all = Smt::PostExp(true);

@@ -443,7 +443,7 @@ std::unique_ptr<TermOrder> TermOrder::make(
 		x.process_keys( n, solver_key || log_key );
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<MPoly>>>(
-			tuple_algebra<Poly::Range,MPoly>({Poly::POS,Poly::NEG}),Template::IMAX_NEGSUM,mk_smt(),false,log
+			tuple_algebra<Poly::Range,MPoly>({Poly::POS,Poly::NEG}),Template::IMAXSUM_NEGSUM,mk_smt(),false,log
 		);
 	} else if( f == "template" ) {
 		Exp t = x.get_arg(n);

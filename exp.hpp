@@ -47,7 +47,7 @@ public:
 	 * @brief accesses the function
 	 */
 	F fun() && {
-		return std::move(_ref->first);
+		return _ref->first;
 	}
 	/**
 	 * @brief accesses the function
@@ -59,7 +59,7 @@ public:
 	 * @brief accesses the arguments
 	 */
 	std::vector<Term> args() && {
-		return std::move(_ref->second);
+		return _ref->second;
 	}
 	/**
 	 * @brief accesses the arguments
@@ -73,7 +73,7 @@ public:
 	}
 	Term arg( size_t i ) && {
 		assert( i < args().size() );
-		return std::move(args()[i]);
+		return args()[i];
 	}
 	Term const& arg( size_t i ) const& {
 		assert( i < args().size() );
@@ -292,7 +292,7 @@ public:
 		_fetch();
 		return _fetched.ref<Sym>() >>= [&]( Sym sym )->Opt<std::string>{
 			_fetched = None();
-			return std::move(sym.str);
+			return sym.str;
 		};
 	}
 	std::string read_sym() {

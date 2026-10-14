@@ -29,7 +29,7 @@ public:
 			if( xit->first < yit->first ) {
 				xit++;
 			} else {
-				auto&& y = Y._map.extract(yit++);
+				auto y = Y._map.extract(yit++);
 				if( xit->first == y.key() ) {
 					f( xit->second, y.mapped() );
 					xit++;
@@ -70,10 +70,6 @@ template<typename T>
 using MSets = std::vector<MSet<T>>;
 
 template<typename T>
-std::ostream& operator<<( std::ostream& os, MSets<T> const& Xs ) {
-	return os << '(' << print_list(Xs) << ')';
-}
-template<typename T>
 MSets<T> operator+( MSets<T> const& Xs, MSets<T> const& Ys ) {
 	MSets<T> ret;
 	for( auto const& X : Xs ) {
@@ -81,7 +77,12 @@ MSets<T> operator+( MSets<T> const& Xs, MSets<T> const& Ys ) {
 			ret.emplace_back(X) += MSet(Y);
 		}
 	}
-	return std::move(ret);
+	return ret;
+}
+
+template<typename T>
+std::ostream& operator<<( std::ostream& os, MSets<T> const& Xs ) {
+	return os << '(' << print_list(Xs) << ')';
 }
 
 #endif

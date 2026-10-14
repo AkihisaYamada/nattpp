@@ -6,87 +6,25 @@
 #include"deprem.hpp"
 #include"graph.hpp"
 #include"reach.hpp"
+#include"mset.hpp"
 
 using namespace std;
 
-using MSet = OrdMap<std::string,unsigned>;
-using MSets = std::vector<MSet>;
-
-ostream& operator<<( ostream& os, MSet const& X ) {
-	return os << '(' << print_list(X,[]( auto const& xn ){ return Printable([&]( ostream& os )->ostream&{ return os << '(' << xn.first << ' ' << xn.second << ')'; }); }) << ')';
-}
-ostream& operator<<( ostream& os, MSets const& Xs ) {
-	return os << '(' << print_list(Xs) << ')';
-}
-bool operator>=( MSet const& X, MSet const& Y ) {
-	for( auto xit = X.begin(), yit = Y.begin();; xit++ ) {
-		if( yit == Y.end() ) return true;
-		if( xit == X.end() || xit->first > yit->first ) return false;
-		if( xit->first == yit->first ) {
-			if( xit->second < yit->second ) return false;
-			yit++;
-		}
-	}
-}
-
-MSet& map_merge(
-	MSet& X,
-	MSet&& Y,
-	std::function<unsigned&(unsigned&,unsigned)> const& f
-) {
-	auto xit = X.begin(), yit = Y.begin();
-	for(;;) {
-		if( yit == Y.end() ) {
-			return X;
-		}
-		if( xit == X.end() ) {
-			X.merge(std::move(Y));
-			return X;
-		}
-		if( xit->first < yit->first ) {
-			xit++;
-		} else {
-			auto&& y = Y.extract(yit++);
-			if( xit->first == y.key() ) {
-				f( xit->second, y.mapped() );
-				xit++;
-			} else {
-				xit = X.insert(xit,std::move(y));
-			}
-		}
-	}
-}
-MSet& operator+=( MSet& X, MSet&& Y ) {
-	return map_merge(X,std::move(Y),[]( unsigned& x, unsigned y )->unsigned&{ return x += y; });
-}
-MSets operator+( MSets const& Xs, MSets const& Ys ) {
-	MSets ret;
-	for( MSet const& X : Xs ) {
-		for( MSet const& Y : Ys ) {
-			ret.emplace_back(X) += MSet(Y);
-		}
-	}
-	return std::move(ret);
-}
-
-MSet& join_eq( MSet& X, MSet&& Y ) {
-	return map_merge(X,std::move(Y),[]( unsigned& x, unsigned y )->unsigned&{ return x = max(x,y); });
-}
 
 // detects symbols where the same variable occurs in multiple arguments
 void _max_sum_heuristic( Set<std::string>& maxsyms, Trs::Sig const& sig, Trs::Rules const& rules ) {
-	Algebra<std::string,MSets> lalg =
-	[&]( std::string const& f, std::vector<MSets>&& args ){
-		MSets ret;
+	Algebra<std::string,MSets<std::string>> lalg =
+	[&]( std::string const& f, std::vector<MSets<std::string>>&& args ){
+		MSets<std::string> ret;
 		if( sig.find(f) ) {
 			if( maxsyms.contains(f) ) {
 				for( auto&& arg : args ) ret.append_range(std::move(arg));
 			} else {
-				ret.emplace_back(MSet());
+				ret.emplace_back(MSet<std::string>());
 				for( auto&& arg : args ) ret = ret + arg;
 			}
 		} else {
-			ret.emplace_back(MSet{{f,1}});
+			ret.emplace_back(MSet<std::string>{{f,1}});
 		}
 		return std::move(ret);
 	};
@@ -94,15 +32,15 @@ void _max_sum_heuristic( Set<std::string>& maxsyms, Trs::Sig const& sig, Trs::Ru
 		try {
 			for( auto const& [i,rule] : rules ) {
 				auto const& [l,r,w] = rule;
-				MSets lval = lalg(l);
-				Algebra<std::string,MSets> ralg =
-				[&]( std::string const& g, std::vector<MSets>&& args ){
-					MSets ret;
+				MSets<std::string> lval = lalg(l);
+				Algebra<std::string,MSets<std::string>> ralg =
+				[&]( std::string const& g, std::vector<MSets<std::string>>&& args ){
+					MSets<std::string> ret;
 					if( sig.find(g) ) {
 						if( maxsyms.contains(g) ) {
 							for( auto&& arg : args ) ret.append_range(std::move(arg));
 						} else {
-							ret.emplace_back(MSet());
+							ret.emplace_back(MSet<std::string>());
 							for( auto&& arg : args ) {
 								ret = ret + arg;
 							}
@@ -117,7 +55,7 @@ void _max_sum_heuristic( Set<std::string>& maxsyms, Trs::Sig const& sig, Trs::Ru
 							}
 						}
 					} else {
-						ret.emplace_back(MSet{{g,1}});
+						ret.emplace_back(MSet(g));
 					}
 					return std::move(ret);
 				};

@@ -5,28 +5,44 @@
 
 struct FreezeType {
 	std::vector<bool> args;
-	bool frozen;
+	bool freezer;// this symbol can freeze an argument
+	bool freezee;// this symbol can be frozen into the parent
 	bool visited;
+	static FreezeType uncurry( Trs::Rank const& rank ) {
+		FreezeType ret = {
+			.args = std::vector(rank.arity,false),
+			.freezer = rank.arity > 1,
+			.freezee = rank.arity == 0 && rank.defined_by.empty(),
+			.visited = false
+		};
+		if( rank.arity > 0 ) ret.args[0] = true;
+		return ret;
+	}
+	static FreezeType anypos( Trs::Rank const& rank ) {
+		return {
+			.args = std::vector<bool>(rank.arity,true),
+			.freezer = true,
+			.freezee = rank.defined_by.empty(),
+			.visited = false
+		};
+	}
 };
 
-bool Problem::freeze() & {
+bool Problem::freeze( bool uncurry ) & {
 	// three step freezing
 	Map<std::string,FreezeType> freeze_info;
+	auto init = uncurry ? FreezeType::uncurry : FreezeType::anypos;
 	for( auto const& [f,finfo] : main.sig ) {
-		freeze_info.emplace(f,FreezeType{
-			std::vector<bool>(finfo.arity,true),
-			true,
-			false
-		});
+		freeze_info.emplace(f,init(finfo));
 	}
 	// step 1: enumerate freezable positions
 	Algebra<std::string,bool> pre = [&]( std::string const& f, std::vector<bool>&& args ){
 		if( auto finfo = freeze_info.find(f) ) {
-			auto& [fargs,frozen,visited] = *finfo;
+			auto& [fargs,freezer,freezee,visited] = *finfo;
 			size_t n = fargs.size();
 			assert( args.size() == n );
 			visited = true;
-			if( frozen ) {
+			if( freezer ) {
 				bool pot = false;
 				for( uint16_t i = 0; i < n; i++ ) {
 					if( args[i] ) {// argument is frozen or constructor
@@ -37,10 +53,9 @@ bool Problem::freeze() & {
 					}
 					fargs[i] = false;
 				}
-				frozen = pot;
+				freezer = pot;
 			}
-			return frozen ||// frozen defined symbol can be frozen further, or
-				ASSERTED(main.sig.find(f))->defined_by.empty();// constructor can be frozen
+			return freezer || freezee;// freezer or freezee can be frozen further
 		}
 		return false;// variable cannot be frozen
 	};
@@ -52,7 +67,7 @@ bool Problem::freeze() & {
 	{
 		bool freezable = false;
 		for( auto const& [f,finfo] : freeze_info ) {
-			if( finfo.visited && finfo.frozen ) {
+			if( finfo.visited && finfo.freezer ) {
 				freezable = true;
 				main.sig[f].defined_by.clear();// forget raw symbols were defined
 			}
@@ -60,12 +75,12 @@ bool Problem::freeze() & {
 		if( !freezable ) return false;// nothing can be frozen
 	}
 	// step 2: introduce frozen symbols, freeze lhs, and update defined symbols
-	std::vector<Trs::Rule> freezers;// freezer rules
+	std::vector<Trs::Rule> freezing_rules;// freezer rules
 	Algebra<std::string,Term<std::string>> lalg =
 	[&]( std::string const& f, std::vector<Term<std::string>> const& args ){
 		if( auto finfo = freeze_info.find(f) ) {
-			auto& [fargs,ffrozen,fvisited] = *finfo;
-			if( fvisited && ffrozen ) {
+			auto& [fargs,freezer,freezee,visited] = *finfo;
+			if( visited && freezer ) {
 				std::string ff = "[" + f;
 				std::vector<Term<std::string>> ret_args;
 				for( uint16_t i = 0; i < fargs.size(); i++ ) {
@@ -100,7 +115,7 @@ bool Problem::freeze() & {
 							frargs.emplace_back(v);
 						}
 					}
-					freezers.emplace_back(Trs::Rule(app(f,std::move(largs)),app(ff,std::move(frargs))));
+					freezing_rules.emplace_back(Trs::Rule(app(f,std::move(largs)),app(ff,std::move(frargs))));
 				}
 				return app(std::move(ff),std::move(ret_args));
 			}
@@ -116,8 +131,8 @@ bool Problem::freeze() & {
 	// step 3: freeze rhss
 	Algebra<std::string,Term<std::string>> ralg = [&]( std::string const& f, std::vector<Term<std::string>> const& args ){
 		if( auto finfo = freeze_info.find(f) ) {
-			auto& [fargs,ffrozen,fvisited] = *finfo;
-			if( ffrozen ) {
+			auto& [fargs,freezer,freezee,fvisited] = *finfo;
+			if( freezer ) {
 				std::string ff = "[" + f;
 				std::vector<Term<std::string>> ret_args;
 				bool freezable = true;// check if all freezing positions are supplied constructor
@@ -154,7 +169,7 @@ bool Problem::freeze() & {
 		r = ralg(r);
 	}
 	// move freezer rules into main rules
-	for( auto& rule : freezers ) {
+	for( auto& rule : freezing_rules ) {
 		ASSERTED(main.sig.find(rule.first.fun()))->defined_by.emplace(next_rule);
 		insert_rule(main.rules,std::move(rule));
 	}

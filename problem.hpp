@@ -49,7 +49,7 @@ public:
 	std::ostream& print( std::ostream& os ) const &;
 	bool reads_sym_decl( Reader& eis ) &;
 	void read_rule_decl( Reader& eis, Trs::Reader& tis ) &;
-	bool freeze() &;
+	bool freeze( bool leftmost ) &;
 	static bool test();
 };
 

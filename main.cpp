@@ -24,7 +24,7 @@ void _max_sum_heuristic( Set<std::string>& maxsyms, Trs::Sig const& sig, Trs::Ru
 				for( auto&& arg : args ) ret = ret + arg;
 			}
 		} else {
-			ret.emplace_back(MSet<std::string>{{f,1}});
+			ret.emplace_back(MSet(f));
 		}
 		return ret;
 	};
@@ -87,7 +87,8 @@ int main( int argc, char* argv[] ) try {
 	Opt<Smt::BaseSort> default_sort;
 	int default_log = -1;
 	bool default_strategy = true;
-	bool allow_freezing = true;
+	enum class FreezingMode { NONE, FULL, UNCURRY };
+	FreezingMode allow_freezing = FreezingMode::UNCURRY;
 	bool use_dp = true;
 	vector<Exp> rulerem_specs;
 	vector<Exp> dprem_specs;
@@ -116,9 +117,12 @@ int main( int argc, char* argv[] ) try {
 					require_arg();
 					oprf.emplace(argv[i]);
 				}}},
-				{ "-freeze", { " <bool>:\tfreezing", [&]{
+				{ "-freeze", { " (full|uncurry|none):\tfreezing mode", [&]{
 					require_arg();
-					allow_freezing = as_bool(argv[i]);
+					static Map<std::string,FreezingMode> map = {
+						{"full",FreezingMode::FULL},{"uncurry",FreezingMode::UNCURRY},{"none",FreezingMode::NONE}
+					};
+					allow_freezing = map.find(argv[i]).value_or_throw(Error("#command","\"unknown freezing mode\"",argv[i]));
 				}}},
 				{ "-smt", { " <exp>:\tspecify SMT", [&]{
 					require_arg();
@@ -240,9 +244,9 @@ int main( int argc, char* argv[] ) try {
 				if( print_proofs ) *prf << "(extra-var " << var << " :rule " << no << ')' << endl;
 				throw Answer::NO;
 			}
-			if( allow_freezing ) {
+			if( allow_freezing != FreezingMode::NONE ) {
 				if( print_steps ) cerr << "; trying freezing..." << endl;
-				if( p.freeze() ) {
+				if( p.freeze( allow_freezing == FreezingMode::UNCURRY ) ) {
 					if( print_freezed ) {
 						Trs::print_sig(*prf << "(freeze",p.main.sig,"\n  ");
 						Trs::print_rules(*prf,p.main.rules,"\n  ") << ')' << endl;

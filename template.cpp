@@ -343,14 +343,11 @@ Exp _0_or_1_constrain( Exp const& c ) {
 	return Exp("ite",Exp("var",":sort","Bool",":constrain",c),"1","0");
 }
 
-Exp const Template::MONO_SUM = Exp{
-	Exp("+",Exp("args","+","arg"),_POSCONST)
-};
-Exp const Template::MONO_POLY2 = Exp("arity",
-	Exp("0",_POSCONST),
-	Exp("1",Exp("+", Exp("*",_1_OR_2,"arg"), _POSCONST)),
-	Exp("otherwise",Exp("+",Exp("args","+",Exp("*",_1_OR_2,"arg")),_POSCONST))
-);
+Exp const Template::MONO_SUM =
+	Exp("+",Exp("args","+","arg"),_POSCONST);
+Exp const Template::MONO_POLY2 = 
+	Exp("+",Exp("args","+",Exp("*",_1_OR_2,"arg")),_POSCONST);
+
 static Exp const _SUMCOEFF = _0_or_1_constrain(Exp("and",_MONO,_INFL,_USED));
 Exp const Template::SUM = Exp("+",Exp("args","+",Exp("*",_SUMCOEFF,"arg")),_POSCONST);
 Exp const Template::SIMP_MAX = Exp("arity",

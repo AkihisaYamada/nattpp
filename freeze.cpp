@@ -159,6 +159,7 @@ bool Problem::freeze( bool uncurry ) & {
 				}
 				if( freezable ) {
 					ff += ']';
+					main.sig.emplace(ff,ret_args.size());// in case the symbol appeared only in rhs
 					return app(std::move(ff),std::move(ret_args));
 				}
 			}

@@ -298,7 +298,7 @@ public:
 		return ASSERTED(deriver.sig.find(f))->args[i].infl;
 	}
 	Smt::PostExp arg_used( std::string const& f, uint16_t i ) override {
-		return deriver.sig.find(f).value_or_throw(Error(f)).args[i].used;
+		return ASSERTED(deriver.sig.find(f))->args[i].used;
 	}
 };
 

@@ -140,11 +140,13 @@ static Smt::PreExp order_sub( Poly const& p1, Poly const& p2 ) {
 Smt::PreExp Poly::ge( Poly const& p2 ) const {
 	return order_sub(*this,p2) && Smt::ge((*this)[{}],p2[{}]);
 }
+Smt::PreExp Poly::gl( Poly const& p2 ) const {
+	return this->ge(p2) || p2.ge(*this);
+}
 Smt::Compare order( Poly const& p1, Poly const& p2, Smt::Solver& solver ) {
-	auto const& val = solver.let(Smt::BOOL,order_sub(p1,p2));
 	auto const& c1 = solver.expand(p1[{}]);
 	auto const& c2 = solver.expand(p2[{}]);
-	return { val && Smt::ge(c1,c2), val && Smt::gt(c1,c2) };
+	return { solver.expand(order_sub(p1,p2)) && Smt::ge(c1,c2), !Smt::eq(c1,c2) };
 }
 
 ostream& operator<<( ostream& os, Poly::Sig const& f ) {
@@ -258,9 +260,11 @@ Smt::Compare order( MPoly const& x, MPoly const& y, Smt::Solver& solver ) {
 	for( auto const& yp : y._set ){
 		Smt::PostExp some_ge = false, some_gt = false;
 		for( auto const& xp : x._set ){
-			auto [ge,gt] = order(xp,yp,solver);
-			some_ge = some_ge || ge;
-			some_gt = some_gt || gt;
+			auto sub = solver.let(Smt::BOOL,order_sub(xp,yp));
+			auto const& c1 = solver.expand(xp[{}]);
+			auto const& c2 = solver.expand(yp[{}]);
+			some_ge = some_ge || sub && Smt::ge(c1,c2);
+			some_gt = some_gt || sub && Smt::gt(c1,c2);
 		}
 		ge_all = ge_all && some_ge;
 		gt_all = gt_all && some_gt;

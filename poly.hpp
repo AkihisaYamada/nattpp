@@ -100,6 +100,7 @@ public:
 		return p1 = p1 * p2;
 	}
 	Smt::PreExp ge( Poly const& p2 ) const;
+	Smt::PreExp gl( Poly const& p2 ) const;
 	friend Poly ite( Poly const& c, Poly const& p1, Poly const& p2 );
 	friend Smt::Compare order( Poly const& p1, Poly const& p2, Smt::Solver& solver );
 	static Algebra<Template::Sym,Poly> algebra_of_range( Range ran );
@@ -127,6 +128,7 @@ public:
 	friend MPoly operator*( MPoly const& x, MPoly const& y );
 	friend MPoly& max_eq( MPoly& x, MPoly const& y );
 	Smt::PreExp ge( MPoly const& p2 ) const;
+	Smt::PreExp gl( MPoly const& p2 ) const;
 	friend Smt::Compare order( MPoly const& x, MPoly const& y, Smt::Solver& solver );
 	void memoize( Smt::Solver& solver )& {
 		for( auto& p : _set ) {

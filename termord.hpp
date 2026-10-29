@@ -298,7 +298,7 @@ public:
 		return ASSERTED(deriver.sig.find(f))->args[i].infl;
 	}
 	Smt::PostExp arg_used( std::string const& f, uint16_t i ) override {
-		return ASSERTED(deriver.sig.find(f))->args[i].used;
+		return deriver.sig.find(f).value_or_throw(Error(f)).args[i].used;
 	}
 };
 
@@ -307,6 +307,7 @@ struct PathOrder final : MemoizedTermOrder {
 		struct Straight {};
 		struct Mapped {
 			uint16_t post_arity;
+			bool collapsible;
 		};
 	private:
 		Sum<Straight,Mapped> _sum;
@@ -314,8 +315,8 @@ struct PathOrder final : MemoizedTermOrder {
 		Status( Straight const& ) : _sum(Straight()) {}
 		Status( Mapped b ) : _sum(b) {}
 		bool is_straight() { return (bool)_sum.ref<Straight>(); }
-		Opt<uint16_t> post_arity() {
-			return _sum.ref<Mapped>() >>= [&]( auto b )->Opt<uint16_t>{ return {b.post_arity}; };
+		Opt<Mapped> mapped() {
+			return _sum.ref<Mapped>();
 		}
 	};
 	struct StatusFun {
@@ -368,25 +369,20 @@ public:
 
 extern Exp const SUM_SPEC, LPO_SPEC, LPO3_SPEC;
 
-template<typename F, typename T>
-Smt::Compare lex_compare( F const& comp, std::vector<T> const& ls, std::vector<T> const& rs ) {
-	auto all_ge = Smt::TRUE, gt = Smt::FALSE;
-	auto ln = ls.size();
-	auto rn = rs.size();
-	for( uint16_t i = 0;; i++ ) {
-		if( i == ln ) {
-			if( i == rn ) {
-				return { gt || all_ge, gt };
-			} else {
-				return { gt, gt };
-			}
-		} else if( i == rn ) {
-			return { gt || all_ge, gt || all_ge };
-		}
-		auto const& c = comp(ls[i],rs[i]);
-		gt = gt || (all_ge && c.gt);
-		all_ge = all_ge && c.ge;
+template<typename F, typename I>
+Smt::Compare lex_compare( F const& comp, I const& lit, I const& lend, I const& rit, I const& rend ) {
+	if( lit == lend ) {// lhs is empty
+		if( rit == rend ) return {true,false};// rhs is also empty
+		return {false,true};// rhs is longer
 	}
+	if( rit == rend ) return {true,true};// lhs is longer: >= is enough for >
+	auto const& [ge,nle] = comp(*lit,*rit);
+	auto const& [rest_ge,rest_nle] = lex_compare(comp,lit+1,lend,rit+1,rend);
+	return {ge && (nle || rest_ge), nle || rest_nle};
+}
+template<typename F, typename C>
+Smt::Compare lex_compare( F const& comp, C const& ls, C const& rs ) {
+	return lex_compare(comp,ls.begin(),ls.end(),rs.begin(),rs.end());
 }
 
 template<typename F, typename T>
@@ -398,37 +394,40 @@ Smt::Compare mapped_lex_compare(
 	std::function<Smt::PostExp(uint16_t,uint16_t)> const& lmap,
 	std::function<Smt::PostExp(uint16_t,uint16_t)> const& rmap,
 	std::vector<T> const& ls,
-	std::vector<T> const& rs
+	std::vector<T> const& rs,
+	uint16_t k = 0
 ) {
-	auto all_ge = Smt::TRUE, gt = Smt::FALSE;
 	auto lin = ls.size();
 	auto rin = rs.size();
-	for( uint16_t k = 0;; k++ ) {
-		auto const& locck = locc(k);
-		auto const& rocck = rocc(k);
-		all_ge = solver.let(Smt::BOOL,all_ge);
-		if( locck == false ) {// lhs has no more post arguments
-			gt = solver.let(Smt::BOOL,gt);
-			return { gt || !rocck && all_ge, gt };
-		} else if( rocck == false ) {// rhs has no more post arguments
-			gt = solver.let(Smt::BOOL,gt);
-			return { gt || !locck && all_ge, gt || locck && all_ge };
-		}
-		gt = gt || (all_ge &&
-			Smt::PostExp::disj( 0, lin, [&]( uint16_t const& i ){
-				return lmap(i,k) && Smt::PostExp::conj( 0, rin, [&]( uint16_t const& j ){// notice: [l] > []
-					return rmap(j,k).imp(comp(ls[i],rs[j]).gt);
-				} );
-			} )
-		);
-		all_ge = all_ge && (!locck && !rocck ||// [] >= []
-			Smt::PostExp::disj( 0, lin, [&]( uint16_t const& i ){// [l] >= [r]
-				return lmap(i,k) && Smt::PostExp::disj( 0, rin, [&]( uint16_t const& j ){
-					return rmap(j,k) && comp(ls[i],rs[j]).ge;
-				} );
-			} )
-		);
+	auto const& locck = locc(k);
+	auto const& rocck = rocc(k);
+	if( locck == false ) {// lhs has no more post arguments
+		return { !rocck, false };// ge iff rhs is empty, and never strict
 	}
+	if( rocck == false ) {// rhs has no more post arguments
+		return {true,locck};// always ge, and strict if lhs is nonempty
+	}
+	auto k_ge =
+		Smt::PostExp::disj( 0, lin, [&]( uint16_t const& i ){// [l] >= [r]
+			return lmap(i,k) && Smt::PostExp::disj( 0, rin, [&]( uint16_t const& j ){
+				return rmap(j,k) && comp(ls[i],rs[j]).ge;
+			} );
+		} );
+	if( k_ge == false ) {// k-th element cannot be ordered -- is it possible?
+		return {!rocck, rocck || locck}; // ge iff rhs is empty, and str if not both are empty
+	}
+	auto k_str = solver.let( Smt::BOOL,
+		Smt::PostExp::disj( 0, lin, [&]( uint16_t const& i ){
+			return lmap(i,k) && Smt::PostExp::conj( 0, rin, [&]( uint16_t const& j ){// notice: [l] > []
+				return rmap(j,k).imp(comp(ls[i],rs[j]).str);
+			} );
+		} )
+	);
+	auto [rest_ge,rest_str] = mapped_lex_compare(solver,comp,locc,rocc,lmap,rmap,ls,rs,k+1);
+	return {
+		k_ge && (k_str || rest_ge),// l_0,l_1... ≥ r_0,r_1... <==> l_0 ≥ r_0 && (l_0 ≠ r_0 || l_1... ≥ r_1...)
+		k_str || rest_str
+	};
 }
 
 #endif

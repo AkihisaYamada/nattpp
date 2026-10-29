@@ -289,7 +289,7 @@ public:
 	static PostExp car( PostExp const& arg );
 	static PostExp cdr( PostExp const& arg );
 	struct Compare {
-		PostExp ge, gt;
+		PostExp ge, str;
 	};
 	class PreExp {
 		friend Smt;
@@ -508,7 +508,7 @@ public:
 			return let(_logic._base_sort,expand(val));
 		}
 		Compare let( Compare const& val ) & {
-			return Smt::Compare( let(Smt::BOOL,val.ge),let(Smt::BOOL,val.gt));
+			return Smt::Compare( let(Smt::BOOL,val.ge),let(Smt::BOOL,val.str));
 		}
 		Solver& ass( PostExp const& e ) &;
 		Solver& ass( PreExp const& p ) & {
@@ -610,7 +610,7 @@ std::ostream& operator<<( std::ostream& os, Smt::Rat const& r );
 std::ostream& operator<<( std::ostream& os, Smt::Val const& v );
 std::ostream& operator<<( std::ostream& os, Smt::Fun const& f );
 inline std::ostream& operator<<( std::ostream& os, Smt::Compare const& c ) {
-	return os << '{' << c.ge << ", " << c.gt << '}';
+	return os << '{' << c.ge << ", " << c.str << '}';
 }
 
 inline std::ostream& operator<<( std::ostream& os, Sum<std::string,Smt::PostExp> const& sum ){

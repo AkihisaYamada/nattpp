@@ -53,8 +53,8 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 	if( _log & DEBUG ) cerr << "; prec " << f << ": " << prec << endl;
 	uint16_t arity = rank.arity;
 	Status status = _status.fun(rank);
-	if( auto post_arity_opt = status.post_arity() ) {
-		uint16_t post_arity = *post_arity_opt;
+	if( auto map_opt = status.mapped() ) {
+		uint16_t post_arity = map_opt->post_arity;
 		if( post_arity == 0 ) {// empty status
 			_info.emplace(f,_SymInfo{
 				.arity = arity,
@@ -69,7 +69,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 			});
 		} else {
 			std::vector<Smt::PostExp> used_tbl;
-			auto collapse = sol.declare_const(fesc+"_c",Smt::BOOL);
+			Smt::PostExp collapse = map_opt->collapsible ? sol.declare_const(fesc+"_c",Smt::BOOL) : false;
 			if( _log & DEBUG ) cerr << "; collapse[" << f << "] => trivial weight" << endl;
 			sol.ass(collapse.imp(_weight->fun_triv(f)));
 			std::vector<Smt::PostExp> mapped_tbl;
@@ -160,8 +160,8 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 }
 
 Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
-	auto const& [wge,wgt] = _weight->compare(l,r);
-	if( wge == false ) {
+	auto const& [w_ge,w_str] = _weight->compare(l,r);
+	if( w_ge == false ) {
 		return {false,false};
 	}
 	auto const& [lf,largs] = *l;
@@ -169,82 +169,81 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 	if( !linfo ) {// x >=? t
 		auto const& [rf,rargs] = *r;
 		if( auto const& rinfo = _info.find(rf) ) {// x >=? g(t...)
-			Smt::PostExp ge_all_arg = true, gt_all_arg = true;
+			Smt::PostExp ge_all_arg = true, str_all_arg = true;
 			for( uint16_t j = 0; j < rinfo->arity; j++ ) {
-				auto const& [gej,gtj] = compare(l,rargs[j]);// just to invoke memoization
-				ge_all_arg = ge_all_arg && rinfo->mapped(j).imp(gej);
-				gt_all_arg = gt_all_arg && rinfo->mapped(j).imp(gtj);
+				auto const& [j_ge,j_str] = compare(l,rargs[j]);// just to invoke memoization
+				ge_all_arg = ge_all_arg && rinfo->mapped(j).imp(j_ge);
+				str_all_arg = str_all_arg && rinfo->mapped(j).imp(j_str);
 			}
 			return {
-				wge && (
+				w_ge && (
 					rinfo->collapse && ge_all_arg ||// g is collapsed
 					Smt::eq(0,rinfo->prec) && rinfo->empty// g is least and no t_j survives
 				),
-				wgt || rinfo->collapse && gt_all_arg
+				w_str || rinfo->collapse && str_all_arg
 			};
 		} else {// x >=? y
-			return {l == r, false};
+			return {l == r, false};// variables must be identical, gl cannot be ensured
 		}
 	}
 	// f(s...) >=? t
 	auto const& [rf,rargs] = *r;
 	auto& sol = solver();
 	Smt::PostExp some_arg_ge = false;
-	Smt::PostExp some_arg_gt = false;
+	Smt::PostExp some_arg_str = false;
 	for( uint16_t i = 0; i < largs.size(); i++ ) {
 		auto const& i_mapped = linfo->mapped(i);
 //			if( i_mapped == false ) break;
-		auto const& [i_ge,i_gt] = compare(largs[i],r);
+		auto const& [i_ge,i_str] = compare(largs[i],r);
 		some_arg_ge = some_arg_ge || i_mapped && i_ge;// s_i survives and s_i ≥ t
-		some_arg_gt = some_arg_gt || i_mapped && i_gt;
+		some_arg_str = some_arg_str || i_mapped && i_str;
 	}
 	auto const& rinfo = _info.find(rf);
 	if( !rinfo ) {// f(s..) >=? y
-		some_arg_ge = sol.let(Smt::BOOL,some_arg_ge);
-		auto const& gt = sol.let( Smt::BOOL,
-			wgt || linfo->collapse && some_arg_gt || !linfo->collapse && some_arg_ge
-		);
-		return { gt || some_arg_ge, gt };
+		return { some_arg_ge,
+			w_str || linfo->collapse.imp(some_arg_str)// if f is collapsed, s = y is weak
+		};
 	}
 	// f(s...) >=? g(t...)
-	Smt::PostExp gt_all_arg = true;
 	Smt::PostExp ge_all_arg = true;
+	Smt::PostExp str_all_arg = true;
 	for( uint16_t j = 0; j < rargs.size(); j++ ) {
 		auto const& j_mapped = rinfo->mapped(j);
 //				if( j_mapped == false ) break;
-		auto const& [ge_j,gt_j] = compare(l,rargs[j]);
+		auto const& [ge_j,str_j] = compare(l,rargs[j]);
 		ge_all_arg = ge_all_arg && j_mapped.imp(ge_j);
-		gt_all_arg = gt_all_arg && j_mapped.imp(gt_j); // if t_j survives, then s > t_j is prerequisite
+		str_all_arg = str_all_arg && j_mapped.imp(str_j); // if t_j survives, then s > t_j is prerequisite
 	}
-	if( gt_all_arg == false ) return { false, false };
-	auto const& [pge,pgt] = order(linfo->prec,rinfo->prec);
-	auto const& [args_ge,args_gt] = mapped_lex_compare(
+	if( ge_all_arg == false ) return { false, false };
+	auto const& [p_ge,p_str] = order(linfo->prec,rinfo->prec);
+	auto const& [args_ge,args_str] = mapped_lex_compare(
 		sol, [&]( auto const& x, auto const& y ){ return compare(x,y); },
 		linfo->occupied, rinfo->occupied, linfo->map, rinfo->map, largs, rargs
 	);
 	if( _log & DEBUG ) {
-		cerr << "; path_order: arguments [" << print_list(largs) << "] >=? [" << print_list(rargs) << "] = {" << args_ge << ", " << args_gt << '}' << endl;
+		cerr << "; path_order: arguments [" << print_list(largs) << "] >=? [" << print_list(rargs) << "] = {" << args_ge << ", " << args_str << '}' << endl;
 	}
 	some_arg_ge = sol.let(Smt::BOOL,some_arg_ge);
-	gt_all_arg = sol.let(Smt::BOOL,gt_all_arg);
-	auto const& gt = sol.let( Smt::BOOL,
-		wgt ||
-		wge && (
-			some_arg_gt ||
-			(!linfo->collapse && (
-				some_arg_ge ||
-					(gt_all_arg &&
-					( rinfo->collapse || pgt || ( pge && args_gt ) ))
-			))
+	str_all_arg = sol.let(Smt::BOOL,str_all_arg);
+	auto const& ge = sol.let( Smt::BOOL,
+		w_ge && (
+			w_str ||
+			some_arg_ge ||
+			ge_all_arg && (
+				rinfo->collapse ||// s ≥ t_j is enough if g is collapsed
+				str_all_arg &&// s > t_j is required if g survives
+				// compare precedence if f and g survive
+				!linfo->collapse && !rinfo->collapse && p_ge && (p_str || args_ge)
+			)
 		)
 	);
-	auto const& ge = sol.let( Smt::BOOL,
-		gt ||
-		(linfo->collapse && some_arg_ge) ||
-		(rinfo->collapse && ge_all_arg) ||
-		(!linfo->collapse && !rinfo->collapse && wge && gt_all_arg && pge && args_ge)
+	auto const& str = sol.let( Smt::BOOL,
+		w_str ||// w(s) > w(t)
+		some_arg_ge && linfo->collapse.imp(some_arg_str) ||// s_i > t
+		rinfo->collapse && str_all_arg ||
+		!linfo->collapse && !rinfo->collapse && (p_str || args_str)
 	);
-	return {ge,gt};
+	return {ge,str};
 }
 
 std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sym ) {
@@ -252,7 +251,7 @@ std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sy
 	assert(info);
 	auto& sol = solver();
 	os << " :prec " << sol.get_value(info->prec);
-	if( auto post_arity = info->status.post_arity(); post_arity && *post_arity > 0 ) {
+	if( auto mapped = info->status.mapped(); mapped && mapped->post_arity > 0 ) {
 		auto f = [&]( string_view const& prefix, uint16_t k ){
 			uint16_t i = 0;
 			for(;;){
@@ -260,26 +259,35 @@ std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sy
 					return false;
 				}
 				if( solver().get_value(info->map(i,k)).as_bool() ) {
-					os << prefix << i+1;
+					os << prefix << i;
 					return true;
 				}
 				i++;
 			}
 		};
 		if( sol.get_value(info->collapse).as_bool() ) {
-			os << " :collapse (";
+			os << " :collapse ";
+			f("",0);
 		} else {
 			os << " :map (";
+			f("",0);
+			for( uint16_t k = 1; f(" ",k); k++ );
+			os << ')';
 		}
-		f("",0);
-		for( uint16_t k = 1; f(" ",k); k++ );
-		os << ')';
 	}
 	return os << _weight->print_sym_info(sym);
 }
 
 PathOrder::StatusFun PathOrder::StatusFun::of( Exp const& x ) {
 	size_t n = 0;
+	Opt<bool> collapsible;
+	Exp::KeyValProc collapse_key = [&]( auto const& key, Exp const& val ){
+		if( key == "collapse" ) {
+			collapsible = {val.as_bool()};
+			return true;
+		}
+		return false;
+	};
 	if( x.fun() == "straight" ) {
 		x.get_end(n);
 		return StatusFun([](auto){ return Status::Straight(); });
@@ -291,8 +299,9 @@ PathOrder::StatusFun PathOrder::StatusFun::of( Exp const& x ) {
 		} else {
 			num = -1;
 		}
-		return StatusFun([num]( Trs::Rank const& rank ){
-			return Status::Mapped( num == -1 ? rank.arity : rank.arity ? num : 0 );
+		x.process_keys(n,collapse_key);
+		return StatusFun([num,collapsible]( Trs::Rank const& rank ){
+			return Status::Mapped( num == -1 ? rank.arity : rank.arity ? num : 0, collapsible.value_or(true) );
 		});
 	}
 	throw Error("#malformed-status",x);
@@ -531,6 +540,6 @@ void TermOrder::test() {
 		)
 	);
 	lpo->extend_sig(sig,{});
-	cout << lpo->rule_compare(0,{"+","x","y"},{"x"}).gt << endl;
+	cout << lpo->rule_compare(0,{"+","x","y"},{"x"}) << endl;
 
 }

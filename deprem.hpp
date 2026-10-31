@@ -7,14 +7,19 @@
 bool order_some_rule(
 	TrsOrder& order,
 	Trs::Rules const& rules,
-	std::function<void(std::vector<size_t>&&)> f
+	std::function<void(std::vector<ruleId>&&)> f
 );
 
-bool order_some_dp(
+/**
+ * @param callback(edges,usables) is called, where edges contain
+ * - `{i,{}}` if DP i is oriented
+ * - `{i,{j,...}}` if edges i->j ... are separated
+ */
+bool order_some_dp_or_edge(
 	UsableRuleOrder& order,
-	Problem const& p,
-	Trs::Rules const& dps,
-	std::function<void(std::vector<size_t>&&,std::vector<size_t>&&)> const& f
+	Problem const& problem,
+	Problem::Component const& component,
+	std::function<void(std::vector<std::pair<ruleId,std::vector<ruleId>>>&&,std::vector<ruleId>&&)> const& callback
 );
 
 #endif

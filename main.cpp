@@ -5,7 +5,6 @@
 #include"termord.hpp"
 #include"deprem.hpp"
 #include"graph.hpp"
-#include"reach.hpp"
 #include"mset.hpp"
 
 using namespace std;
@@ -219,16 +218,8 @@ int main( int argc, char* argv[] ) try {
 	} else if( mode == SOME ) {
 		use_dp = false;
 	} else if( p.mode == Problem::SAT ) {
-		for( auto const& component : p.components ) {
-			for( auto const& [i,pair] : component.nodes ) {
-				if( may_reach(p.main,pair.first,pair.second,8,true) ) {
-					cout << "unknown" << endl;
-					exit(1);
-				}
-			}
-		}
-		cout << "unsat" << endl;
-		exit(0);
+		cout << "Unsupported!" << endl;
+		exit(-1);
 	}
 
 	Set<std::string> heuristic;// TODO: improve
@@ -248,13 +239,13 @@ int main( int argc, char* argv[] ) try {
 				if( print_steps ) cerr << "; trying freezing..." << endl;
 				if( p.freeze( allow_freezing == FreezingMode::UNCURRY ) ) {
 					if( print_freezed ) {
-						Trs::print_sig(*prf << "(freeze",p.main.sig,"\n  ");
-						Trs::print_rules(*prf,p.main.rules,"\n  ") << ')' << endl;
+						Trs::print_sig(*prf << "(freeze",p.sig,"\n  ");
+						Trs::print_rules(*prf,p.rules,"\n  ") << ')' << endl;
 					}
 				}
 			}
 			// compute max-sum heuristic. TODO: improve
-			_max_sum_heuristic(heuristic,p.main.sig,p.main.rules);
+//			_max_sum_heuristic(heuristic,p.sig,p.rules);
 			// rule removal loop
 			vector<pair<int,unique_ptr<TrsOrder>>> rule_removers;
 			for( auto x : rulerem_specs ) {
@@ -264,36 +255,42 @@ int main( int argc, char* argv[] ) try {
 				auto& [stage,ord] = pair;
 				if( print_steps ) cerr << "; trying " << ord->print_name() << "... " << endl;
 				if( stage < 1 ) {// initialize for signature
-					ord->extend_sig(p.main.sig,heuristic);
+					ord->extend_sig(p.sig,heuristic);
 					stage = 1;
 				}
-				return order_some_rule(*ord,p.main.rules,[&](auto&&rem){
+				return order_some_rule(*ord,p.rules,[&](auto&&rem){
 					if( print_proofs )
-						*prf << "(remove-rule\n  " << ord->print(p.main.sig) << "\n " << print_list(rem) << ')' << endl;
-					for( uint32_t i : rem ) {
-						p.main.erase_rule(i);
+						*prf << "(remove-rule\n  " << ord->print(p.sig) << "\n " << print_list(rem) << ')' << endl;
+					for( ruleId i : rem ) {
+						p.erase_rule(i);
 					}
 				});
 			};
 			do {
-				if( p.main.rules.empty() ) throw Answer::YES;
+				if( p.rules.empty() ) throw Answer::YES;
 				if( std::ranges::any_of(rule_removers,rule_removes) ) continue;
 			} while(0);
 
 			if( !use_dp ) throw Answer::MAYBE;
 
-			if( print_proofs ) *prf << "(make_dp)" << endl;
+			if( print_steps ) cerr << "; taking dependency pairs" << endl;
 			p.make_dps();// compute DPs
+			if( print_proofs ) {
+				*prf << "(dps" << endl;
+				for( auto [i,js] : p.components.front().graph ) {
+					auto [l,r,w] = *ASSERTED(p.rules.find(i));
+					*prf << " (dp " << l << ' ' << r << " :number " << i;
+					if( print_dg ) *prf << "\n  :edges (" << print_list(js) << ')';
+					*prf << ')' << endl;
+				}
+				*prf << ')' << endl;
+			}
 			// compute max-sum heuristic of dps. TODO: improve
-			_max_sum_heuristic(heuristic,p.main.sig,p.components[0].nodes);
-			if( print_maxsym ) cerr << "; max symbols: " << print_list(heuristic) << endl;
-			if( print_dp ) cerr << p << endl;
+//			_max_sum_heuristic(heuristic,p.sig,p.components[0].nodes);
+//			if( print_maxsym ) cerr << "; max symbols: " << print_list(heuristic) << endl;
 			if( print_usables ) {
 				cerr << "(uses_graph" << ConstGraph(p.uses_map).print_nodes("\n  ") << ')' << endl;
 				cerr << "(usables" << ConstGraph(p.usable_graph).print_nodes("\n  ") << ')' << endl;
-			}
-			if( print_dg ) {
-				cerr << "(dependency-graph" << ConstGraph(p.components.front().graph).print_nodes("\n  ") << ')' << endl;
 			}
 			// SCC decomposition
 			p.decomp_sccs();
@@ -301,42 +298,58 @@ int main( int argc, char* argv[] ) try {
 				if( print_steps ) cerr << "; no SCC" << endl;
 				throw Answer::YES;
 			}
-			if( print_proofs ) *prf << "(scc" << p.components.front().nodes << ')' << endl;
+			if( print_proofs ) {
+				*prf << "(scc";
+				for( auto const& [i,js] : p.components.front().graph ) {
+					*prf << " (node " << i << " (" << print_list(js) << "))";
+				}
+				*prf << ')' << endl;
+			}
 		}
 		uint32_t target_ind = 2;
 		auto dp_removes = [&]( pair<int,unique_ptr<UsableRuleOrder>>& pair ){
-			auto& [subcomp,subgraph] = p.components.front();
+			auto& comp = p.components.front();
 			auto& [stage,ord] = pair;
 			if( print_steps ) cerr << "; trying " << ord->print_name() << "... " << endl;
 			if( stage == 0 ) {
-				ord->extend_sig(p.main.sig,heuristic);
+				ord->extend_sig(p.sig,heuristic);
 				stage = 1;
 			}
-			return order_some_dp(*ord,p,subcomp,[&]( auto&& rem, auto const& usables ){
+			return order_some_dp_or_edge(*ord,p,comp,[&]( auto&& rem, auto&& usables ){
 				if( print_proofs ) {
 					*prf << "(remove-dp\n  (" << ord->print_name();
-					auto pr_sym = [&]( auto const& f ) {
+					for( auto [f,rank] : p.sig ) {
 						*prf << "\n    (" << f << ord->print_sym_info(f) << ')';
 					};
-					for( auto [f,rank] : p.main.sig ) pr_sym(f);
-					*prf << ")\n  " << print_list(rem) << "\n  :usables (" << print_list(usables) << "))" << endl;
+					*prf << ")\n ";
 				}
-				for( uint32_t i : rem ) {
-					subcomp.erase(i);
+				for( auto [i,js] : rem ) {
+					if( js.empty() ) {
+						comp.graph.erase(i);
+						if( print_proofs ) *prf << ' ' << i;
+					} else {
+						auto& tgts = comp.graph[i];
+						for( auto j : js ) tgts.erase(j);
+						if( print_proofs ) *prf << " (edges " << i << " (" << print_list(js) << "))";
+					}
 				}
+				if( print_proofs ) *prf << "\n  :usables (" << print_list(usables) << "))" << endl;
 			});
 		};
 
 		vector<pair<int,unique_ptr<UsableRuleOrder>>> dp_removers;
 		for( auto x : dprem_specs ) {
-			dp_removers.emplace_back(0,UsableRuleOrder::make(p.main,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log))));
+			dp_removers.emplace_back(0,UsableRuleOrder::make(p,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log))));
 		}
+		auto print_component = print_proofs ? function([&](){
+			*prf << "(scc" << print_list(p.components.front().graph,[]( auto const& node ){ return node.first; }) << ')' << endl;
+		}) : [](){};
 		for(;;) {
-			if( p.components.front().nodes.empty() ) {
+			if( p.components.front().graph.empty() ) {
 				p.components.pop_front();
 				target_ind++;
 				if( p.components.empty() ) throw Answer::YES;
-				if( print_proofs ) *prf << "(scc" << p.components.front().nodes << ')' << endl;
+				print_component();
 				continue;
 			}
 			if( std::ranges::any_of(dp_removers,dp_removes) ) {
@@ -346,7 +359,7 @@ int main( int argc, char* argv[] ) try {
 					if( print_steps ) cerr << "; no more SCC" << endl;
 					throw Answer::YES;
 				}
-				if( print_proofs ) *prf << "(scc" << p.components.front().nodes << ')' << endl;
+				print_component();
 				continue;
 			}
 			throw Answer::MAYBE;
@@ -360,19 +373,19 @@ int main( int argc, char* argv[] ) try {
 			cout << "MAYBE" << endl;
 			if( print_on_fail ) {
 				if( p.mode == Problem::DP ) {
-					auto usables = Set<uint32_t>();
+					auto usables = Set<ruleId>();
 					for( auto const& comp : p.components ) {
-						for( auto const& [i,dp] : comp.nodes ) {
+						for( auto const& [i,dp] : comp.graph ) {
 							for( auto const& u : **ASSERTED(p.usable_graph.find(i)) ) {
 								usables.emplace(u);
 							}
 						}
 					}
-					for( auto it = p.main.rules.begin(); it != p.main.rules.end(); ) {
+					for( auto it = p.rules.begin(); it != p.rules.end(); ) {
 						if( usables.contains(it->first) ) {
 							it++;
 						} else {
-							it = p.main.rules.erase(it);
+							it = p.rules.erase(it);
 						}
 					}
 				}

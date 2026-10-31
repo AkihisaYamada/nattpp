@@ -168,23 +168,24 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 	auto const& linfo = _info.find(lf);
 	if( !linfo ) {// x >=? t
 		auto const& [rf,rargs] = *r;
-		if( auto const& rinfo = _info.find(rf) ) {// x >=? g(t...)
-			Smt::PostExp ge_all_arg = true, str_all_arg = true;
-			for( uint16_t j = 0; j < rinfo->arity; j++ ) {
-				auto const& [j_ge,j_str] = compare(l,rargs[j]);// just to invoke memoization
-				ge_all_arg = ge_all_arg && rinfo->mapped(j).imp(j_ge);
-				str_all_arg = str_all_arg && rinfo->mapped(j).imp(j_str);
-			}
-			return {
-				w_ge && (
-					rinfo->collapse && ge_all_arg ||// g is collapsed
-					Smt::eq(0,rinfo->prec) && rinfo->empty// g is least and no t_j survives
-				),
-				w_str || rinfo->collapse && str_all_arg
-			};
-		} else {// x >=? y
-			return {l == r, false};// variables must be identical, gl cannot be ensured
+		auto const& rinfo = _info.find(rf);
+		if( !rinfo ) {// x >=? y
+			return { l == r, false };// variables must be identical, gl cannot be ensured
 		}
+		// x >=? g(t...)
+		Smt::PostExp ge_all_arg = true, str_all_arg = true;
+		for( uint16_t j = 0; j < rinfo->arity; j++ ) {
+			auto const& [j_ge,j_str] = compare(l,rargs[j]);
+			ge_all_arg = ge_all_arg && rinfo->mapped(j).imp(j_ge);
+			str_all_arg = str_all_arg && rinfo->mapped(j).imp(j_str);
+		}
+		return {
+			w_ge && (
+				rinfo->collapse && ge_all_arg ||// g is collapsed
+				Smt::PostExp(0).eq(rinfo->prec) && rinfo->empty// g is least and no t_j survives
+			),
+			w_str || rinfo->collapse && str_all_arg
+		};
 	}
 	// f(s...) >=? t
 	auto const& [rf,rargs] = *r;
@@ -215,7 +216,7 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 		str_all_arg = str_all_arg && j_mapped.imp(str_j); // if t_j survives, then s > t_j is prerequisite
 	}
 	if( ge_all_arg == false ) return { false, false };
-	auto const& [p_ge,p_str] = order(linfo->prec,rinfo->prec);
+	auto const& p_ge = linfo->prec.ge(rinfo->prec), p_str = !linfo->prec.eq(rinfo->prec);
 	auto const& [args_ge,args_str] = mapped_lex_compare(
 		sol, [&]( auto const& x, auto const& y ){ return compare(x,y); },
 		linfo->occupied, rinfo->occupied, linfo->map, rinfo->map, largs, rargs
@@ -244,6 +245,64 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 		!linfo->collapse && !rinfo->collapse && (p_str || args_str)
 	);
 	return {ge,str};
+}
+
+Smt::PostExp PathOrder::separate_inner( Exp const& l, Exp const& r ) {
+	auto const& w_sep = _weight->separate(l,r);
+	if( w_sep == true ) {
+		return true;
+	}
+	auto const& [lf,largs] = *l;
+	auto const& linfo = _info.find(lf);
+	if( !linfo ) {// x <>? t
+		auto const& [rf,rargs] = *r;
+		auto const& rinfo = _info.find(rf);
+		if( !rinfo ) {// x <> y cannot be ensured
+			return false;
+		}
+		// x <>? g(t...)
+		Smt::PostExp sep_all_arg = true;
+		for( uint16_t j = 0; j < rinfo->arity; j++ ) {
+			sep_all_arg = sep_all_arg && rinfo->mapped(j).imp(separate(l,rargs[j]));
+		}
+		return w_sep || rinfo->collapse && sep_all_arg;
+	}
+	// f(s...) <>? t
+	auto const& [rf,rargs] = *r;
+	auto& sol = solver();
+	Smt::PostExp some_arg_ge = false;
+	Smt::PostExp some_arg_str = false;
+	for( uint16_t i = 0; i < largs.size(); i++ ) {
+		auto const& i_mapped = linfo->mapped(i);
+//			if( i_mapped == false ) break;
+		auto const& [i_ge,i_str] = compare(largs[i],r);
+		some_arg_ge = some_arg_ge || i_mapped && i_ge;// s_i survives and s_i ≥ t
+		some_arg_str = some_arg_str || i_mapped && i_str;
+	}
+	auto const& rinfo = _info.find(rf);
+	if( !rinfo ) {// f(s..) <> y
+		return w_sep || linfo->collapse.imp(some_arg_str);// if f is collapsed
+	}
+	// f(s...) <>? g(t...)
+	Smt::PostExp sep_all_arg = true;
+	for( uint16_t j = 0; j < rargs.size(); j++ ) {
+		auto const& j_mapped = rinfo->mapped(j);
+//				if( j_mapped == false ) break;
+		sep_all_arg = sep_all_arg && j_mapped.imp(separate(l,rargs[j])); // if t_j survives, then s > t_j is prerequisite
+	}
+	auto const& p_sep = !linfo->prec.eq(rinfo->prec);
+	auto const& args_sep = mapped_lex_separate(
+		sol, [&]( auto const& x, auto const& y ){ return separate(x,y); },
+		linfo->occupied, rinfo->occupied, linfo->map, rinfo->map, largs, rargs
+	);
+	if( _log & DEBUG ) {
+		cerr << "; path_order separate: arguments [" << print_list(largs) << "] != [" << print_list(rargs) << "] = " << args_sep << endl;
+	}
+	return
+		w_sep ||// w(s) > w(t)
+		some_arg_ge && linfo->collapse.imp(some_arg_str) ||// s_i ≥ t && (if f collapses then s_i > t)
+		rinfo->collapse && sep_all_arg ||
+		!linfo->collapse && !rinfo->collapse && (p_sep || args_sep);
 }
 
 std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sym ) {
@@ -322,13 +381,28 @@ int TermOrder::log_of( Exp const& x ) {
 	}
 }
 
-Smt::Compare TrsOrder::_Wrapper::rule_compare( size_t i, Trs::Term const& l, Trs::Term const& r ) {
-	if( auto const& opt = _rule_order_table.find(i) ) return *opt;
+Smt::Compare TrsOrder::_Wrapper::rule_compare( ruleId i, Trs::Term const& l, Trs::Term const& r ) {
+	if( auto const& opt = _rule_compare_cache.find(i) ) return *opt;
 	Smt::Solver& sol = _ref->solver();
 	if( log() & RULE ) cerr << "; " << _ref->print_name() << ": (rule-n " << i << ' ' << l << ' ' << r << ')' << endl;
 	auto [ge,gt] = _ref->compare(l,r);
 	Smt::Compare ret = {sol.let(Smt::BOOL,ge),sol.let(Smt::BOOL,gt)};
-	_rule_order_table.emplace(i,ret);
+	_rule_compare_cache.emplace(i,ret);
+	return ret;
+}
+Smt::PostExp TrsOrder::_Wrapper::edge_separate( ruleId i, ruleId j, Problem const& p ) {
+	_DgNodeCache& node_cache = _edge_separate_cache.find(i).value_or([&]->_DgNodeCache&{
+		auto src = ASSERTED(p.rules.find(i))->second.map(// register renamed the rhs of the source DP
+			[&]( auto const& f ){ return p.sig.find(f) ? f : std::string("`")+f; }
+		);
+		return _edge_separate_cache.emplace(i,_DgNodeCache{src}).first;
+	}());
+	if( auto const& cache = node_cache.tgts.find(j) ) {
+		return *cache;
+	}
+	auto sep = _ref->separate(node_cache.src,ASSERTED(p.rules.find(j))->first);
+	auto ret = _ref->solver().let(Smt::BOOL,sep);
+	node_cache.tgts.emplace(j,ret);
 	return ret;
 }
 
@@ -336,7 +410,7 @@ Smt::PostExp UsableRuleOrder::_Wrapper::term_used( Trs::Term const& r ) & {
 	auto const& [g,rs] = *r;
 	auto ret = Smt::PostExp::conj(0,rs.size(),[&]( uint16_t p ){ return arg_used(g,p).imp(term_used(rs[p])); } );
 	if( auto const& ginfo = _trs.sig.find(g) ) {
-		return ret && Smt::PostExp::conj( ginfo->defined_by, [&]( uint16_t i )->Smt::PostExp{
+		return ret && Smt::PostExp::conj( ginfo->defined_by, [&]( ruleId i )->Smt::PostExp{
 			if( auto const& rule = _trs.rules.find(i) )
 				if( may_reach(_trs,r,rule->first,8,false) ) {//TODO
 					if( log() & USE ) cerr << "; " << r << " uses " << i << endl;
@@ -348,7 +422,7 @@ Smt::PostExp UsableRuleOrder::_Wrapper::term_used( Trs::Term const& r ) & {
 		return ret;
 	}
 }
-Smt::PostExp UsableRuleOrder::_Wrapper::rule_used( size_t i ) & {
+Smt::PostExp UsableRuleOrder::_Wrapper::rule_used( ruleId i ) & {
 	if( auto const& ret = _usable_table.find(i) ) {
 		return *ret;
 	}
@@ -527,8 +601,8 @@ void TermOrder::test() {
 	auto x = z3.declare_const("x",Smt::INT);
 	auto y = z3.declare_const("y",Smt::INT);
 	auto z = z3.declare_const("z",Smt::INT);
-	cout << lex_compare(order,vector{x,y},{x,z}).ge << endl;
-	cout << lex_compare(order,vector{x},{x,z}).ge << endl;
+	cout << lex_compare([]( auto& l, auto& r ){ return l.compare(r); },vector{x,y},{x,z}).ge << endl;
+	cout << lex_compare([]( auto& l, auto& r ){ return l.compare(r); },vector{x},{x,z}).ge << endl;
 
 	Trs::Sig sig = {{"+",{2}}};
 
@@ -540,6 +614,6 @@ void TermOrder::test() {
 		)
 	);
 	lpo->extend_sig(sig,{});
-	cout << lpo->rule_compare(0,{"+","x","y"},{"x"}) << endl;
+	cout << lpo->rule_compare(ruleId(0),{"+","x","y"},{"x"}) << endl;
 
 }

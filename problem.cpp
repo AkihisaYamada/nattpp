@@ -19,21 +19,21 @@ static void _switch(
 		it->second();
 	}
 }
-void Problem::insert_rule( Trs::Rules& rules, Trs::Rule const& rule, uint32_t rule_ind ) & {
+void Problem::insert_rule( Trs::Rule const& rule, ruleId rule_ind ) & {
 	auto [ref,fl] = rules.emplace(rule_ind,rule);
 	if( !fl ) throw Error("#duplicate-rule-no",to_string(rule_ind));
 	next_rule = std::max(next_rule,rule_ind) + 1;
 }
-void Problem::insert_rule( Trs::Rules& rules, Trs::Rule const& rule ) & {
+void Problem::insert_rule( Trs::Rule const& rule ) & {
 	rules.emplace(next_rule,rule);
 	next_rule++;
 }
 
-bool Problem::reads_sym_decl( Reader& eis ) & {
+bool Problem::reads_sym_decl( ::Reader& eis ) & {
 	if( eis.reads_sym("fun") ) {
 		string fun = eis.read_sym();
 		unsigned char arity = 255;
-		Opt<uint32_t> index = {};
+		Opt<ruleId> index = {};
 		if( auto num = eis.reads_nat() ) {
 			if( arity != 255 ) {
 				throw Error("#duplicate-arity",fun,to_string(*num));
@@ -48,12 +48,12 @@ bool Problem::reads_sym_decl( Reader& eis ) & {
 				arity = eis.read_nat([](auto n){ return n < 255; });
 			} else if( *key == ":index" ) {
 				if( index ) throw eis.error("#duplicate-index",fun);
-				index = {eis.read_nat()};
+				index = {ruleId(eis.read_nat())};
 			} else {
 				throw eis.error("#unknown-key",*key);
 			}
 		}
-		if( auto [prev,suc] = main.sig.emplace(fun,Trs::Rank{arity,false}); !suc ) {
+		if( auto [prev,suc] = sig.emplace(fun,Trs::Rank{arity,false}); !suc ) {
 			throw Error{"#duplicate-fun",fun,to_string(prev.arity),to_string(arity)};
 		}
 		return true;
@@ -61,7 +61,7 @@ bool Problem::reads_sym_decl( Reader& eis ) & {
 	return false;
 }
 
-void Problem::read_rule_decl( Reader& eis, Trs::Reader& tis ) & {
+void Problem::read_rule_decl( ::Reader& eis, Trs::Reader& tis ) & {
 		std::set<std::string> vars;
 		auto l = tis.read([&]( auto const& var ){
 			vars.emplace(var);
@@ -72,7 +72,7 @@ void Problem::read_rule_decl( Reader& eis, Trs::Reader& tis ) & {
 			}
 		});
 		Opt<int> weight;
-		Opt<uint32_t> rule_indo;
+		Opt<ruleId> rule_indo;
 		Opt<int> set_index;
 		while( auto key = eis.reads_key() ) {
 			if( *key == ":cost" ) {
@@ -85,31 +85,27 @@ void Problem::read_rule_decl( Reader& eis, Trs::Reader& tis ) & {
 				set_index = {i};
 			} else if( *key == ":number" ) {
 				if( rule_indo ) throw Error{"#duplicate-rule-number"};
-				rule_indo = {eis.read_nat()};
+				rule_indo = {ruleId(eis.read_nat())};
 			} else {
 				throw Error{"#unknown-key",*key};
 			}
 		}
 		auto const& rule = Trs::Rule(l,r,weight.value_or(1));
-		uint32_t rule_ind = rule_indo ? *rule_indo : next_rule;
-		auto& rules = [&]()->Trs::Rules&{
-			if( !set_index || *set_index == 1 ) {// main rule
-				if( auto rank = main.sig.find(l.fun()) ) {
-					rank->defined_by.emplace(rule_ind);
-				}
-				return main.rules;
-			} else {
-				return components[*set_index-2].nodes;
-			};
-		}();
+		ruleId rule_ind = rule_indo ? *rule_indo : next_rule;
+		if( auto rank = sig.find(l.fun()) ) {
+			rank->defined_by.emplace(rule_ind);
+		}
+		if( set_index && *set_index != 1 ) {// main rule
+			throw Error("#unsupported-index");
+		}
 		if( rule_indo ) {
-			insert_rule(rules,std::move(rule),rule_ind);
+			insert_rule(std::move(rule),rule_ind);
 		} else {
-			insert_rule(rules,std::move(rule));
+			insert_rule(std::move(rule));
 		}
 }
-Problem::Problem( istream& is ) : next_rule(0) {
-	auto eis = Reader(is);
+Problem::Problem( istream& is ) : next_rule(ruleId(0)) {
+	auto eis = ::Reader(is);
 	mode = NONE;
 	eis.open();
 	if( eis.reads_sym("format") ) {
@@ -134,7 +130,7 @@ Problem::Problem( istream& is ) : next_rule(0) {
 				}
 			}
 			eis.close();// of format
-			Trs::SigFun sig_fun = [&](string const& sym ){ return main.sig.find(sym); };
+			Trs::SigFun sig_fun = [&](string const& sym ){ return sig.find(sym); };
 			if( number && *number > 1 ) {
 				components = std::deque<Component>(*number-1);
 			}
@@ -159,10 +155,10 @@ string mark_sym( string const& sym ) {
 }
 
 static void collect_dps(
-	Trs::Sig& sig, Trs::Rules& dps,
+	Trs::Sig& sig, Set<ruleId>& dps,
 	Trs::Term const& L, Trs::Rank& Finfo, Trs::Term const& r,
-	Problem& p, Set<uint32_t>& org_uses,
-	Map<uint32_t,Set<uint32_t>>& dp_uses
+	Problem& p, Set<ruleId>& org_uses,
+	Map<ruleId,Set<ruleId>>& dp_uses
 ) {
 	auto const& [g,rs] = *r;
 	auto ginfo = sig.find(g);
@@ -173,19 +169,20 @@ static void collect_dps(
 	} else {// rhs is defined
 		auto G = mark_sym(g);
 		// record here rules this dp will use
-		auto& this_uses = dp_uses.emplace(p.next_rule,Set<uint32_t>{}).first;
+		auto& this_uses = dp_uses.emplace(p.next_rule,Set<ruleId>{}).first;
 		Finfo.defined_by.emplace(p.next_rule);// assign this dp to f
-		p.insert_rule(dps,Trs::Rule(L,app(G,rs)));
+		dps.emplace(p.next_rule);
+		p.insert_rule(Trs::Rule(L,app(G,rs)));
 		for( auto const& a : rs ) {// look into arguments
 			collect_dps(sig,dps,L,Finfo,a,p,this_uses,dp_uses);
 		}
 		for( auto const& used : this_uses ) {
 			org_uses.emplace(used);// origin uses those rules which this dp uses
 		}
-		for( uint32_t i : ginfo->defined_by ) {// the origin also uses the rules that define g
-			if( auto const& rule = p.main.rules.find(i) ) {
+		for( ruleId i : ginfo->defined_by ) {// the origin also uses the rules that define g
+			if( auto const& rule = p.rules.find(i) ) {
 				auto const& [l2,r2,w] = *rule;
-				if( may_reach(p.main,r,l2,8,false) ) {
+				if( may_reach(p,r,l2,8,false) ) {
 					org_uses.emplace(i);
 				}
 			}
@@ -195,38 +192,42 @@ static void collect_dps(
 
 void Problem::make_dps() & {
 	assert( mode == SN );
-	auto& [dps,dg] = components.emplace_back();
 	mode = DP;
 	// make marked signature
-	Trs::Sig msig;
-	for( auto const& [f,finfo] : main.sig ) {
+	Trs::Sig msig;// can't insert while iterating over it
+	for( auto const& [f,finfo] : sig ) {
 		if( !finfo.defined_by.empty() ) {
 			msig.emplace(mark_sym(f),Trs::Rank(finfo.arity));
 		}
 	}
-	main.sig.merge(msig);// note: `merge` takes elements from msig.
+	sig.merge(msig);// note: `merge` takes elements from msig.
+	for( auto const& [i,rule] : rules ) {// remember original rule ids
+		rule_ids.emplace(i);
+	}
 	// compute DPs
-	for( auto const& [org,rule] : main.rules ) {
-		auto const& [l,r,w] = rule;
+	Set<ruleId> dps;
+	for( auto const& org : rule_ids ) {
+		auto const& [l,r,w] = *ASSERTED(rules.find(org));
 		auto const& [f,ls] = *l;
-		auto finfo = main.sig.find(f);
+		auto finfo = sig.find(f);
 		if( !finfo ) {
 			cerr << "(var-lhs " << org << ')' << endl;
 			throw Answer::NO;
 		}
 		auto F = mark_sym(f);
-		Set<uint32_t> uses;// collect here rules that the original uses
-		collect_dps(main.sig,dps,app(F,ls),*ASSERTED(main.sig.find(F)),r,*this,uses,uses_map);
+		Set<ruleId> uses;// collect here rules that the original uses
+		collect_dps(sig,dps,app(F,ls),*ASSERTED(sig.find(F)),r,*this,uses,uses_map);
 		uses_map.emplace(org,std::move(uses));
 	}
 	usable_graph = ConstGraph(uses_map).trancl();
 	// creating dependency graph
-	for( auto const& [i,dp] : dps ) {
-		auto const& [L1,R1,W1] = dp;
-		auto [nexts,fl] = dg.emplace(i,Set<uint32_t>{});
-		for( auto const& j : ASSERTED(main.sig.find(R1.fun()))->defined_by ) {
-			auto const& [L2,R2,W2] = *ASSERTED(dps.find(j));
-			if( may_reach(main,R1,L2,8,false) ) {
+	auto& component = components.emplace_back();
+	for( auto i : dps ) {
+		auto const& [L1,R1,W1] = *ASSERTED(rules.find(i));
+		auto [nexts,fl] = component.graph.emplace(i,Set<ruleId>{});
+		for( auto const& j : ASSERTED(sig.find(R1.fun()))->defined_by ) {
+			auto const& [L2,R2,W2] = *ASSERTED(rules.find(j));
+			if( may_reach(*this,R1,L2,8,false) ) {
 				nexts.emplace(j);
 			}
 		}
@@ -236,14 +237,14 @@ void Problem::make_dps() & {
 static void term_use(
 	Trs const& trs,
 	Trs::Term const& s,
-	Set<uint32_t>& uses
+	Set<ruleId>& uses
 ) {
 	auto const& [f,ss] = *s;
 	for( auto const& a : ss ) {// use subterms
 		term_use(trs,a,uses);
 	}
 	if( auto rrank = trs.sig.find(f) ) {
-		for( uint32_t i : rrank->defined_by ) {// uses the rules that define the root
+		for( ruleId i : rrank->defined_by ) {// uses the rules that define the root
 			if( auto const& rule = trs.rules.find(i) ) {
 				auto const& [l,r,w] = *rule;
 				if( may_reach(trs,s,l,8,false) ) {
@@ -255,17 +256,17 @@ static void term_use(
 }
 void Problem::init_uses() & {
 	assert( mode == DP );
-	for( auto const& [i,rule] : main.rules ) {
+	for( auto const& [i,rule] : rules ) {
 		auto const& [l,r,w] = rule;
-		auto uses = Set<uint32_t>{};
-		term_use(main,r,uses);
+		auto uses = Set<ruleId>{};
+		term_use(*this,r,uses);
 		uses_map.emplace(i,std::move(uses));
 	}
 	for( auto const& comp : components ) {
-		for( auto const& [i,dp] : comp.nodes ) {
-			auto const& [l,r,w] = dp;
-			auto uses = Set<uint32_t>{};
-			term_use(main,r,uses);
+		for( auto const& [i,js] : comp.graph ) {
+			auto const& [l,r,w] = *ASSERTED(rules.find(i));
+			auto uses = Set<ruleId>{};
+			term_use(*this,r,uses);
 			uses_map.emplace(i,std::move(uses));
 		}
 	}
@@ -275,23 +276,20 @@ void Problem::init_uses() & {
 void Problem::decomp_sccs() & {
 	assert( mode == DP );
 	if( components.empty() ) return;// nothing to decompose
-	auto [dps,dgmap] = std::move(components.front());
+	auto component = std::move(components.front());
 	components.pop_front();
-	auto dg = Graph(dgmap);
+	auto dg = Graph(component.graph);
 	auto sccs = dg.sccs();
 	for( uint32_t i = 0; i < sccs.size(); i++ ) {
-		if( auto const& nodes = sccs[i].ref<Set<uint32_t>>() ) {// nontrivial SCCs
+		if( auto const& nodes = sccs[i].ref<Set<ruleId>>() ) {// nontrivial SCCs
 			auto& back = components.emplace_back();
 			for( auto const& dpind : *nodes ) {
-				if( auto const& dpop = dps.find(dpind) ) {
-					back.nodes.emplace(dpind,*dpop);
-					auto& nexts = back.graph.emplace(dpind,Set<uint32_t>{}).first;
-					dg.iter_nexts(dpind,[&]( uint32_t next ){// copy edges inside SCC
-						if( dg.scc_ind(next) == i ) {
-							nexts.emplace(next);
-						}
-					});
-				}
+				auto& nexts = back.graph.emplace(dpind,Set<ruleId>{}).first;
+				dg.iter_nexts(dpind,[&]( ruleId next ){// copy edges inside SCC
+					if( dg.scc_ind(next) == i ) {
+						nexts.emplace(next);
+					}
+				});
 			}
 		}
 	}
@@ -306,16 +304,15 @@ ostream& Problem::print( ostream& os ) const& {
 		default: assert(false);
 	}
 	os << flush;
-	Trs::print_sig(os,main.sig,"\n  ");
-	Trs::print_rules(os,main.rules,"\n  ");
+	Trs::print_sig(os,sig,"\n  ");
+	Trs::print_rules(os,rules,"\n  ");
 	int subno = 1;
-	for( auto it = components.begin(); it != components.end(); it++ ) {
-		auto const& [rules,graph] = *it;
+	for( auto const& c : components ) {
 		os << "\n  (component";
 		for( auto const& [n,rule] : rules ) {
 			os << "\n    (rule " << rule.print_content() << " :number " << n << ')' << flush;
 		}
-		os << "\n    (edges" << ConstGraph(graph).print_nodes("\n      ") << ")"
+		os << "\n    (edges" << ConstGraph(c.graph).print_nodes("\n      ") << ")"
 		   << "\n    :number " << subno << ')' << flush;
 		subno++;
 	}

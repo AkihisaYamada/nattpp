@@ -94,9 +94,9 @@ public:
 	Term const& get_arg( size_t& i ) const&;
 	/** Asserts i is the number of arguments. */
 	void get_end( size_t i ) const&;
-	template<typename G>
-	Term<G> map( std::function<G(F const&)> f ) const {
-		Term<G> ret = f(fun());
+	template<typename Fn>
+	Term<std::invoke_result_t<Fn, F const&>> map( Fn&& f ) const {
+		Term<std::invoke_result_t<Fn, F const&>> ret = f(fun());
 		for( auto& arg : _ref->second ) {
 			ret._ref->second.push_back(arg.map(f));
 		}

@@ -16,7 +16,7 @@ public:
 	 */
 	template<typename... Ts>
 		requires std::is_constructible_v<value_type,Ts&&...>
-	std::pair<T&,bool> emplace( Ts&&... args ) {
+	std::pair<T&,bool> emplace( Ts&&... args ) & {
 		auto [it,f] = M::emplace(std::forward<Ts>(args)...);
 		return {it->second,f};
 	}

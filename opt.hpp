@@ -182,6 +182,11 @@ public:
 		if(_ptr) return *_ptr;
 		return def;
 	}
+	/** @brief Returns a reference to the value or given default. */
+	T& value_or( T& def ) requires( !std::is_const_v<T> ){
+		if(_ptr) return *_ptr;
+		return def;
+	}
 	/** @brief Copies the value or computes default. */
 	T operator||( std::function<T()> const& def ) const& {
 		if(_ptr) return *_ptr;

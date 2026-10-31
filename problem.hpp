@@ -3,7 +3,6 @@
 
 #include<deque>
 #include"trs.hpp"
-#include"graph.hpp"
 
 struct Answer : Exp {
 private:
@@ -13,7 +12,7 @@ public:
 	static Answer const YES, NO, MAYBE;
 };
 
-struct Problem {
+struct Problem : public Trs {
 	enum class Answer {
 		YES, NO, MAYBE
 	};
@@ -21,34 +20,33 @@ struct Problem {
 		TRS,
 		SRS,
 	} format;
-	Trs main;
-	Map<uint32_t,Set<uint32_t>> uses_map;// will be ready by make_dps
-	Map<uint32_t,Ref<Set<uint32_t>>> usable_graph;// will be ready by make_dps
+	Set<ruleId> rule_ids;// will be set in DP mode
+	Map<ruleId,Set<ruleId>> uses_map;// will be ready by make_dps
+	Map<ruleId,Ref<Set<ruleId>>> usable_graph;// will be ready by make_dps
 	struct Component {
-		Trs::Rules nodes;
-		Map<uint32_t,Set<uint32_t>> graph;
+		Map<ruleId,Set<ruleId>> graph;
 	};
 	std::deque<Component> components;
-	uint32_t next_rule;
+	ruleId next_rule;
 	enum {
 		NONE = 0,
 		SN,// termination
 		DP,// DP problem
 		SAT,// Satisfiability modulo rewriting
 	} mode;
-	std::set<std::pair<uint32_t,std::string>> extra_var;
+	std::set<std::pair<ruleId,std::string>> extra_var;
 private:
 	Problem() = delete;
 public:
 	Problem( std::istream& is );
-	void insert_rule( Trs::Rules& rules, Trs::Rule const& rule, uint32_t rule_ind ) &;
-	void insert_rule( Trs::Rules& rules, Trs::Rule const& rule ) &;
+	void insert_rule( Trs::Rule const& rule, ruleId rule_ind ) &;
+	void insert_rule( Trs::Rule const& rule ) &;
 	void make_dps() &;
 	void decomp_sccs() &;
 	void init_uses() &;
 	std::ostream& print( std::ostream& os ) const &;
-	bool reads_sym_decl( Reader& eis ) &;
-	void read_rule_decl( Reader& eis, Trs::Reader& tis ) &;
+	bool reads_sym_decl( ::Reader& eis ) &;
+	void read_rule_decl( ::Reader& eis, Trs::Reader& tis ) &;
 	bool freeze( bool leftmost ) &;
 	static bool test();
 };

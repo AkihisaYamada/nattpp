@@ -1,7 +1,7 @@
 #ifndef TERMORD_HPP_
 #define TERMORD_HPP_
 
-#include"trs.hpp"
+#include"problem.hpp"
 #include"template.hpp"
 
 struct TermOrder {
@@ -12,6 +12,7 @@ struct TermOrder {
 	virtual std::ostream& print_name( std::ostream& os ) = 0;
 	virtual std::ostream& print_sym_info( std::ostream& os, std::string const& f ) = 0;
 	virtual Smt::Compare compare( Exp const& l, Exp const& r ) = 0;
+	virtual Smt::PostExp separate( Exp const& s, Exp const& t ) = 0;
 	virtual Smt::PostExp mono() = 0;
 	/** collapsing: f(...x_i...) = x_i for some i */
 	virtual Smt::PostExp fun_triv( std::string const& f ) = 0;
@@ -59,18 +60,31 @@ struct TermOrder {
 
 struct MemoizedTermOrder : TermOrder {
 protected:
-	OrdMap<std::pair<Exp,Exp>,Smt::Compare> _table;
+	OrdMap<std::pair<Exp,Exp>,Smt::Compare> _compare_cache;
+	OrdMap<std::pair<Exp,Exp>,Smt::PostExp> _separate_cache;
 	virtual Smt::Compare compare_inner( Exp const& l, Exp const& r ) = 0;
+	virtual Smt::PostExp separate_inner( Exp const& s, Exp const& t ) = 0;
 public:
 	Smt::Compare compare( Exp const& l, Exp const& r ) final override {
-		if( auto const& opt = _table.find({l,r}) ) {
-			return *opt;
+		if( auto const& cache = _compare_cache.find({l,r}) ) {
+			return *cache;
 		}
 		auto ret = solver().let(compare_inner(l,r));
 		if( log() & PAIR ) {
 			std::cerr << "; " << print_name() << ": (>=? " << l << ' ' << r << ") := " << ret << std::endl;
 		}
-		_table.emplace(std::pair{l,r},ret);
+		_compare_cache.emplace(std::pair{l,r},ret);
+		return ret;
+	}
+	Smt::PostExp separate( Exp const& s, Exp const& t ) final override {
+		if( auto const& cache = _separate_cache.find({s,t}) ) {
+			return *cache;
+		}
+		auto ret = solver().let(Smt::BOOL,separate_inner(s,t));
+		if( log() & PAIR ) {
+			std::cerr << "; " << print_name() << ": (>< " << s << ' ' << t << ") := " << ret << std::endl;
+		}
+		_separate_cache.emplace(std::pair{s,t},ret);
 		return ret;
 	}
 	static std::unique_ptr<MemoizedTermOrder> make( std::unique_ptr<TermOrder>&& ref );
@@ -86,6 +100,9 @@ public:
 	Smt::Compare compare_inner( Exp const& l, Exp const& r ) override {
 		return _ref->compare(l,r);
 	}
+	Smt::PostExp separate_inner( Exp const& s, Exp const& t ) override {
+		return _ref->separate(s,t);
+	}
 	int log() override { return _ref->log(); }
 	Smt::Solver& solver() override { return _ref->solver(); }
 	void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) override {
@@ -100,7 +117,8 @@ public:
 };
 
 struct TrsOrder : TermOrder {
-	virtual Smt::Compare rule_compare( size_t i, Trs::Term const& l, Trs::Term const& r ) = 0;
+	virtual Smt::Compare rule_compare( ruleId i, Trs::Term const& l, Trs::Term const& r ) = 0;
+	virtual Smt::PostExp edge_separate( ruleId i, ruleId j, Problem const& p ) = 0;
 	static std::unique_ptr<TrsOrder> make( std::unique_ptr<TermOrder>&& );
 private:
 	struct _Wrapper;
@@ -108,27 +126,34 @@ private:
 struct TrsOrder::_Wrapper final : TrsOrder {
 private:
 	std::unique_ptr<TermOrder> _ref;
-	Map<size_t,Smt::Compare> _rule_order_table;
+	Map<ruleId,Smt::Compare> _rule_compare_cache;
+	struct _DgNodeCache {
+		Exp src;
+		Map<ruleId,Smt::PostExp> tgts;
+	};
+	Map<ruleId,_DgNodeCache> _edge_separate_cache;
 public:
 	_Wrapper( std::unique_ptr<TermOrder>&& ref ) : _ref(std::move(ref)) {}
-	Smt::Compare rule_compare( size_t i, Trs::Term const& l, Trs::Term const& r ) override;
-	int log() override { return _ref->log(); }
-	void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) override {
+	Smt::Compare rule_compare( ruleId i, Trs::Term const& l, Trs::Term const& r ) final override;
+	Smt::PostExp edge_separate( ruleId i, ruleId j, Problem const& p ) final override;
+	int log() final override { return _ref->log(); }
+	void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) final override {
 		_ref->extend_sig(f,rank,heuristic);
 	}
-	Smt::Solver& solver() override { return _ref->solver(); }
-	std::ostream& print_name( std::ostream& os ) override { return _ref->print_name(os); }
-	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override { return _ref->print_sym_info(os,f); }
-	Smt::Compare compare( Exp const& l, Exp const& r ) override { return _ref->compare(l,r); }
-	Smt::PostExp mono() override { return _ref->mono(); }
-	Smt::PostExp fun_triv( std::string const& f ) override { return _ref->fun_triv(f); }
-	Smt::PostExp arg_infl( std::string const& f, uint16_t i ) override { return _ref->arg_infl(f,i); }
-	Smt::PostExp arg_used( std::string const& f, uint16_t i ) override { return _ref->arg_used(f,i); }
+	Smt::Solver& solver() final override { return _ref->solver(); }
+	std::ostream& print_name( std::ostream& os ) final override { return _ref->print_name(os); }
+	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) final override { return _ref->print_sym_info(os,f); }
+	Smt::Compare compare( Exp const& l, Exp const& r ) final override { return _ref->compare(l,r); }
+	Smt::PostExp separate( Exp const& s, Exp const& t ) final override { return _ref->separate(s,t); }
+	Smt::PostExp mono() final override { return _ref->mono(); }
+	Smt::PostExp fun_triv( std::string const& f ) final override { return _ref->fun_triv(f); }
+	Smt::PostExp arg_infl( std::string const& f, uint16_t i ) final override { return _ref->arg_infl(f,i); }
+	Smt::PostExp arg_used( std::string const& f, uint16_t i ) final override { return _ref->arg_used(f,i); }
 };
 
 struct UsableRuleOrder : TrsOrder {
 	virtual Smt::PostExp term_used( Trs::Term const& t ) & = 0;
-	virtual Smt::PostExp rule_used( size_t i ) & = 0;
+	virtual Smt::PostExp rule_used( ruleId i ) & = 0;
 	static std::unique_ptr<UsableRuleOrder> make( Trs&& trs, std::unique_ptr<TrsOrder> const& org ) = delete;
 	static std::unique_ptr<UsableRuleOrder> make( Trs const& trs, std::unique_ptr<TrsOrder>&& org );
 	static std::unique_ptr<UsableRuleOrder> make_triv( std::unique_ptr<TrsOrder>&& org );
@@ -140,12 +165,13 @@ struct UsableRuleOrder::_Wrapper final : UsableRuleOrder {
 private:
 	std::unique_ptr<TrsOrder> _ref;
 	Trs const& _trs;
-	Map<size_t,Smt::PostExp> _usable_table;
+	Map<ruleId,Smt::PostExp> _usable_table;
 public:
 	_Wrapper( Trs const& trs, std::unique_ptr<TrsOrder> && org ) : _trs(trs), _ref(std::move(org)) {}
 	Smt::PostExp term_used( Trs::Term const& t ) & override;
-	Smt::PostExp rule_used( size_t i ) & override;
-	Smt::Compare rule_compare( size_t i, Trs::Term const& l, Trs::Term const& r ) override { return _ref->rule_compare(i,l,r); }
+	Smt::PostExp rule_used( ruleId i ) & override;
+	Smt::Compare rule_compare( ruleId i, Trs::Term const& l, Trs::Term const& r ) override { return _ref->rule_compare(i,l,r); }
+	Smt::PostExp edge_separate( ruleId i, ruleId j, Problem const& p ) override { return _ref->edge_separate(i,j,p); }
 	int log() final override { return _ref->log(); }
 	void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) override {
 		_ref->extend_sig(f,rank,heuristic);
@@ -154,6 +180,7 @@ public:
 	std::ostream& print_name( std::ostream& os ) final override { return _ref->print_name(os); }
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) final override { return _ref->print_sym_info(os,f); }
 	Smt::Compare compare( Exp const& l, Exp const& r ) final override { return _ref->compare(l,r); }
+	Smt::PostExp separate( Exp const& s, Exp const& t ) final override { return _ref->separate(s,t); }
 	Smt::PostExp mono() final override { return _ref->mono(); }
 	Smt::PostExp fun_triv( std::string const& f ) override { return _ref->fun_triv(f); }
 	Smt::PostExp arg_infl( std::string const& f, uint16_t i ) final override { return _ref->arg_infl(f,i); }
@@ -167,10 +194,11 @@ public:
 	Smt::PostExp term_used( Trs::Term const& t ) & override {
 		return true;
 	}
-	Smt::PostExp rule_used( size_t i ) & override {
+	Smt::PostExp rule_used( ruleId i ) & override {
 		return true;
 	}
-	Smt::Compare rule_compare( size_t i, Trs::Term const& l, Trs::Term const& r ) override { return _ref->rule_compare(i,l,r); }
+	Smt::Compare rule_compare( ruleId i, Trs::Term const& l, Trs::Term const& r ) override { return _ref->rule_compare(i,l,r); }
+	Smt::PostExp edge_separate( ruleId i, ruleId j, Problem const& p ) override { return _ref->edge_separate(i,j,p); }
 	int log() final override { return _ref->log(); }
 	void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) override {
 		_ref->extend_sig(f,rank,heuristic);
@@ -179,6 +207,7 @@ public:
 	std::ostream& print_name( std::ostream& os ) final override { return _ref->print_name(os); }
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) final override { return _ref->print_sym_info(os,f); }
 	Smt::Compare compare( Exp const& l, Exp const& r ) final override { return _ref->compare(l,r); }
+	Smt::PostExp separate( Exp const& s, Exp const& t ) final override { return _ref->separate(s,t); }
 	Smt::PostExp mono() final override { return _ref->mono(); }
 	Smt::PostExp fun_triv( std::string const& f ) override { return _ref->fun_triv(f); }
 	Smt::PostExp arg_infl( std::string const& f, uint16_t i ) final override { return _ref->arg_infl(f,i); }
@@ -199,10 +228,13 @@ public:
 	Smt::Solver& solver() override { return _solver; }
 	Smt::Compare compare( Exp const& l, Exp const& r ) override {
 		return {true,false};
-	};
+	}
+	Smt::PostExp separate( Exp const& s, Exp const& t ) override {
+		return false;
+	}
 	std::ostream& print_name( std::ostream& os ) override {
 		return os << "trivial-order";
-	};
+	}
 	std::ostream& print_sym_info( std::ostream& os, std::string const& sig ) override {
 		return os;
 	}
@@ -218,13 +250,16 @@ public:
 	Smt::PostExp arg_used( std::string const& f, uint16_t i ) override {
 		return true;
 	}
-	Smt::Compare rule_compare( size_t, Trs::Term const&, Trs::Term const& ) override {
+	Smt::Compare rule_compare( ruleId, Trs::Term const&, Trs::Term const& ) override {
 		return {true,false};
 	}
-	Smt::PostExp term_used( Trs::Term const& t ) & override {
+	Smt::PostExp edge_separate( ruleId, ruleId, Problem const& ) override {
+		return false;
+	}
+	Smt::PostExp term_used( Trs::Term const& ) & override {
 		return true;
 	}
-	Smt::PostExp rule_used( size_t i ) & override {
+	Smt::PostExp rule_used( ruleId ) & override {
 		return true;
 	}
 };
@@ -274,7 +309,14 @@ public:
 		if( _log & PAIR ) {
 			std::cerr << "; (>=? " << l << ' ' << r << ")\n;   " << li << "\n;   " << ri << std::endl;
 		}
-		return order(li,ri,_solver);
+		return li.compare(ri,_solver);
+	}
+	Smt::PostExp separate_inner( Exp const& s, Exp const& t ) override {
+		A si = intp(s), ti = intp(t);
+		if( _log & SEP ) {
+			std::cerr << "; (>< " << s << ' ' << t << ")\n;   " << si << "\n;   " << ti << std::endl;
+		}
+		return si.separate(ti);
 	}
 	std::ostream& print_name( std::ostream& os ) override {
 		return os << "interpretation-order";
@@ -354,6 +396,7 @@ public:
 		return _weight->solver();
 	}
 	Smt::Compare compare_inner( Exp const& l, Exp const& r ) override;
+	Smt::PostExp separate_inner( Exp const& l, Exp const& r ) override;
 	int log() override { return _log; }
 	Smt::PostExp mono() override { return _mono; }
 	Smt::PostExp fun_triv( std::string const& f ) override {
@@ -428,6 +471,38 @@ Smt::Compare mapped_lex_compare(
 		k_ge && (k_str || rest_ge),// l_0,l_1... ≥ r_0,r_1... <==> l_0 ≥ r_0 && (l_0 ≠ r_0 || l_1... ≥ r_1...)
 		k_str || rest_str
 	};
+}
+
+template<typename F, typename T>
+Smt::PostExp mapped_lex_separate(
+	Smt::Solver& solver,
+	F const& sep,
+	std::function<Smt::PostExp(uint16_t)> const& locc,// occupancy of post-positions. locc(i+1) => loc(i) is assumed 
+	std::function<Smt::PostExp(uint16_t)> const& rocc,
+	std::function<Smt::PostExp(uint16_t,uint16_t)> const& lmap,
+	std::function<Smt::PostExp(uint16_t,uint16_t)> const& rmap,
+	std::vector<T> const& ls,
+	std::vector<T> const& rs,
+	uint16_t k = 0
+) {
+	auto lin = ls.size();
+	auto rin = rs.size();
+	auto const& locck = locc(k);
+	auto const& rocck = rocc(k);
+	if( locck == false ) {// lhs has no more post arguments
+		return rocck;// separated iff rhs survives
+	}
+	if( rocck == false ) {// rhs has no more post arguments
+		return locck;// separated iff lhs survives
+	}
+	auto k_sep = solver.let( Smt::BOOL,
+		Smt::PostExp::disj( 0, lin, [&]( uint16_t const& i ){
+			return lmap(i,k) && Smt::PostExp::conj( 0, rin, [&]( uint16_t const& j ){// notice: [l] > []
+				return rmap(j,k).imp(sep(ls[i],rs[j]));
+			} );
+		} )
+	);
+	return k_sep || mapped_lex_separate(solver,sep,locc,rocc,lmap,rmap,ls,rs,k+1);
 }
 
 #endif

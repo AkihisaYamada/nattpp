@@ -197,7 +197,7 @@ void Problem::make_dps( uint8_t edge_len ) & {
 	Trs::Sig msig;// can't insert while iterating over it
 	for( auto const& [f,finfo] : sig ) {
 		if( !finfo.defined_by.empty() ) {
-			msig.emplace(mark_sym(f),Trs::Rank(finfo.arity));
+			msig.emplace(mark_sym(f),Trs::Rank(finfo.arity,true));// mark as dp symbol
 		}
 	}
 	sig.merge(msig);// note: `merge` takes elements from msig.
@@ -219,7 +219,7 @@ void Problem::make_dps( uint8_t edge_len ) & {
 		collect_dps(sig,dps,app(F,ls),*ASSERTED(sig.find(F)),r,*this,uses,uses_map);
 		uses_map.emplace(org,std::move(uses));
 	}
-	usable_graph = ConstGraph(uses_map).trancl();
+	dp_use_map = ConstGraph(uses_map).trancl();
 	// creating dependency graph
 	auto& component = components.emplace_back();
 	for( auto i : dps ) {
@@ -270,7 +270,7 @@ void Problem::init_uses() & {
 			uses_map.emplace(i,std::move(uses));
 		}
 	}
-	usable_graph = ConstGraph(uses_map).trancl();
+	dp_use_map = ConstGraph(uses_map).trancl();
 };
 
 void Problem::decomp_sccs() & {

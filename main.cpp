@@ -249,7 +249,7 @@ int main( int argc, char* argv[] ) try {
 			p.init_uses();
 			if( print_usables ) {
 				cerr << "(uses_graph" << ConstGraph(p.uses_map).print_nodes("\n  ") << ')' << endl;
-				cerr << "(usables" << ConstGraph(p.usable_graph).print_nodes("\n  ") << ')' << endl;
+				cerr << "(usables" << ConstGraph(p.dp_use_map).print_nodes("\n  ") << ')' << endl;
 			}
 		} else {
 			for( auto const& [no,var] : p.extra_var ) {
@@ -311,7 +311,7 @@ int main( int argc, char* argv[] ) try {
 //			if( print_maxsym ) cerr << "; max symbols: " << print_list(heuristic) << endl;
 			if( print_usables ) {
 				cerr << "(uses_graph" << ConstGraph(p.uses_map).print_nodes("\n  ") << ')' << endl;
-				cerr << "(usables" << ConstGraph(p.usable_graph).print_nodes("\n  ") << ')' << endl;
+				cerr << "(usables" << ConstGraph(p.dp_use_map).print_nodes("\n  ") << ')' << endl;
 			}
 			// SCC decomposition
 			p.decomp_sccs();
@@ -403,7 +403,7 @@ int main( int argc, char* argv[] ) try {
 					auto usables = Set<ruleId>();
 					for( auto const& comp : p.components ) {
 						for( auto const& [i,dp] : comp.graph ) {
-							for( auto const& u : **ASSERTED(p.usable_graph.find(i)) ) {
+							for( auto const& u : **ASSERTED(p.dp_use_map.find(i)) ) {
 								usables.emplace(u);
 							}
 						}

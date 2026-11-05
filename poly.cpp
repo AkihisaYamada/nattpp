@@ -129,7 +129,7 @@ static Smt::PostExp order_sub( Poly const& p1, Poly const& p2 ) {
 		auto const& e2 = it2->second.as_post();
 		switch( it2->first.range() ) {
 			case Poly::NONE:
-			case Poly::POS: ge = ge && Smt::PostExp(0).eq(e2); return;
+			case Poly::POS: ge = ge && Smt::PostExp(0).ge(e2); return;
 			case Poly::NEG: ge = ge && Smt::PostExp(0).le(e2); return;
 			case Poly::FULL: ge = ge && Smt::PostExp(0).eq(e2); return;
 		}

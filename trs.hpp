@@ -25,9 +25,13 @@ struct Trs {
 		friend class Srs;
 		using ::Exp::Exp;// constructors are private
 	};
-	struct Rank {
-		unsigned char arity;
+	class Rank {
+		Rank() = delete;
+	public:
+		uint8_t arity;
+		bool dp;
 		Set<ruleId> defined_by;
+		Rank( uint8_t arity, bool dp = false ) : arity(arity), dp(dp) {}
 		std::ostream& print_content( std::ostream& os, bool definers = false ) const&;
 		Printable print_content( bool definers = false ) const& {
 			return Printable([this,definers]( auto& os )->auto&{ return print_content(os,definers); });

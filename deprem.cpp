@@ -56,7 +56,7 @@ bool order_some_dp_or_edge(
 	std::vector<OrientInfo> encs;
 	Set<ruleId> usables;// collect potential usable rules
 	for( auto const& [i,js] : component.graph ) {
-		if( auto const& us = p.usable_graph.find(i) ) {
+		if( auto const& us = p.dp_use_map.find(i) ) {
 			for( auto const& u : **us ) {
 				usables.emplace(u);
 			}

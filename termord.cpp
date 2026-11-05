@@ -413,7 +413,7 @@ Smt::PostExp TrsOrder::_Wrapper::edge_separate( ruleId i, ruleId j, Problem cons
 Smt::PostExp UsableRuleOrder::_Wrapper::term_used( Trs::Term const& r ) & {
 	auto const& [g,rs] = *r;
 	auto ret = Smt::PostExp::conj(0,rs.size(),[&]( uint16_t p ){ return arg_used(g,p).imp(term_used(rs[p])); } );
-	if( auto const& ginfo = _trs.sig.find(g) ) {
+	if( auto const& ginfo = _trs.sig.find(g); ginfo && !ginfo->dp ) {// non-dp symbol
 		return ret && Smt::PostExp::conj( ginfo->defined_by, [&]( ruleId i )->Smt::PostExp{
 			if( auto const& rule = _trs.rules.find(i) )
 				if( may_reach(_trs,r,rule->first,8,false) ) {//TODO

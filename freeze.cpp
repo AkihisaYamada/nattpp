@@ -71,7 +71,7 @@ bool Problem::freeze( bool uncurry ) & {
 			if( finfo.visited && finfo.freezer ) {
 				freezable = true;
 				finfo.freezee = false;// raw freezer cannot be frozen
-				sig[f].defined_by.clear();// forget raw symbols were defined
+				ASSERTED(sig.find(f))->defined_by.clear();// forget raw symbols were defined
 			}
 		}
 		if( !freezable ) return false;// nothing can be frozen
@@ -96,7 +96,7 @@ bool Problem::freeze( bool uncurry ) & {
 				}
 				ff += ']';
 				// register the frozen symbol
-				auto [it,fresh] = sig.emplace(ff,ret_args.size());
+				auto [it,fresh] = sig.emplace(ff,Rank(ret_args.size()));
 				freeze_info.emplace(ff,FreezeType{.freezee=true});// frozen symbol can be frozen further
 				if( fresh ) {// constructing freezing rule f(g(x,...),y,...) -> f[g](x,...,y,...)
 					uint16_t fi = 0;

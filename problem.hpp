@@ -20,9 +20,9 @@ struct Problem : public Trs {
 		TRS,
 		SRS,
 	} format;
-	Set<ruleId> rule_ids;// will be set in DP mode
+	Set<ruleId> rule_ids;// ids of original rules. will be set in DP mode
 	Map<ruleId,Set<ruleId>> uses_map;// will be ready by make_dps
-	Map<ruleId,Ref<Set<ruleId>>> usable_graph;// will be ready by make_dps
+	Map<ruleId,Ref<Set<ruleId>>> dp_use_map;// will be ready by make_dps
 	struct Component {
 		Map<ruleId,Set<ruleId>> graph;
 	};

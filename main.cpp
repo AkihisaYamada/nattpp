@@ -88,7 +88,7 @@ int main( int argc, char* argv[] ) try {
 	Opt<uint8_t> edge_len;
 	bool default_strategy = true;
 	enum class FreezingMode { NONE, FULL, UNCURRY } allow_freezing = FreezingMode::UNCURRY;
-	enum class EdgeMode { NONE, AUTO, FULL } allow_edge = EdgeMode::AUTO;
+	enum class EdgeMode { NONE, AUTO, FULL } allow_edge = EdgeMode::NONE;
 	bool use_dp = true;
 	vector<Exp> rulerem_specs;
 	vector<std::pair<Exp,bool>> dprem_specs;

@@ -146,7 +146,7 @@ Smt::PostExp Poly::gt( Poly const& p2 ) const {
 Smt::Compare Poly::compare( Poly const& p2, Smt::Solver& solver ) const {
 	auto const& c1 = (*this)[{}].as_post();
 	auto const& c2 = p2[{}].as_post();
-	return { order_sub(*this,p2) && c1.ge(c2), !c1.eq(c2) };
+	return { order_sub(*this,p2) && c1.ge(c2), c1.gt(c2) };
 }
 
 Smt::PostExp Poly::separate( Poly const& p2 ) const {

@@ -561,5 +561,5 @@ void Template::test() {
 	auto fxy = Exp("f","x","y");
 	auto mfxy = mat_intp(fxy);
 	cout << "mat⟦" << fxy << "⟧ = " << mfxy << endl;
-	cout << "(<=? " << fxy << " x) : " << order(mfxy,mat_intp(Exp("x")),z3) << endl;
+	cout << "(<=? " << fxy << " x) : " << mfxy.compare(mat_intp(Exp("x")),z3) << endl;
 }

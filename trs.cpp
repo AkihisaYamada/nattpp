@@ -2,14 +2,14 @@
 
 using namespace std;
 
-void Trs::insert_rule( uint32_t i, Rule const& rule ) & {
+void Trs::insert_rule( ruleId i, Rule const& rule ) & {
 	auto const& [l,r,w] = rule;
 	auto [ref,fl] = rules.emplace(i,rule);
 	assert(fl);
 	ASSERTED(sig.find(l.fun()))->defined_by.emplace(i);
 }
 
-void Trs::erase_rule( uint32_t i ) & {
+void Trs::erase_rule( ruleId i ) & {
 	auto const& [l,r,w] = *ASSERTED(rules.find(i));
 	ASSERTED(sig.find(l.fun()))->defined_by.erase(i);
 	rules.erase(i);

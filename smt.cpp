@@ -32,6 +32,7 @@ std::string const
 	Smt::GE = ">=",
 	Smt::LE = "<=",
 	Smt::GT = ">",
+	Smt::LT = "<",
 	Smt::CONS = "cons",
 	Smt::CAR = "car",
 	Smt::CDR = "cdr",
@@ -106,9 +107,16 @@ ostream& operator<<( ostream& os, Smt::PreExp const& e ) {
 	assert(false);
 }
 
+string to_string( Smt::Val const& val ) {
+	if( auto i = val.is_int() ) return to_string(*i);
+	if( auto r = val.is_rat() ) {
+		return to_string(r->numen())+"/"+to_string(r->denom());
+	}
+	assert(false);
+}
 string to_string( Smt::Fun const& fun ) {
-	if( auto i = fun.ref<Smt::Val>() ) {
-		return to_string(*i);
+	if( auto v = fun.ref<Smt::Val>() ) {
+		return to_string(*v);
 	}
 	if( auto s = fun.ref<string>() ) {
 		return *s;
@@ -117,10 +125,25 @@ string to_string( Smt::Fun const& fun ) {
 }
 
 Exp Smt::PostExp::exp() const {
-	return _term.map<string>(
-		[](Smt::Fun const& fun){
-		return to_string(fun);
-	});
+	return _term.map( []( Smt::Fun const& fun ){ return to_string(fun); } );
+}
+
+Exp Smt::PreExp::exp() const {
+	if( auto const& post = is_post() ) return post->exp();
+	if( auto const& opt = is_app() ) {
+		std::vector<Term<std::string>> args;
+		for( auto const& arg : opt->args ) {
+			args.emplace_back(arg.exp());
+		}
+		return app( "'" + opt->fun, std::move(args) );
+	}
+	if( auto const& opt = is_lazy() ) {
+		return "'lazy";
+	}
+	if( auto const& opt = is_let() ) {
+		return "'let";
+	}
+	assert(false);
 }
 
 Smt::PostExp Smt::PostExp::conj( Smt::PostExp const& y ) const& {
@@ -182,96 +205,119 @@ Smt::PostExp Smt::PostExp::imp( Smt::PostExp const& y ) const {
 	return Term<Fun>(IMP,_term,y._term);
 }
 
-Smt::PostExp Smt::eq( PostExp const& x, PostExp const& y ) {
-	if( x._term.args().empty() ) {
-		if( auto xi = x.is_val() ) {
+Smt::PostExp Smt::PostExp::eq( PostExp const& y ) const {
+	if( _term.args().empty() ) {
+		if( auto xi = is_val() ) {
 			if( auto yi = y.is_val() ) {
 				return *xi == *yi;
 			}
 		}
-		if( x == y ) {
+		if( _term == y._term ) {
 			return true;
 		}
 		if( auto iteo = y.is_ite() ) {
 			auto const& [i,t,e] = *iteo;
-			return ite(i,eq(x,t),eq(x,e));
+			return ite(i,eq(t),eq(e));
 		}
 	} else if( y._term.args().empty() ) {
-		if( auto const& iteo = x.is_ite() ) {
+		if( auto const& iteo = is_ite() ) {
 			auto const& [i,t,e] = *iteo;
-			return ite(i,eq(t,y),eq(e,y));
+			return ite(i,t.eq(y),e.eq(y));
 		}
 	}
-	return Term<Fun>(EQ,x,y);
+	return Term<Fun>(EQ,_term,y._term);
 }
 
-Smt::PostExp Smt::ge( PostExp const& x, PostExp const& y ) {
-	if( x._term.args().empty() ) {
-		if( auto xi = x.is_val() ) {
+Smt::PostExp Smt::PostExp::ge( PostExp const& y ) const {
+	if( _term.args().empty() ) {
+		if( auto xi = is_val() ) {
 			if( auto yi = y.is_val() ) {
 				return *xi >= *yi;
 			}
 		}
-		if( x == y ) {
+		if( _term == y._term ) {
 			return true;
 		}
 		if( auto iteo = y.is_ite() ) {
 			auto const& [i,t,e] = *iteo;
-			return ite(i,ge(x,t),ge(x,e));
+			return ite(i,ge(t),ge(e));
 		}
 	} else if( y._term.args().empty() ) {
-		if( auto const& iteo = x.is_ite() ) {
+		if( auto const& iteo = is_ite() ) {
 			auto const& [i,t,e] = *iteo;
-			return ite(i,ge(t,y),ge(e,y));
+			return ite(i,t.ge(y),e.ge(y));
 		}
 	}
-	return Term<Fun>(GE,x,y);
+	return Term<Fun>(GE,_term,y._term);
 }
 
-Smt::PostExp Smt::le( PostExp const& x, PostExp const& y ) {
-	if( x._term.args().empty() ) {
-		if( auto xi = x.is_val() ) {
+Smt::PostExp Smt::PostExp::le( PostExp const& y ) const {
+	if( _term.args().empty() ) {
+		if( auto xi = is_val() ) {
 			if( auto yi = y.is_val() ) {
 				return *xi <= *yi;
 			}
 		}
-		if( x == y ) {
+		if( _term == y._term ) {
 			return true;
 		}
 		if( auto iteo = y.is_ite() ) {
 			auto const& [i,t,e] = *iteo;
-			return ite(i,le(x,t),le(x,e));
+			return ite(i,le(t),le(e));
 		}
 	} else if( y._term.args().empty() ) {
-		if( auto const& iteo = x.is_ite() ) {
+		if( auto const& iteo = is_ite() ) {
 			auto const& [i,t,e] = *iteo;
-			return ite(i,le(t,y),le(e,y));
+			return ite(i,t.le(y),e.le(y));
 		}
 	}
-	return Term<Fun>(LE,x,y);
+	return Term<Fun>(LE,_term,y._term);
 }
 
-Smt::PostExp Smt::gt( PostExp const& x, PostExp const& y ) {
-	if( x._term.args().empty() ) {
-		if( auto xi = x.is_val() ) {
+Smt::PostExp Smt::PostExp::gt( PostExp const& y ) const {
+	if( _term.args().empty() ) {
+		if( auto xi = is_val() ) {
 			if( auto yi = y.is_val() ) {
 				return *xi > *yi;
 			}
 		}
-		if( x == y ) {
+		if( _term == y._term ) {
 			return false;
 		}
 		if( auto iteo = y.is_ite() ) {
 			auto const& [i,t,e] = *iteo;
-			return ite(i,gt(x,t),gt(x,e));
+			return ite(i,gt(t),gt(e));
 		}
 	} else if( y._term.args().empty() ) {
-		if( auto const& iteo = x.is_ite() ) {
+		if( auto const& iteo = is_ite() ) {
 			auto const& [i,t,e] = *iteo;
-			return ite(i,gt(t,y),gt(e,y));
+			return ite(i,t.gt(y),e.gt(y));
 		}
 	}
-	return Term<Fun>(GT,x,y);
+	return Term<Fun>(GT,_term,y._term);
+}
+
+Smt::PostExp Smt::PostExp::lt( PostExp const& y ) const {
+	if( _term.args().empty() ) {
+		if( auto xi = is_val() ) {
+			if( auto yi = y.is_val() ) {
+				return *xi < *yi;
+			}
+		}
+		if( _term == y._term ) {
+			return false;
+		}
+		if( auto iteo = y.is_ite() ) {
+			auto const& [i,t,e] = *iteo;
+			return ite(i,lt(t),lt(e));
+		}
+	} else if( y._term.args().empty() ) {
+		if( auto const& iteo = is_ite() ) {
+			auto const& [i,t,e] = *iteo;
+			return ite(i,t.lt(y),e.lt(y));
+		}
+	}
+	return Term<Fun>(LT,_term,y._term);
 }
 
 Smt::PostExp Smt::ite( PostExp const& i, PostExp const& t, PostExp const& e ) {
@@ -636,19 +682,19 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 		}
 		if( fun == EQ ) {
 			assert( args.size() == 2 );
-			return eq(expand(args[0]),expand(args[1]));
+			return expand(args[0]).eq(expand(args[1]));
 		}
 		if( fun == GE ) {
 			assert( args.size() == 2 );
-			return ge(expand(args[0]),expand(args[1]));
+			return expand(args[0]).ge(expand(args[1]));
 		}
 		if( fun == LE ) {
 			assert( args.size() == 2 );
-			return le(expand(args[0]),expand(args[1]));
+			return expand(args[0]).le(expand(args[1]));
 		}
 		if( fun == GT ) {
 			assert( args.size() == 2 );
-			return gt(expand(args[0]),expand(args[1]));
+			return expand(args[0]).gt(expand(args[1]));
 		}
 		if( fun == ADD ) {
 			for( auto const& arg : args ) {

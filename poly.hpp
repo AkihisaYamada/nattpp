@@ -88,7 +88,7 @@ public:
 		return Smt::PreExp(0);
 	}
 	void memoize( Smt::Solver& solver )& {
-		for( auto [vs,coeff] : _map ) {
+		for( auto& [vs,coeff] : _map ) {
 			coeff = solver.let(coeff);
 		}
 	}
@@ -99,10 +99,11 @@ public:
 	friend Poly& operator*=( Poly& p1, Poly const& p2 ) {
 		return p1 = p1 * p2;
 	}
-	Smt::PreExp ge( Poly const& p2 ) const;
-	Smt::PreExp gl( Poly const& p2 ) const;
+	Smt::PostExp ge( Poly const& p2 ) const;
+	Smt::PostExp gt( Poly const& p2 ) const;
+	Smt::Compare compare( Poly const& p2, Smt::Solver& solver ) const;
+	Smt::PostExp separate( Poly const& p2 ) const;
 	friend Poly ite( Poly const& c, Poly const& p1, Poly const& p2 );
-	friend Smt::Compare order( Poly const& p1, Poly const& p2, Smt::Solver& solver );
 	static Algebra<Template::Sym,Poly> algebra_of_range( Range ran );
 	static Algebra<Template::Sym,Poly> const ALGEBRA;
 	static Algebra<Template::Sym,Poly> const POS_ALGEBRA;
@@ -127,9 +128,10 @@ public:
 	friend MPoly operator+( MPoly const& x, MPoly const& y );
 	friend MPoly operator*( MPoly const& x, MPoly const& y );
 	friend MPoly& max_eq( MPoly& x, MPoly const& y );
-	Smt::PreExp ge( MPoly const& p2 ) const;
-	Smt::PreExp gl( MPoly const& p2 ) const;
-	friend Smt::Compare order( MPoly const& x, MPoly const& y, Smt::Solver& solver );
+	Smt::PostExp ge( MPoly const& p2 ) const;
+	Smt::PostExp gt( MPoly const& p2 ) const;
+	Smt::Compare compare( MPoly const& y, Smt::Solver& solver ) const;
+	Smt::PostExp separate( MPoly const& y ) const;
 	void memoize( Smt::Solver& solver )& {
 		for( auto& p : _set ) {
 			p.memoize(solver);

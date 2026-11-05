@@ -168,23 +168,23 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 	auto const& linfo = _info.find(lf);
 	if( !linfo ) {// x >=? t
 		auto const& [rf,rargs] = *r;
-		if( auto const& rinfo = _info.find(rf) ) {// x >=? g(t...)
-			Smt::PostExp ge_all_arg = true, str_all_arg = true;
-			for( uint16_t j = 0; j < rinfo->arity; j++ ) {
-				auto const& [j_ge,j_str] = compare(l,rargs[j]);// just to invoke memoization
-				ge_all_arg = ge_all_arg && rinfo->mapped(j).imp(j_ge);
-				str_all_arg = str_all_arg && rinfo->mapped(j).imp(j_str);
-			}
-			return {
-				w_ge && (
-					rinfo->collapse && ge_all_arg ||// g is collapsed
-					Smt::eq(0,rinfo->prec) && rinfo->empty// g is least and no t_j survives
-				),
-				w_str || rinfo->collapse && str_all_arg
-			};
-		} else {// x >=? y
-			return {l == r, false};// variables must be identical, gl cannot be ensured
+		auto const& rinfo = _info.find(rf);
+		if( !rinfo ) {// x >=? y
+			return { l == r, false };// variables must be identical, gl cannot be ensured
 		}
+		// x >=? g(t...)
+		Smt::PostExp ge_all_arg = true, str_all_arg = true;
+		for( uint16_t j = 0; j < rinfo->arity; j++ ) {
+			auto const& [j_ge,j_str] = compare(l,rargs[j]);
+			ge_all_arg = ge_all_arg && rinfo->mapped(j).imp(j_ge);
+			str_all_arg = str_all_arg && rinfo->mapped(j).imp(j_str);
+		}
+		auto ge = w_ge && (
+			rinfo->collapse && ge_all_arg ||// g is collapsed
+			Smt::PostExp(0).eq(rinfo->prec) && rinfo->empty// g is least and no t_j survives
+		);
+		if( ge == false ) return {false,false};
+		return { ge, w_str || rinfo->collapse && str_all_arg };
 	}
 	// f(s...) >=? t
 	auto const& [rf,rargs] = *r;
@@ -215,13 +215,17 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 		str_all_arg = str_all_arg && j_mapped.imp(str_j); // if t_j survives, then s > t_j is prerequisite
 	}
 	if( ge_all_arg == false ) return { false, false };
-	auto const& [p_ge,p_str] = order(linfo->prec,rinfo->prec);
+	auto const& p_ge = linfo->prec.ge(rinfo->prec), p_str = !linfo->prec.eq(rinfo->prec);
 	auto const& [args_ge,args_str] = mapped_lex_compare(
 		sol, [&]( auto const& x, auto const& y ){ return compare(x,y); },
 		linfo->occupied, rinfo->occupied, linfo->map, rinfo->map, largs, rargs
 	);
 	if( _log & DEBUG ) {
-		cerr << "; path_order: arguments [" << print_list(largs) << "] >=? [" << print_list(rargs) << "] = {" << args_ge << ", " << args_str << '}' << endl;
+		cerr << "; path-order: arguments (" << lf;
+		for( auto const& a : largs ) cerr << ' ' << a;
+		cerr << ") >=? (" << rf;
+		for( auto const& a : rargs ) cerr << ' ' << a;
+		cerr << ") = {" << args_ge << ", " << args_str << '}' << endl;
 	}
 	some_arg_ge = sol.let(Smt::BOOL,some_arg_ge);
 	str_all_arg = sol.let(Smt::BOOL,str_all_arg);
@@ -237,13 +241,77 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 			)
 		)
 	);
-	auto const& str = sol.let( Smt::BOOL,
+	if( ge == false ) return {false,false};
+	auto const& str =
 		w_str ||// w(s) > w(t)
 		some_arg_ge && linfo->collapse.imp(some_arg_str) ||// s_i > t
 		rinfo->collapse && str_all_arg ||
-		!linfo->collapse && !rinfo->collapse && (p_str || args_str)
-	);
+		!linfo->collapse && !rinfo->collapse && (p_str || args_str);
 	return {ge,str};
+}
+
+Smt::PostExp PathOrder::separate_inner( Exp const& l, Exp const& r ) {
+	auto const& w_sep = _weight->separate(l,r);
+	if( w_sep == true ) {
+		return true;
+	}
+	auto const& [lf,largs] = *l;
+	auto const& linfo = _info.find(lf);
+	if( !linfo ) {// x <>? t
+		return false;// TODO: improve
+		auto const& [rf,rargs] = *r;
+		auto const& rinfo = _info.find(rf);
+		if( !rinfo ) {// x <> y cannot be ensured
+			return false;
+		}
+		// x <>? g(t...)
+		Smt::PostExp sep_all_arg = true;
+		for( uint16_t j = 0; j < rinfo->arity; j++ ) {
+			sep_all_arg = sep_all_arg && rinfo->mapped(j).imp(separate(l,rargs[j]));
+		}
+		return w_sep || rinfo->collapse && sep_all_arg;
+	}
+	// f(s...) <>? t
+	auto const& [rf,rargs] = *r;
+	auto& sol = solver();
+	Smt::PostExp some_arg_ge = false;
+	Smt::PostExp some_arg_str = false;
+	for( uint16_t i = 0; i < largs.size(); i++ ) {
+		auto const& i_mapped = linfo->mapped(i);
+//			if( i_mapped == false ) break;
+		auto const& [i_ge,i_str] = compare(largs[i],r);
+		some_arg_ge = some_arg_ge || i_mapped && i_ge;// s_i survives and s_i ≥ t
+		some_arg_str = some_arg_str || i_mapped && i_str;
+	}
+	auto const& rinfo = _info.find(rf);
+	if( !rinfo ) {// f(s...) <> y
+		return false;// TODO: improve
+		return w_sep || linfo->collapse.imp(some_arg_str);// if f is collapsed
+	}
+	// f(s...) <>? g(t...)
+	Smt::PostExp sep_all_arg = true;
+	for( uint16_t j = 0; j < rargs.size(); j++ ) {
+		auto const& j_mapped = rinfo->mapped(j);
+//				if( j_mapped == false ) break;
+		sep_all_arg = sep_all_arg && j_mapped.imp(separate(l,rargs[j])); // if t_j survives, then s > t_j is prerequisite
+	}
+	auto const& p_sep = !linfo->prec.eq(rinfo->prec);
+	auto const& args_sep = mapped_lex_separate(
+		sol, [&]( auto const& x, auto const& y ){ return separate(x,y); },
+		linfo->occupied, rinfo->occupied, linfo->map, rinfo->map, largs, rargs
+	);
+	if( _log & DEBUG ) {
+		cerr << "; path-order separate: arguments (" << lf;
+		for( auto const& a : largs ) cerr << ' ' << a;
+		cerr << ") >< (" << rf;
+		for( auto const& a : rargs ) cerr << ' ' << a;
+		cerr << ") = " << args_sep << endl;
+	}
+	return
+		w_sep ||// w(s) > w(t)
+		some_arg_ge && linfo->collapse.imp(some_arg_str) ||// s_i ≥ t && (if f collapses then s_i > t)
+		rinfo->collapse && sep_all_arg ||
+		!linfo->collapse && !rinfo->collapse && (p_sep || args_sep);
 }
 
 std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sym ) {
@@ -281,13 +349,6 @@ std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sy
 PathOrder::StatusFun PathOrder::StatusFun::of( Exp const& x ) {
 	size_t n = 0;
 	Opt<bool> collapsible;
-	Exp::KeyValProc collapse_key = [&]( auto const& key, Exp const& val ){
-		if( key == "collapse" ) {
-			collapsible = {val.as_bool()};
-			return true;
-		}
-		return false;
-	};
 	if( x.fun() == "straight" ) {
 		x.get_end(n);
 		return StatusFun([](auto){ return Status::Straight(); });
@@ -299,7 +360,9 @@ PathOrder::StatusFun PathOrder::StatusFun::of( Exp const& x ) {
 		} else {
 			num = -1;
 		}
-		x.process_keys(n,collapse_key);
+		x.process_keys(n,
+			Exp::OnKey("collapse") >> [&]( auto const& val ){ collapsible = {val.as_bool()}; }
+		);
 		return StatusFun([num,collapsible]( Trs::Rank const& rank ){
 			return Status::Mapped( num == -1 ? rank.arity : rank.arity ? num : 0, collapsible.value_or(true) );
 		});
@@ -322,21 +385,36 @@ int TermOrder::log_of( Exp const& x ) {
 	}
 }
 
-Smt::Compare TrsOrder::_Wrapper::rule_compare( size_t i, Trs::Term const& l, Trs::Term const& r ) {
-	if( auto const& opt = _rule_order_table.find(i) ) return *opt;
+Smt::Compare TrsOrder::_Wrapper::rule_compare( ruleId i, Trs::Term const& l, Trs::Term const& r ) {
+	if( auto const& opt = _rule_compare_cache.find(i) ) return *opt;
 	Smt::Solver& sol = _ref->solver();
 	if( log() & RULE ) cerr << "; " << _ref->print_name() << ": (rule-n " << i << ' ' << l << ' ' << r << ')' << endl;
 	auto [ge,gt] = _ref->compare(l,r);
 	Smt::Compare ret = {sol.let(Smt::BOOL,ge),sol.let(Smt::BOOL,gt)};
-	_rule_order_table.emplace(i,ret);
+	_rule_compare_cache.emplace(i,ret);
+	return ret;
+}
+Smt::PostExp TrsOrder::_Wrapper::edge_separate( ruleId i, ruleId j, Problem const& p ) {
+	_DgNodeCache& node_cache = _edge_separate_cache.find(i).value_or([&]->_DgNodeCache&{
+		auto src = ASSERTED(p.rules.find(i))->second.map(// register renamed the rhs of the source DP
+			[&]( auto const& f ){ return p.sig.find(f) ? f : std::string("`")+f; }
+		);
+		return _edge_separate_cache.emplace(i,_DgNodeCache{src}).first;
+	}());
+	if( auto const& cache = node_cache.tgts.find(j) ) {
+		return *cache;
+	}
+	auto sep = _ref->separate(node_cache.src,ASSERTED(p.rules.find(j))->first);
+	auto ret = _ref->solver().let(Smt::BOOL,sep);
+	node_cache.tgts.emplace(j,ret);
 	return ret;
 }
 
 Smt::PostExp UsableRuleOrder::_Wrapper::term_used( Trs::Term const& r ) & {
 	auto const& [g,rs] = *r;
 	auto ret = Smt::PostExp::conj(0,rs.size(),[&]( uint16_t p ){ return arg_used(g,p).imp(term_used(rs[p])); } );
-	if( auto const& ginfo = _trs.sig.find(g) ) {
-		return ret && Smt::PostExp::conj( ginfo->defined_by, [&]( uint16_t i )->Smt::PostExp{
+	if( auto const& ginfo = _trs.sig.find(g); ginfo && !ginfo->dp ) {// non-dp symbol
+		return ret && Smt::PostExp::conj( ginfo->defined_by, [&]( ruleId i )->Smt::PostExp{
 			if( auto const& rule = _trs.rules.find(i) )
 				if( may_reach(_trs,r,rule->first,8,false) ) {//TODO
 					if( log() & USE ) cerr << "; " << r << " uses " << i << endl;
@@ -348,7 +426,7 @@ Smt::PostExp UsableRuleOrder::_Wrapper::term_used( Trs::Term const& r ) & {
 		return ret;
 	}
 }
-Smt::PostExp UsableRuleOrder::_Wrapper::rule_used( size_t i ) & {
+Smt::PostExp UsableRuleOrder::_Wrapper::rule_used( ruleId i ) & {
 	if( auto const& ret = _usable_table.find(i) ) {
 		return *ret;
 	}
@@ -364,6 +442,13 @@ Smt::PostExp UsableRuleOrder::_Wrapper::rule_used( size_t i ) & {
 	return ret;
 }
 
+static Exp::KeyValProc log_key( int& log ) {
+	return Exp::OnKey("log") >> [&]( auto const& val ){
+		if( log != -1 ) throw Error("#duplicate-log");
+		log = TermOrder::log_of(val);
+	};
+}
+
 std::unique_ptr<TermOrder> TermOrder::make(
 	Exp const& x,
 	std::function<Smt::Solver()> const& default_smt,
@@ -376,115 +461,85 @@ std::unique_ptr<TermOrder> TermOrder::make(
 	auto mk_smt = [&]{ return smt ? Smt::Solver::of(*smt) : default_smt(); };
 	int log = -1;
 	auto set_log = [&]{ if( log == -1 ) log = default_log; };
-	Exp::KeyValProc log_key = [&]( string_view const& key, Exp const& val ){
-		if( key == "log" ) {
-			if( log != -1 ) throw Error("#duplicate-log");
-			log = log_of(val);
-			return true;
-		}
-		return false;
-	};
-	Exp::KeyValProc solver_key = [&]( string_view const& key, Exp const& val ){
-		if( key == "smt" ) {
-			smt = {val};
-			return true;
-		}
-		return false;
-	};
+	auto solver_key = Exp::OnKey("smt") >> [&]( Exp const& val ){ smt = {val}; };
 	bool mono;
-	Exp::KeyValProc mono_key = [&]( string_view const& key, Exp const& val ){
-		if( key == "mono" ) {
-			mono = val.as_bool();
-			return true;
-		}
-		return false;
-	};
+	auto mono_key = Exp::OnKey("mono") >> [&]( Exp const& val ){ mono = val.as_bool(); };
 	if( f == "trivial" ) {
 		x.process_keys(n,solver_key);
 		return std::make_unique<TrivOrder>(mk_smt());
 	} else if( f == "mono-sum" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<Poly>>(Poly::POS_ALGEBRA,Template::MONO_SUM,mk_smt(),true,log);
 	} else if( f == "sum" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<Poly>>(Poly::POS_ALGEBRA,Template::SUM,mk_smt(),false,log);
 	} else if( f == "mono-bpoly" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<Poly>>(Poly::POS_ALGEBRA,Template::MONO_POLY2,mk_smt(),true,log);
 	} else if( f == "mat2b" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<Poly>>>(
 			tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::POS}),Template::MAT2B,mk_smt(),false,log
 		);
 	} else if( f == "mat2n" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<Poly>>>(
 			tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::POS}),Template::MAT2N,mk_smt(),false,log
 		);
 	} else if( f == "max" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::POS_ALGEBRA,Template::MAX,mk_smt(),false,log);
 	} else if( f == "maxsum" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::POS_ALGEBRA,Template::MAXSUM,mk_smt(),false,log);
 	} else if( f == "imax" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::POS_ALGEBRA,Template::IMAX,mk_smt(),false,log);
 	} else if( f == "imaxsum" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::POS_ALGEBRA,Template::IMAXSUM,mk_smt(),false,log);
 	} else if( f == "sum_negsum" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<MPoly>>>(
 			tuple_algebra<Poly::Range,MPoly>({Poly::POS,Poly::NEG}),Template::SUM_NEGSUM,mk_smt(),false,log
 		);
 	} else if( f == "imaxsum_negsum" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<MPoly>>>(
 			tuple_algebra<Poly::Range,MPoly>({Poly::POS,Poly::NEG}),Template::IMAXSUM_NEGSUM,mk_smt(),false,log
 		);
 	} else if( f == "template" ) {
 		Exp t = x.get_arg(n);
-		x.process_keys( n, solver_key || log_key || mono_key );
+		x.process_keys( n, solver_key || log_key(log) || mono_key );
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::ALGEBRA,t,mk_smt(),mono,log);
 	} else if( f == "path-order" ) {
 		Opt<Exp> w;
-		Exp::KeyValProc weight_key = [&]( auto const& key, Exp const& val ){
-			if( key == "weight" ) {
-				w = {val};
-				return true;
-			}
-			return false;
-		};
 		Opt<PathOrder::StatusFun> status;
-		Exp::KeyValProc status_key = [&]( auto const& key, Exp const& val ){
-			if( key == "status" ) {
-				status = {PathOrder::StatusFun::of(val)};
-				return true;
-			}
-			return false;
-		};
-		x.process_keys( n, weight_key || status_key || log_key || (w ? [](auto,auto){ return false; } : solver_key) );
+		x.process_keys( n,
+			Exp::OnKey("weight") >> [&]( auto const& val ){ w = {val}; } ||
+			Exp::OnKey("status") >> [&]( auto const& val ){ status = {PathOrder::StatusFun::of(val)}; } ||
+			log_key(log) || (w ? Exp::NO_KEY : solver_key) );
 		x.get_end(n);
 		set_log();
-		std::unique_ptr<TermOrder> weight;
-		if( w ) weight = MemoizedTermOrder::make(make(*w,default_smt,default_sort,log));
-		else weight = std::make_unique<TrivOrder>(mk_smt());
 		return std::make_unique<PathOrder>(
-			std::move(weight),
-			status ? *status : PathOrder::StatusFun( []( Trs::Rank const& rank ){ return PathOrder::Status::Straight(); } ),
+			w ?
+				std::unique_ptr<TermOrder>(MemoizedTermOrder::make(make(*w,default_smt,default_sort,log))) :
+				std::make_unique<TrivOrder>(mk_smt()),
+			status ?
+				*status :
+				PathOrder::StatusFun( []( Trs::Rank const& rank ){ return PathOrder::Status::Straight(); } ),
 			log
 		);
 	} else {
@@ -527,8 +582,8 @@ void TermOrder::test() {
 	auto x = z3.declare_const("x",Smt::INT);
 	auto y = z3.declare_const("y",Smt::INT);
 	auto z = z3.declare_const("z",Smt::INT);
-	cout << lex_compare(order,vector{x,y},{x,z}).ge << endl;
-	cout << lex_compare(order,vector{x},{x,z}).ge << endl;
+	cout << lex_compare([]( auto& l, auto& r ){ return l.compare(r); },vector{x,y},{x,z}).ge << endl;
+	cout << lex_compare([]( auto& l, auto& r ){ return l.compare(r); },vector{x},{x,z}).ge << endl;
 
 	Trs::Sig sig = {{"+",{2}}};
 
@@ -540,6 +595,6 @@ void TermOrder::test() {
 		)
 	);
 	lpo->extend_sig(sig,{});
-	cout << lpo->rule_compare(0,{"+","x","y"},{"x"}) << endl;
+	cout << lpo->rule_compare(ruleId(0),{"+","x","y"},{"x"}) << endl;
 
 }

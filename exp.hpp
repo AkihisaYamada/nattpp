@@ -94,9 +94,9 @@ public:
 	Term const& get_arg( size_t& i ) const&;
 	/** Asserts i is the number of arguments. */
 	void get_end( size_t i ) const&;
-	template<typename G>
-	Term<G> map( std::function<G(F const&)> f ) const {
-		Term<G> ret = f(fun());
+	template<typename Fn>
+	Term<std::invoke_result_t<Fn, F const&>> map( Fn&& f ) const {
+		Term<std::invoke_result_t<Fn, F const&>> ret = f(fun());
 		for( auto& arg : _ref->second ) {
 			ret._ref->second.push_back(arg.map(f));
 		}
@@ -198,6 +198,22 @@ struct Exp : Term<std::string> {
 	Exp( Term<std::string> && other ) : Term<std::string>(std::move(other)) {}
 	static Exp of( std::string const& );
 	using KeyValProc = std::function<bool(std::string_view const&,Exp const&)>;
+	static KeyValProc const NO_KEY;
+	static KeyValProc on_key( std::string&& _key, std::function<void(Exp const&)>&& _proc ) {
+		return [key = std::move(_key), proc = std::move(_proc)]( std::string_view const& pkey, Exp const& val ){
+			if( pkey == key ) {
+				proc(val);
+				return true;
+			}
+			return false;
+		};
+	}
+	struct OnKey {
+		std::string&& key;
+		KeyValProc operator>>( auto&& proc ) && {
+			return on_key(std::move(key),std::move(proc));
+		}
+	};
 	/** Processes key-value pairs from the ith argument. */
 	void process_keys( size_t& i, KeyValProc const& f ) const&;
 	Exp get_arg( size_t& i ) const& {
@@ -222,6 +238,7 @@ struct Exp : Term<std::string> {
 	}
 	static void test();
 };
+inline Exp::KeyValProc const Exp::NO_KEY = []( std::string_view const&, Exp const& ){ return false; };
 
 class Reader {
 	std::istream& _is;

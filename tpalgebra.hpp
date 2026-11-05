@@ -16,15 +16,20 @@ struct TupleVal {
 		}
 	}
 
-	friend Smt::Compare order( TupleVal const& l, TupleVal const& r, Smt::Solver& solver ) {
-		size_t n = l.vec.size();
-		if( n == 0 ) throw Error("\"tuple algebra: empty tuple\"");
-		if( n != r.vec.size() ) throw Error("\"tuple algebra: comparing wrong size\"");
-		auto const& ord0 = order(l.vec[0],r.vec[0],solver);
-		auto ge2 = solver.expand(
-			Smt::PreExp::conj( 1, n, [&]( size_t i ){ return l.vec[i].ge(r.vec[i]); })
-		);
+	Smt::Compare compare( TupleVal const& r, Smt::Solver& solver ) const {
+		size_t n = vec.size();
+		if( n == 0 ) throw Error("#tuple_algebra","\"comparing empty tuple\"");
+		if( n != r.vec.size() ) throw Error("#tuple_algebra","\"comparing wrong size\"");
+		auto const& ord0 = vec[0].compare(r.vec[0],solver);
+		auto ge2 = Smt::PostExp::conj( 1, n, [&]( size_t i ){ return vec[i].ge(r.vec[i]); });
 		return { ord0.ge && ge2, ord0.str };
+	}
+	Smt::PostExp separate( TupleVal const& r ) const {
+		size_t n = vec.size();
+		if( n == 0 ) throw Error("#tuple_algebra","\"separating empty tuple\"");
+		if( n != r.vec.size() ) throw Error("#tuple_algebra","\"separating wrong size\"");
+		// specific to the matrix interpretation ordering
+		return vec[0].separate(r.vec[0]) || Smt::PostExp::disj( 1, n, [&]( size_t i ){ return r.vec[i].gt(vec[i]); });
 	}
 	friend std::ostream& operator<<( std::ostream& os, TupleVal const& t ) {
 		os << "(tp";

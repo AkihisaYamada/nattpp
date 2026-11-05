@@ -176,10 +176,11 @@ public:
 	};
 	static Logic const QF_LIA, QF_LRA, LIA, LRA, QF_NIA, QF_NRA, NIA, NRA;
 	using Fun = Sum<std::string,Val>;
-	static std::string const TRUE_F, FALSE_F, AND, OR, NOT, IMP, ITE, ADD, MUL, EQ, GE, LE, GT, CONS, CAR, CDR, LIST, NTH, MAX;
+	static std::string const TRUE_F, FALSE_F, AND, OR, NOT, IMP, ITE, ADD, MUL, EQ, GE, LE, GT, LT, CONS, CAR, CDR, LIST, NTH, MAX;
 	static Set<std::string> const FUNS;
 	class PostExp;
 	static PostExp const TRUE, FALSE;
+	class Compare;
 	class PostExp {
 		friend Smt;
 		Term<Fun> _term;
@@ -242,12 +243,19 @@ public:
 		PostExp conj( PostExp const& y ) const &;
 		PostExp disj( PostExp const& y ) const &;
 		PostExp imp( PostExp const& y ) const;
+		PostExp eq( PostExp const& y ) const;
+		PostExp le( PostExp const& y ) const;
+		PostExp ge( PostExp const& y ) const;
+		PostExp gt( PostExp const& y ) const;
+		PostExp lt( PostExp const& y ) const;
 		PostExp operator!() const;
 		friend PostExp operator+( PostExp const& x, PostExp const& y );
 		PostExp& mul_eq( PostExp const&, bool linear ) &;
 		PostExp cons( PostExp const& y ) const {
 			return Term<Fun>(CONS,*this,y);
 		}
+		Compare compare( PostExp const& y ) const;
+		PostExp separate( PostExp const& y ) const;
 		Exp exp() const;
 		static PostExp disj( auto i, auto const& end, auto const& f ) {
 			std::vector<Term<Fun>> ds;
@@ -305,6 +313,9 @@ public:
 		friend std::ostream& operator<<( std::ostream& os, Smt::PreExp const& e );
 	public:
 		PreExp( PostExp const& e ) : _un(e) {}
+	    template<class... Args>
+	        requires std::constructible_from<PostExp, Args...>
+	    PreExp(Args&&... args) : _un(PostExp(std::forward<Args>(args)...)) {}
 		template<typename T>
 			requires std::is_constructible_v<Lazy,T>
 		PreExp( T const& lazy ) : _un(std::in_place_type<Lazy>,lazy) {}
@@ -334,6 +345,14 @@ public:
 		}
 		Opt<Lazy const&> is_lazy() const& {
 			return _un.ref<Lazy>();
+		}
+		Exp exp() const;
+		PostExp as_post() && {
+			if( auto const& op = is_post() ) return *op;
+			throw Error("#smt",exp());
+		}
+		PostExp const& as_post() const& {
+			return *ASSERTED(is_post());
 		}
 		PreExp conj( PreExp const& y ) const {
 			return PreExp(AND,{*this,y});
@@ -389,39 +408,26 @@ public:
 	static PreExp cdr( PreExp const& arg ) {
 		return PreExp{CDR,{arg}};
 	}
-	static PostExp eq( PostExp const& x, PostExp const& y );
 	static PreExp eq( PreExp const& x, PreExp const& y ) {
 		return PreExp(EQ,{x,y});
 	}
-	static PostExp le( PostExp const& x, PostExp const& y );
 	static PreExp le( PreExp const& x, PreExp const& y ) {
 		return PreExp(LE,{x,y});
 	}
-	static PostExp ge( PostExp const& x, PostExp const& y );
 	static PreExp ge( PreExp const& x, PreExp const& y ) {
 		return PreExp(GE,{x,y});
 	}
-	static PostExp gt( PostExp const& x, PostExp const& y );
 	static PreExp gt( PreExp const& x, PreExp const& y ) {
 		return PreExp(GT,{x,y});
+	}
+	static PreExp lt( PreExp const& x, PreExp const& y ) {
+		return PreExp(LT,{x,y});
 	}
 	static PostExp ite( PostExp const& i, PostExp const& t, PostExp const& e );
 	static PreExp ite( PreExp const& i, PreExp const& t, PreExp const& e ) {
 		if( t.is_post() && [&]( auto const& tp ){
 			return e.is_post() && [&]( auto const& ep ){ return tp == ep; };
 		} ) return t;
-		return PreExp(ITE,{i,t,e});
-	}
-	static PreExp ite( PreExp const& i, PreExp const& t, PostExp const& e ) {
-		if( t == e ) return t;
-		return PreExp(ITE,{i,t,e});
-	}
-	static PreExp ite( PreExp const& i, PostExp const& t, PreExp const& e ) {
-		if( t == e ) return t;
-		return PreExp(ITE,{i,t,e});
-	}
-	static PreExp ite( PreExp const& i, PostExp const& t, PostExp const& e ) {
-		if( t == e ) return t;
 		return PreExp(ITE,{i,t,e});
 	}
 	static PostExp mul( PostExp x, PostExp const& y, bool linear ) {
@@ -555,9 +561,9 @@ inline Smt::Sort::Sort( Sort const& x, Sort const& y ) : _un(Ref<_Cons>::make(x,
 inline OptRef<Smt::Sort::_Cons> Smt::Sort::cons() const & {
 	return _un.ref<Ref<_Cons>>() >>= [](auto ref)->OptRef<_Cons>{ return {ref}; };
 }
-inline Smt::Compare order( Smt::PostExp const& x, Smt::PostExp const& y ) {
-	if( x == y ) return { true, false };
-	return {Smt::ge(x,y),Smt::gt(x,y)};
+inline Smt::Compare Smt::PostExp::compare( Smt::PostExp const& y ) const {
+	if( *this == y ) return { true, false };
+	return {this->ge(y),this->ge(y)};
 }
 struct Smt::PreExp::App {
 	std::string fun;

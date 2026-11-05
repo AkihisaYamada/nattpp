@@ -179,13 +179,12 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 			ge_all_arg = ge_all_arg && rinfo->mapped(j).imp(j_ge);
 			str_all_arg = str_all_arg && rinfo->mapped(j).imp(j_str);
 		}
-		return {
-			w_ge && (
-				rinfo->collapse && ge_all_arg ||// g is collapsed
-				Smt::PostExp(0).eq(rinfo->prec) && rinfo->empty// g is least and no t_j survives
-			),
-			w_str || rinfo->collapse && str_all_arg
-		};
+		auto ge = w_ge && (
+			rinfo->collapse && ge_all_arg ||// g is collapsed
+			Smt::PostExp(0).eq(rinfo->prec) && rinfo->empty// g is least and no t_j survives
+		);
+		if( ge == false ) return {false,false};
+		return { ge, w_str || rinfo->collapse && str_all_arg };
 	}
 	// f(s...) >=? t
 	auto const& [rf,rargs] = *r;
@@ -222,7 +221,11 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 		linfo->occupied, rinfo->occupied, linfo->map, rinfo->map, largs, rargs
 	);
 	if( _log & DEBUG ) {
-		cerr << "; path_order: arguments [" << print_list(largs) << "] >=? [" << print_list(rargs) << "] = {" << args_ge << ", " << args_str << '}' << endl;
+		cerr << "; path-order: arguments (" << lf;
+		for( auto const& a : largs ) cerr << ' ' << a;
+		cerr << ") >=? (" << rf;
+		for( auto const& a : rargs ) cerr << ' ' << a;
+		cerr << ") = {" << args_ge << ", " << args_str << '}' << endl;
 	}
 	some_arg_ge = sol.let(Smt::BOOL,some_arg_ge);
 	str_all_arg = sol.let(Smt::BOOL,str_all_arg);
@@ -238,12 +241,12 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 			)
 		)
 	);
-	auto const& str = sol.let( Smt::BOOL,
+	if( ge == false ) return {false,false};
+	auto const& str =
 		w_str ||// w(s) > w(t)
 		some_arg_ge && linfo->collapse.imp(some_arg_str) ||// s_i > t
 		rinfo->collapse && str_all_arg ||
-		!linfo->collapse && !rinfo->collapse && (p_str || args_str)
-	);
+		!linfo->collapse && !rinfo->collapse && (p_str || args_str);
 	return {ge,str};
 }
 
@@ -255,6 +258,7 @@ Smt::PostExp PathOrder::separate_inner( Exp const& l, Exp const& r ) {
 	auto const& [lf,largs] = *l;
 	auto const& linfo = _info.find(lf);
 	if( !linfo ) {// x <>? t
+		return false;// TODO: improve
 		auto const& [rf,rargs] = *r;
 		auto const& rinfo = _info.find(rf);
 		if( !rinfo ) {// x <> y cannot be ensured
@@ -280,7 +284,8 @@ Smt::PostExp PathOrder::separate_inner( Exp const& l, Exp const& r ) {
 		some_arg_str = some_arg_str || i_mapped && i_str;
 	}
 	auto const& rinfo = _info.find(rf);
-	if( !rinfo ) {// f(s..) <> y
+	if( !rinfo ) {// f(s...) <> y
+		return false;// TODO: improve
 		return w_sep || linfo->collapse.imp(some_arg_str);// if f is collapsed
 	}
 	// f(s...) <>? g(t...)
@@ -296,7 +301,11 @@ Smt::PostExp PathOrder::separate_inner( Exp const& l, Exp const& r ) {
 		linfo->occupied, rinfo->occupied, linfo->map, rinfo->map, largs, rargs
 	);
 	if( _log & DEBUG ) {
-		cerr << "; path_order separate: arguments [" << print_list(largs) << "] != [" << print_list(rargs) << "] = " << args_sep << endl;
+		cerr << "; path-order separate: arguments (" << lf;
+		for( auto const& a : largs ) cerr << ' ' << a;
+		cerr << ") >< (" << rf;
+		for( auto const& a : rargs ) cerr << ' ' << a;
+		cerr << ") = " << args_sep << endl;
 	}
 	return
 		w_sep ||// w(s) > w(t)
@@ -340,13 +349,6 @@ std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sy
 PathOrder::StatusFun PathOrder::StatusFun::of( Exp const& x ) {
 	size_t n = 0;
 	Opt<bool> collapsible;
-	Exp::KeyValProc collapse_key = [&]( auto const& key, Exp const& val ){
-		if( key == "collapse" ) {
-			collapsible = {val.as_bool()};
-			return true;
-		}
-		return false;
-	};
 	if( x.fun() == "straight" ) {
 		x.get_end(n);
 		return StatusFun([](auto){ return Status::Straight(); });
@@ -358,7 +360,9 @@ PathOrder::StatusFun PathOrder::StatusFun::of( Exp const& x ) {
 		} else {
 			num = -1;
 		}
-		x.process_keys(n,collapse_key);
+		x.process_keys(n,
+			Exp::OnKey("collapse") >> [&]( auto const& val ){ collapsible = {val.as_bool()}; }
+		);
 		return StatusFun([num,collapsible]( Trs::Rank const& rank ){
 			return Status::Mapped( num == -1 ? rank.arity : rank.arity ? num : 0, collapsible.value_or(true) );
 		});
@@ -438,6 +442,13 @@ Smt::PostExp UsableRuleOrder::_Wrapper::rule_used( ruleId i ) & {
 	return ret;
 }
 
+static Exp::KeyValProc log_key( int& log ) {
+	return Exp::OnKey("log") >> [&]( auto const& val ){
+		if( log != -1 ) throw Error("#duplicate-log");
+		log = TermOrder::log_of(val);
+	};
+}
+
 std::unique_ptr<TermOrder> TermOrder::make(
 	Exp const& x,
 	std::function<Smt::Solver()> const& default_smt,
@@ -450,115 +461,85 @@ std::unique_ptr<TermOrder> TermOrder::make(
 	auto mk_smt = [&]{ return smt ? Smt::Solver::of(*smt) : default_smt(); };
 	int log = -1;
 	auto set_log = [&]{ if( log == -1 ) log = default_log; };
-	Exp::KeyValProc log_key = [&]( string_view const& key, Exp const& val ){
-		if( key == "log" ) {
-			if( log != -1 ) throw Error("#duplicate-log");
-			log = log_of(val);
-			return true;
-		}
-		return false;
-	};
-	Exp::KeyValProc solver_key = [&]( string_view const& key, Exp const& val ){
-		if( key == "smt" ) {
-			smt = {val};
-			return true;
-		}
-		return false;
-	};
+	auto solver_key = Exp::OnKey("smt") >> [&]( Exp const& val ){ smt = {val}; };
 	bool mono;
-	Exp::KeyValProc mono_key = [&]( string_view const& key, Exp const& val ){
-		if( key == "mono" ) {
-			mono = val.as_bool();
-			return true;
-		}
-		return false;
-	};
+	auto mono_key = Exp::OnKey("mono") >> [&]( Exp const& val ){ mono = val.as_bool(); };
 	if( f == "trivial" ) {
 		x.process_keys(n,solver_key);
 		return std::make_unique<TrivOrder>(mk_smt());
 	} else if( f == "mono-sum" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<Poly>>(Poly::POS_ALGEBRA,Template::MONO_SUM,mk_smt(),true,log);
 	} else if( f == "sum" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<Poly>>(Poly::POS_ALGEBRA,Template::SUM,mk_smt(),false,log);
 	} else if( f == "mono-bpoly" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<Poly>>(Poly::POS_ALGEBRA,Template::MONO_POLY2,mk_smt(),true,log);
 	} else if( f == "mat2b" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<Poly>>>(
 			tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::POS}),Template::MAT2B,mk_smt(),false,log
 		);
 	} else if( f == "mat2n" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<Poly>>>(
 			tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::POS}),Template::MAT2N,mk_smt(),false,log
 		);
 	} else if( f == "max" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::POS_ALGEBRA,Template::MAX,mk_smt(),false,log);
 	} else if( f == "maxsum" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::POS_ALGEBRA,Template::MAXSUM,mk_smt(),false,log);
 	} else if( f == "imax" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::POS_ALGEBRA,Template::IMAX,mk_smt(),false,log);
 	} else if( f == "imaxsum" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::POS_ALGEBRA,Template::IMAXSUM,mk_smt(),false,log);
 	} else if( f == "sum_negsum" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<MPoly>>>(
 			tuple_algebra<Poly::Range,MPoly>({Poly::POS,Poly::NEG}),Template::SUM_NEGSUM,mk_smt(),false,log
 		);
 	} else if( f == "imaxsum_negsum" ) {
-		x.process_keys( n, solver_key || log_key );
+		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<MPoly>>>(
 			tuple_algebra<Poly::Range,MPoly>({Poly::POS,Poly::NEG}),Template::IMAXSUM_NEGSUM,mk_smt(),false,log
 		);
 	} else if( f == "template" ) {
 		Exp t = x.get_arg(n);
-		x.process_keys( n, solver_key || log_key || mono_key );
+		x.process_keys( n, solver_key || log_key(log) || mono_key );
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::ALGEBRA,t,mk_smt(),mono,log);
 	} else if( f == "path-order" ) {
 		Opt<Exp> w;
-		Exp::KeyValProc weight_key = [&]( auto const& key, Exp const& val ){
-			if( key == "weight" ) {
-				w = {val};
-				return true;
-			}
-			return false;
-		};
 		Opt<PathOrder::StatusFun> status;
-		Exp::KeyValProc status_key = [&]( auto const& key, Exp const& val ){
-			if( key == "status" ) {
-				status = {PathOrder::StatusFun::of(val)};
-				return true;
-			}
-			return false;
-		};
-		x.process_keys( n, weight_key || status_key || log_key || (w ? [](auto,auto){ return false; } : solver_key) );
+		x.process_keys( n,
+			Exp::OnKey("weight") >> [&]( auto const& val ){ w = {val}; } ||
+			Exp::OnKey("status") >> [&]( auto const& val ){ status = {PathOrder::StatusFun::of(val)}; } ||
+			log_key(log) || (w ? Exp::NO_KEY : solver_key) );
 		x.get_end(n);
 		set_log();
-		std::unique_ptr<TermOrder> weight;
-		if( w ) weight = MemoizedTermOrder::make(make(*w,default_smt,default_sort,log));
-		else weight = std::make_unique<TrivOrder>(mk_smt());
 		return std::make_unique<PathOrder>(
-			std::move(weight),
-			status ? *status : PathOrder::StatusFun( []( Trs::Rank const& rank ){ return PathOrder::Status::Straight(); } ),
+			w ?
+				std::unique_ptr<TermOrder>(MemoizedTermOrder::make(make(*w,default_smt,default_sort,log))) :
+				std::make_unique<TrivOrder>(mk_smt()),
+			status ?
+				*status :
+				PathOrder::StatusFun( []( Trs::Rank const& rank ){ return PathOrder::Status::Straight(); } ),
 			log
 		);
 	} else {

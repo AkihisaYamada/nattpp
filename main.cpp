@@ -85,12 +85,13 @@ int main( int argc, char* argv[] ) try {
 	Opt<Exp> default_smt_spec;
 	Opt<Smt::BaseSort> default_sort;
 	int default_log = -1;
+	Opt<uint8_t> edge_len;
 	bool default_strategy = true;
-	enum class FreezingMode { NONE, FULL, UNCURRY };
-	FreezingMode allow_freezing = FreezingMode::UNCURRY;
+	enum class FreezingMode { NONE, FULL, UNCURRY } allow_freezing = FreezingMode::UNCURRY;
+	enum class EdgeMode { NONE, AUTO, FULL } allow_edge = EdgeMode::AUTO;
 	bool use_dp = true;
 	vector<Exp> rulerem_specs;
-	vector<Exp> dprem_specs;
+	vector<std::pair<Exp,bool>> dprem_specs;
 	for( int i = 1; i < argc; i++ ) {
 		if( argv[i][0] == '-' ) {
 			string_view opt = argv[i];
@@ -123,6 +124,18 @@ int main( int argc, char* argv[] ) try {
 					};
 					allow_freezing = map.find(argv[i]).value_or_throw(Error("#command","\"unknown freezing mode\"",argv[i]));
 				}}},
+				{ "-edge", { " (full|auto|none):\tedge remove mode", [&]{
+					require_arg();
+					static Map<std::string,EdgeMode> map = {
+						{"full",EdgeMode::FULL},{"auto",EdgeMode::AUTO},{"none",EdgeMode::NONE}
+					};
+					allow_edge = map.find(argv[i]).value_or_throw(Error("#command","\"unknown edge remove mode\"",argv[i]));
+				}}},
+				{ "-edge-len", { " <nat>:\tedge length", [&]{
+					if( edge_len ) throw Error("#duplicate-option",argv[i]);
+					require_arg();
+					edge_len = {(uint8_t)as_nat(argv[i],[](auto i){ return i < 127; })};
+				}}},
 				{ "-smt", { " <exp>:\tspecify SMT", [&]{
 					require_arg();
 					default_smt_spec = {Exp::of(argv[i])};
@@ -154,7 +167,7 @@ int main( int argc, char* argv[] ) try {
 				}}},
 				{ "-d", { " <ord>:\tdependency pair remover", [&]{
 					require_arg();
-					dprem_specs.push_back(Exp::of(argv[i]));
+					dprem_specs.push_back({Exp::of(argv[i]),false});
 					default_strategy = false;
 					use_dp = true;
 				}}},
@@ -203,14 +216,14 @@ int main( int argc, char* argv[] ) try {
 	if( print_problem ) cerr << p << endl;
 	if( default_strategy ) {
 		rulerem_specs.emplace_back("mono-sum");
-		dprem_specs.emplace_back("sum");
-		dprem_specs.emplace_back("max");
-		dprem_specs.emplace_back(LPO3_SPEC);
-		dprem_specs.emplace_back("imaxsum");
-		dprem_specs.emplace_back(Exp{"path-order",":weight","maxsum",":status","map"});
-		dprem_specs.emplace_back("sum_negsum");
-		dprem_specs.emplace_back("mat2b");
-		dprem_specs.emplace_back("imaxsum_negsum");
+		dprem_specs.emplace_back( "sum", allow_edge != EdgeMode::NONE );
+		dprem_specs.emplace_back( "max", allow_edge == EdgeMode::FULL );
+		dprem_specs.emplace_back( LPO3_SPEC, allow_edge != EdgeMode::NONE );
+		dprem_specs.emplace_back( "imaxsum", allow_edge != EdgeMode::FULL );
+		dprem_specs.emplace_back( Exp{"path-order",":weight","maxsum",":status","map"}, allow_edge != EdgeMode::FULL );
+		dprem_specs.emplace_back( "sum_negsum", allow_edge != EdgeMode::NONE );
+		dprem_specs.emplace_back( "mat2b", allow_edge != EdgeMode::FULL );
+		dprem_specs.emplace_back( "imaxsum_negsum", allow_edge != EdgeMode::FULL );
 		use_dp = true;
 	}
 	if( mode == UNSET && p.mode == Problem::NONE ) {
@@ -221,6 +234,14 @@ int main( int argc, char* argv[] ) try {
 		cout << "Unsupported!" << endl;
 		exit(-1);
 	}
+
+	auto print_component = print_proofs ? function([&]{
+		*prf << "(scc";
+		for( auto const& [i,js] : p.components.front().graph ) {
+			*prf << endl << " (node " << i << " (" << print_list(js) << "))";
+		}
+		*prf << ')' << endl;
+	}) : []{};
 
 	Set<std::string> heuristic;// TODO: improve
 	try {
@@ -274,7 +295,7 @@ int main( int argc, char* argv[] ) try {
 			if( !use_dp ) throw Answer::MAYBE;
 
 			if( print_steps ) cerr << "; taking dependency pairs" << endl;
-			p.make_dps();// compute DPs
+			p.make_dps(edge_len.value_or(8));// compute DPs
 			if( print_proofs ) {
 				*prf << "(dps" << endl;
 				for( auto [i,js] : p.components.front().graph ) {
@@ -286,7 +307,7 @@ int main( int argc, char* argv[] ) try {
 				*prf << ')' << endl;
 			}
 			// compute max-sum heuristic of dps. TODO: improve
-//			_max_sum_heuristic(heuristic,p.sig,p.components[0].nodes);
+			_max_sum_heuristic(heuristic,p.sig,p.rules);
 //			if( print_maxsym ) cerr << "; max symbols: " << print_list(heuristic) << endl;
 			if( print_usables ) {
 				cerr << "(uses_graph" << ConstGraph(p.uses_map).print_nodes("\n  ") << ')' << endl;
@@ -298,28 +319,26 @@ int main( int argc, char* argv[] ) try {
 				if( print_steps ) cerr << "; no SCC" << endl;
 				throw Answer::YES;
 			}
-			if( print_proofs ) {
-				*prf << "(scc";
-				for( auto const& [i,js] : p.components.front().graph ) {
-					*prf << " (node " << i << " (" << print_list(js) << "))";
-				}
-				*prf << ')' << endl;
-			}
+			print_component();
 		}
 		uint32_t target_ind = 2;
-		auto dp_removes = [&]( pair<int,unique_ptr<UsableRuleOrder>>& pair ){
+		struct DpRemover {
+			int stage;
+			bool edge;
+			unique_ptr<UsableRuleOrder> order;
+		};
+		auto dp_removes = [&]( DpRemover& remover ){
 			auto& comp = p.components.front();
-			auto& [stage,ord] = pair;
-			if( print_steps ) cerr << "; trying " << ord->print_name() << "... " << endl;
-			if( stage == 0 ) {
-				ord->extend_sig(p.sig,heuristic);
-				stage = 1;
+			if( print_steps ) cerr << "; trying " << remover.order->print_name() << "... " << endl;
+			if( remover.stage == 0 ) {
+				remover.order->extend_sig(p.sig,heuristic);
+				remover.stage = 1;
 			}
-			return order_some_dp_or_edge(*ord,p,comp,[&]( auto&& rem, auto&& usables ){
+			return order_some_dp_or_edge( *remover.order, p, remover.edge, [&]( auto&& rem, auto&& usables ){
 				if( print_proofs ) {
-					*prf << "(remove-dp\n  (" << ord->print_name();
+					*prf << "(remove-dp\n  (" << remover.order->print_name();
 					for( auto [f,rank] : p.sig ) {
-						*prf << "\n    (" << f << ord->print_sym_info(f) << ')';
+						*prf << "\n    (" << f << remover.order->print_sym_info(f) << ')';
 					};
 					*prf << ")\n ";
 				}
@@ -329,21 +348,29 @@ int main( int argc, char* argv[] ) try {
 						if( print_proofs ) *prf << ' ' << i;
 					} else {
 						auto& tgts = comp.graph[i];
-						for( auto j : js ) tgts.erase(j);
-						if( print_proofs ) *prf << " (edges " << i << " (" << print_list(js) << "))";
+						auto itr = print_proofs ?
+							*prf << " (edges " << i,
+							function([&]( ruleId j ){
+								tgts.erase(j);
+								*prf << ' ' << j;
+							}) :
+							[&]( ruleId j ) {
+								tgts.erase(j);
+							};
+						for( auto j : js ) {
+							itr(j);
+						}
+						if( print_proofs ) *prf << ')';
 					}
 				}
 				if( print_proofs ) *prf << "\n  :usables (" << print_list(usables) << "))" << endl;
 			});
 		};
 
-		vector<pair<int,unique_ptr<UsableRuleOrder>>> dp_removers;
-		for( auto x : dprem_specs ) {
-			dp_removers.emplace_back(0,UsableRuleOrder::make(p,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log))));
+		vector<DpRemover> dp_removers;
+		for( auto [x,edge] : dprem_specs ) {
+			dp_removers.emplace_back(0,edge,UsableRuleOrder::make(p,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log))));
 		}
-		auto print_component = print_proofs ? function([&](){
-			*prf << "(scc" << print_list(p.components.front().graph,[]( auto const& node ){ return node.first; }) << ')' << endl;
-		}) : [](){};
 		for(;;) {
 			if( p.components.front().graph.empty() ) {
 				p.components.pop_front();

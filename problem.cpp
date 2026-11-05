@@ -190,7 +190,7 @@ static void collect_dps(
 	}
 }
 
-void Problem::make_dps() & {
+void Problem::make_dps( uint8_t edge_len ) & {
 	assert( mode == SN );
 	mode = DP;
 	// make marked signature
@@ -227,7 +227,7 @@ void Problem::make_dps() & {
 		auto [nexts,fl] = component.graph.emplace(i,Set<ruleId>{});
 		for( auto const& j : ASSERTED(sig.find(R1.fun()))->defined_by ) {
 			auto const& [L2,R2,W2] = *ASSERTED(rules.find(j));
-			if( may_reach(*this,R1,L2,8,false) ) {
+			if( may_reach(*this,R1,L2,edge_len,false) ) {
 				nexts.emplace(j);
 			}
 		}

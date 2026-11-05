@@ -18,7 +18,7 @@ bool order_some_rule(
 bool order_some_dp_or_edge(
 	UsableRuleOrder& order,
 	Problem const& problem,
-	Problem::Component const& component,
+	bool edge,
 	std::function<void(std::vector<std::pair<ruleId,std::vector<ruleId>>>&&,std::vector<ruleId>&&)> const& callback
 );
 

@@ -39,10 +39,11 @@ bool order_some_rule(
 bool order_some_dp_or_edge(
 	UsableRuleOrder& order,
 	Problem const& p,
-	Problem::Component const& component,
+	bool edge,
 	std::function<void(std::vector<std::pair<ruleId,std::vector<ruleId>>>&&,std::vector<ruleId>&&)> const& f
 ) {
 	auto& solver = order.solver();
+	auto& component = p.components.front();
 	Smt::PostExp orient_some_dp = false;
 	Smt::PostExp separate_some_edge = false;
 	Smt::PostExp contain_usables = true;
@@ -74,12 +75,13 @@ bool order_some_dp_or_edge(
 		contain_dps = contain_dps && ge && order.term_used(r);// rhs of DP should be marked used
 		orient_some_dp = orient_some_dp || str;
 		auto& edges = encs.emplace_back(i,str).edges;
-		// constraints for edge removal
-		for( auto const& j : js ) {
-			auto sep = order.edge_separate(i,j,p);
-			if( sep == false ) continue;
-			separate_some_edge = separate_some_edge || sep;
-			edges.emplace_back(j,sep);
+		if( edge ) {// constraints for edge removal
+			for( auto const& j : js ) {
+				auto sep = order.edge_separate(i,j,p);
+				if( sep == false ) continue;
+				separate_some_edge = separate_some_edge || sep;
+				edges.emplace_back(j,sep);
+			}
 		}
 	}
 	solver.push();

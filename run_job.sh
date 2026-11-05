@@ -16,6 +16,7 @@ if [[ -z $config ]]; then
 else
 	export participant=${solver}_$config
 fi
+mkdir $jobpath
 mkdir $jobpath/results
 mkdir $jobpath/proofs
 

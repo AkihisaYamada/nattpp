@@ -7,15 +7,15 @@ struct FreezeType {
 	bool freezer;// this symbol can freeze an argument
 	bool freezee;// this symbol can be frozen into the parent
 	bool visited;
-	std::vector<bool> args;
+	std::vector<std::pair<bool,bool>> args;
 	static FreezeType uncurry( Trs::Rank const& rank ) {
 		FreezeType ret = {
 			.freezer = rank.arity > 1,
 			.freezee = rank.arity == 0 && rank.defined_by.empty(),
 			.visited = false,
-			.args = std::vector(rank.arity,false),
+			.args = std::vector(rank.arity,std::pair{false,false}),
 		};
-		if( rank.arity > 0 ) ret.args[0] = true;
+		if( rank.arity > 0 ) ret.args[0].first = true;
 		return ret;
 	}
 	static FreezeType anypos( Trs::Rank const& rank ) {
@@ -23,7 +23,7 @@ struct FreezeType {
 			.freezer = rank.arity > 1,
 			.freezee = rank.defined_by.empty(),// constructor argument is freezable
 			.visited = false,
-			.args = std::vector<bool>(rank.arity,true),
+			.args = std::vector(rank.arity,std::pair{true,false}),
 		};
 	}
 };
@@ -37,7 +37,7 @@ bool Problem::freeze( bool uncurry ) & {
 	}
 	// step 1: enumerate freezable positions
 	// TODO!! probably, a fixed point is necessary!
-	Algebra<std::string,bool> pre = [&]( std::string const& f, std::vector<bool>&& args ){
+	Algebra<std::string,bool> prel = [&]( std::string const& f, std::vector<bool>&& args ){
 		if( auto finfo = freeze_info.find(f) ) {
 			auto& [freezer,freezee,visited,fargs] = *finfo;
 			size_t n = fargs.size();
@@ -47,12 +47,12 @@ bool Problem::freeze( bool uncurry ) & {
 				bool pot = false;
 				for( uint16_t i = 0; i < n; i++ ) {
 					if( args[i] ) {// freezable argument is given
-						if( fargs[i] ) {// the position is freezing
+						if( fargs[i].first ) {// the position is freezing
 							pot = true;// potential to freeze
 							continue;
 						}
 					}
-					fargs[i] = false;
+					fargs[i].first = false;
 				}
 				freezer = pot;
 			}
@@ -60,21 +60,50 @@ bool Problem::freeze( bool uncurry ) & {
 		}
 		return false;// variable cannot be frozen
 	};
+	Algebra<std::string,bool> prer = [&]( std::string const& f, std::vector<bool>&& args ){
+		Set<std::string> ret;
+		if( auto finfo = freeze_info.find(f) ) {
+			auto& [freezer,freezee,visited,fargs] = *finfo;
+			size_t n = fargs.size();
+			assert( args.size() == n );
+			if( freezer ) {
+				bool pot = false;
+				for( uint16_t i = 0; i < n; i++ ) {
+					if( args[i] && fargs[i].first ) {// freezing happens in rhs
+						fargs[i].second = true;
+					}
+				}
+				return pot;
+			}
+			return freezee;
+		}
+		return false;
+	};
 	for( auto const& [i,rule] : rules ) {
 		auto const& [l,r,w] = rule;
-		pre(l);
+		prel(l); prer(r);
 	}
 	// test if any symbol can be frozen
 	{
-		bool freezable = false;
+		bool freeze_any = false;
 		for( auto& [f,finfo] : freeze_info ) {
 			if( finfo.visited && finfo.freezer ) {
-				freezable = true;
-				finfo.freezee = false;// raw freezer cannot be frozen
-				ASSERTED(sig.find(f))->defined_by.clear();// forget raw symbols were defined
+				bool freeze = false;
+				for( auto [li,ri] : finfo.args ) {
+					if( li && ri ) {// if lhss admit freezing the position and rhss benefit from it
+						freeze = true;
+					}
+				}
+				if( freeze ) {
+					freeze_any = true;
+					finfo.freezee = false;// raw freezer cannot be frozen
+					ASSERTED(sig.find(f))->defined_by.clear();// forget raw symbols were defined
+				} else {// do not freeze this
+					finfo.freezer = false;
+				}
 			}
 		}
-		if( !freezable ) return false;// nothing can be frozen
+		if( !freeze_any ) return false;// nothing can be frozen
 	}
 	// step 2: introduce frozen symbols, freeze lhs, and update defined symbols
 	std::vector<Trs::Rule> freezing_rules;// freezer rules
@@ -86,7 +115,7 @@ bool Problem::freeze( bool uncurry ) & {
 				std::string ff = "[" + f;
 				std::vector<::Term<std::string>> ret_args;
 				for( uint16_t i = 0; i < fargs.size(); i++ ) {
-					if( fargs[i] ) {// freezing position
+					if( fargs[i].second ) {// freezing position
 						ff.append(1,' ') += args[i].fun();
 						ret_args.append_range(args[i].args());
 					} else {// raw position
@@ -102,7 +131,7 @@ bool Problem::freeze( bool uncurry ) & {
 					uint16_t fi = 0;
 					std::vector<::Term<std::string>> largs, frargs;
 					for( uint16_t i = 0; i < fargs.size(); i++ ) {
-						if( fargs[i] ) {
+						if( fargs[i].second ) {
 							std::vector<::Term<std::string>> lsubargs;
 							for( auto const& subarg : args[i].args() ) {
 								auto v = "_"+std::to_string(fi);
@@ -141,7 +170,7 @@ bool Problem::freeze( bool uncurry ) & {
 				std::vector<::Term<std::string>> ret_args;
 				bool freezable = true;// check if all freezing positions are supplied constructor
 				for( uint16_t i = 0; i < fargs.size(); i++ ) {
-					if( fargs[i] ) {
+					if( fargs[i].second ) {
 						auto const& g = args[i].fun();
 						// freeze if the argument is freezable
 						if( freeze_info.find(g) && []( auto const& ginfo ){ return ginfo.freezee; } ) {

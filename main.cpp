@@ -88,7 +88,7 @@ int main( int argc, char* argv[] ) try {
 	Opt<uint8_t> edge_len;
 	bool default_strategy = true;
 	enum class FreezingMode { NONE, FULL, UNCURRY } allow_freezing = FreezingMode::UNCURRY;
-	enum class EdgeMode { NONE, AUTO, FULL } allow_edge = EdgeMode::NONE;
+	enum EdgeMode { NONE, AUTO = 1, FULL = AUTO << 1, FALLBACK = FULL << 1 } allow_edge = EdgeMode::NONE;
 	bool use_dp = true;
 	vector<Exp> rulerem_specs;
 	vector<std::pair<Exp,bool>> dprem_specs;
@@ -124,10 +124,10 @@ int main( int argc, char* argv[] ) try {
 					};
 					allow_freezing = map.find(argv[i]).value_or_throw(Error("#command","\"unknown freezing mode\"",argv[i]));
 				}}},
-				{ "-edge", { " (full|auto|none):\tedge remove mode", [&]{
+				{ "-edge", { " (none|auto|full|fallback):\tedge remove mode", [&]{
 					require_arg();
 					static Map<std::string,EdgeMode> map = {
-						{"full",EdgeMode::FULL},{"auto",EdgeMode::AUTO},{"none",EdgeMode::NONE}
+						{"full",EdgeMode::FULL},{"auto",EdgeMode::AUTO},{"none",EdgeMode::NONE},{"fallback",EdgeMode::FALLBACK}
 					};
 					allow_edge = map.find(argv[i]).value_or_throw(Error("#command","\"unknown edge remove mode\"",argv[i]));
 				}}},
@@ -216,14 +216,21 @@ int main( int argc, char* argv[] ) try {
 	if( print_problem ) cerr << p << endl;
 	if( default_strategy ) {
 		rulerem_specs.emplace_back("mono-sum");
-		dprem_specs.emplace_back( "sum", allow_edge != EdgeMode::NONE );
-		dprem_specs.emplace_back( "max", allow_edge == EdgeMode::FULL );
-		dprem_specs.emplace_back( LPO3_SPEC, allow_edge != EdgeMode::NONE );
-		dprem_specs.emplace_back( "imaxsum", allow_edge == EdgeMode::FULL );
-		dprem_specs.emplace_back( Exp{"path-order",":weight","maxsum",":status","map"}, allow_edge != EdgeMode::FULL );
-		dprem_specs.emplace_back( "sum_negsum", allow_edge != EdgeMode::NONE );
-		dprem_specs.emplace_back( "mat2b", allow_edge != EdgeMode::NONE );
-		dprem_specs.emplace_back( "imaxsum_negsum", allow_edge == EdgeMode::FULL );
+		bool auto_edge = allow_edge & (EdgeMode::AUTO | EdgeMode::FULL);
+		bool full_edge = allow_edge == EdgeMode::FULL;
+		dprem_specs.emplace_back( "sum", auto_edge );
+		dprem_specs.emplace_back( "max", full_edge );
+		dprem_specs.emplace_back( LPO_SPEC, auto_edge );
+		dprem_specs.emplace_back( "imaxsum", full_edge );
+		dprem_specs.emplace_back( Exp{"path-order",":weight","maxsum",":status","map"}, full_edge );
+		dprem_specs.emplace_back( "sum_negsum", full_edge );
+		dprem_specs.emplace_back( "mat2b", auto_edge );
+		dprem_specs.emplace_back( "imaxsum_negsum", full_edge );
+		if( allow_edge & EdgeMode::FALLBACK ) {
+			dprem_specs.emplace_back("sum",true);
+			dprem_specs.emplace_back(LPO_SPEC,true);
+			dprem_specs.emplace_back("mat2b",true);
+		}
 		use_dp = true;
 	}
 	if( mode == UNSET && p.mode == Problem::NONE ) {
@@ -280,8 +287,9 @@ int main( int argc, char* argv[] ) try {
 					stage = 1;
 				}
 				return order_some_rule(*ord,p.rules,[&](auto&&rem){
-					if( print_proofs )
+					if( print_proofs ) {
 						*prf << "(remove-rule\n  " << ord->print(p.sig) << "\n " << print_list(rem) << ')' << endl;
+					}
 					for( ruleId i : rem ) {
 						p.erase_rule(i);
 					}

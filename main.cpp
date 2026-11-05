@@ -219,11 +219,11 @@ int main( int argc, char* argv[] ) try {
 		dprem_specs.emplace_back( "sum", allow_edge != EdgeMode::NONE );
 		dprem_specs.emplace_back( "max", allow_edge == EdgeMode::FULL );
 		dprem_specs.emplace_back( LPO3_SPEC, allow_edge != EdgeMode::NONE );
-		dprem_specs.emplace_back( "imaxsum", allow_edge != EdgeMode::FULL );
+		dprem_specs.emplace_back( "imaxsum", allow_edge == EdgeMode::FULL );
 		dprem_specs.emplace_back( Exp{"path-order",":weight","maxsum",":status","map"}, allow_edge != EdgeMode::FULL );
 		dprem_specs.emplace_back( "sum_negsum", allow_edge != EdgeMode::NONE );
-		dprem_specs.emplace_back( "mat2b", allow_edge != EdgeMode::FULL );
-		dprem_specs.emplace_back( "imaxsum_negsum", allow_edge != EdgeMode::FULL );
+		dprem_specs.emplace_back( "mat2b", allow_edge != EdgeMode::NONE );
+		dprem_specs.emplace_back( "imaxsum_negsum", allow_edge == EdgeMode::FULL );
 		use_dp = true;
 	}
 	if( mode == UNSET && p.mode == Problem::NONE ) {

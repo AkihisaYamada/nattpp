@@ -305,15 +305,16 @@ Term<Sum<Template::Sym,Arg>> Template::Deriver::_deriver_of(
 }
 void Template::Deriver::extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) & {
 	if( sig.find(f) ) return;
+	auto fesc = escape(f);
 	auto [finfo,fl] = sig.emplace(
 		f, FunInfo{
-			.triv = _solver.declare_const("t_"+escape(f),Smt::BOOL),
+			.triv = _solver.declare_const("t_"+fesc,Smt::BOOL),
 		}
 	);
 	if( log & INIT ) cerr << "; intp triv[" << f << "] := " << finfo.triv << endl;
 	for( size_t i = 0; i < rank.arity; i++ ) {
-		auto const& infl = _solver.declare_const("i_"+escape(f)+"_"+to_string(i), Smt::BOOL);
-		auto const& used = _solver.declare_const("u_"+escape(f)+"_"+to_string(i),Smt::BOOL);
+		auto const& infl = _solver.declare_const("i_"+fesc+"_"+to_string(i), Smt::BOOL);
+		auto const& used = _solver.declare_const("u_"+fesc+"_"+to_string(i),Smt::BOOL);
 		auto const& arg = finfo.args.emplace_back(ArgInfo{
 			.infl = infl,
 			.used = used,

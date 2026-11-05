@@ -47,9 +47,9 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 	auto const& sort = sol.logic().base_sort();
 	if( _log & DEBUG ) cerr << "; fun " << f << ' ' << rank.print_content() << endl;
 	_weight->extend_sig(f,rank,heuristic);
-	auto prec = sol.declare_const("p"+escape(f),sol.logic().base_sort());//sol.declare_fresh(sort);
-	sol.ass( Smt::ge(prec,0) );
 	std::string fesc = escape(f);
+	auto prec = sol.declare_const("p_"+fesc,sol.logic().base_sort());//sol.declare_fresh(sort);
+	sol.ass( Smt::ge(prec,0) );
 	if( _log & DEBUG ) cerr << "; prec " << f << ": " << prec << endl;
 	uint16_t arity = rank.arity;
 	Status status = _status.fun(rank);
@@ -69,7 +69,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 			});
 		} else {
 			std::vector<Smt::PostExp> used_tbl;
-			Smt::PostExp collapse = map_opt->collapsible ? sol.declare_const(fesc+"_c",Smt::BOOL) : false;
+			Smt::PostExp collapse = map_opt->collapsible ? sol.declare_const("c_"+fesc,Smt::BOOL) : false;
 			if( _log & DEBUG ) cerr << "; collapse[" << f << "] => trivial weight" << endl;
 			sol.ass(collapse.imp(_weight->fun_triv(f)));
 			std::vector<Smt::PostExp> mapped_tbl;
@@ -78,7 +78,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 				auto& mapi = map_tbl.emplace_back();
 				for( uint16_t k = 0; k < post_arity; k++ ) {// k-th place after mapping
 					auto const& ik = mapi.emplace_back(
-						sol.declare_const(fesc+"_m"+to_string(i)+"_"+to_string(k),Smt::BOOL)
+						sol.declare_const("m_"+fesc+"_"+to_string(i)+"_"+to_string(k),Smt::BOOL)
 					);
 					for( uint16_t j = 0; j < i; j++ ) {// k-th place cannot be shared
 						sol.ass( !map_tbl[i][k] || !map_tbl[j][k] );

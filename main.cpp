@@ -238,7 +238,7 @@ int main( int argc, char* argv[] ) try {
 	auto print_component = print_proofs ? function([&]{
 		*prf << "(scc";
 		for( auto const& [i,js] : p.components.front().graph ) {
-			*prf << endl << " (node " << i << " (" << print_list(js) << "))";
+			*prf << ' ' << i;
 		}
 		*prf << ')' << endl;
 	}) : []{};

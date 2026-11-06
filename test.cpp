@@ -14,7 +14,7 @@ int main( int argc, char const** argv ) try {
 	Poly::test();
 	Template::test();
 	TermOrder::test();
-	Graph::test();
+	graph_test();
 	cout << "=== Test Done ===" << endl;
 } catch( Error const& e ) {
 	cerr << e << endl;

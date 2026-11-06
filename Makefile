@@ -42,7 +42,7 @@ debug: ${DEBUG_OBJS} ${DEBUG_MAIN}
 	${DEBUG_CPP} $^ -o $@
 
 tester: ${DEBUG_OBJS} ${DEBUG_TEST}
-	${SANITIZE_CPP} $^ -o $@
+	${DEBUG_CPP} $^ -o $@
 
 test: tester
 	./tester

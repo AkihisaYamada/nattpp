@@ -906,6 +906,8 @@ int Smt::test() try {
 	auto xy = PreExp(x) * ite(y,0,1);
 	cout << xy << "  -->  " << z3.expand(xy) << endl;
 
+	cout << (Forall("x",INT) >>= PostExp(Local("x")).ge(0).disj(PostExp(0).ge(Local("x")))) << endl;
+
 	cout << "--- Smt::test done ---" << endl;
 	return 0;
 } catch( ::Error const& e ) {

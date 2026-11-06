@@ -15,7 +15,7 @@ ostream& operator<<( ostream& os, Poly::Var const& v ) {
 	return os << "(var " << (string)v << v.range << ')';
 }
 
-ostream& operator<<( ostream& os, Poly::Vars const& vs ) {
+ostream& operator<<( ostream& os, Poly::VarProd const& vs ) {
 	os << "(vars"; 
 	for( auto const& var : vs.vars() ) {
 		os << ' ' << (string)var;
@@ -23,7 +23,7 @@ ostream& operator<<( ostream& os, Poly::Vars const& vs ) {
 	return os << vs.range() << ')';
 }
 
-static ostream& put_monom( ostream& os, pair<Poly::Vars,Smt::PreExp> const& m ) {
+static ostream& put_monom( ostream& os, pair<Poly::VarProd,Smt::PreExp> const& m ) {
 	auto const& [vs,c] = m;
 	if( vs.range() == Poly::NONE ) return os << c;
 	if( c == 1 ) {
@@ -32,6 +32,20 @@ static ostream& put_monom( ostream& os, pair<Poly::Vars,Smt::PreExp> const& m ) 
 	return os << "(* " << c << ' ' << m.first << ')';
 }
 
+Smt::PreExp Poly::VarProd::as_smt() const {
+	Smt::PreExp ret = 1;
+	for( auto const& var : _vars ) {
+		ret *= Smt::Local(var);
+	}
+	return ret;
+}
+Smt::PreExp Poly::as_smt() const {
+	Smt::PreExp ret = 0;
+	for( auto const& [vars,coeff] : _map ) {
+		ret += vars.as_smt() * coeff;
+	}
+	return ret;
+}
 ostream& operator<<( ostream& os, Poly const& p ) {
 	auto const& map = p.map();
 	auto const& n = map.size();
@@ -60,11 +74,11 @@ std::ostream& operator<<( std::ostream& os, MPoly const& p ) {
 Poly operator+( Poly const& p1, Poly const& p2 ) {
 	Poly ret;
 	iter2(p1._map,p2._map,[&]( auto const& it1, auto const& it2 ){
-		ret._map.emplace( it1->first, it1->second + it2->second );
+		ret.set_coeff( it1->first, it1->second + it2->second );
 	},[&]( auto const& it1 ){
-		ret._map.emplace(*it1);
+		ret.set_coeff( it1->first, it1->second );
 	},[&]( auto const& it2 ){
-		ret._map.emplace(*it2);
+		ret.set_coeff( it2->first, it2->second );
 	});
 	return ret;
 }
@@ -73,7 +87,7 @@ Poly& operator+=( Poly& p1, Poly const& p2 ) {
 		it1->second += it2->second;
 	},[&]( auto const it1 ){
 	},[&]( auto const it2 ){
-		p1._map.emplace(std::move(*it2));
+		p1.set_coeff( it2->first, it2->second );
 	});
 	return p1;
 }
@@ -83,18 +97,18 @@ Poly ite( Poly const& i, Poly const& p1, Poly const& p2 ) {
 	Smt::PreExp ie = i._map.find({}).value_or_throw(Error("#poly:ite"));
 	Poly ret;
 	iter2(p1._map,p2._map,[&]( auto const& it1, auto const& it2 ){
-		ret._map.emplace( it1->first, Smt::ite(ie,it1->second,it2->second) );
+		ret.set_coeff( it1->first, Smt::ite(ie,it1->second,it2->second) );
 	},[&]( auto const& it1 ){
-		ret._map.emplace( it1->first, Smt::ite(ie,it1->second,0) );
+		ret.set_coeff( it1->first, Smt::ite(ie,it1->second,0) );
 	},[&]( auto const& it2 ){
-		ret._map.emplace( it2->first, Smt::ite(ie,0,it2->second) );
+		ret.set_coeff( it2->first, Smt::ite(ie,0,it2->second) );
 	});
 	return ret;
 }
-Poly Poly::monom_mult( Smt::PreExp const& c, Vars const& vs ) const {
+Poly Poly::monom_mult( Smt::PreExp const& c, VarProd const& vs ) const {
 	Poly ret;
 	for( auto& [vs1,c1] : _map ) {
-		ret._map.emplace(vs1 * vs, c * c1);
+		ret.set_coeff( vs1 * vs, c * c1 );
 	}
 	return ret;
 }
@@ -331,14 +345,18 @@ int Poly::test() {
 	};
 	auto e = Exp{"f",Exp{"a","x"},Exp{"b","x"}};
 	cout << "⟦" << e << "⟧ = " << hsubst.derive(TERM<Template::Sym>)(e) << endl;
-	cout << hsubst.derive(MPoly::ALGEBRA)(e) << endl;
+	cout << hsubst.derive(MPoly::POS_ALGEBRA)(e) << endl;
 	Poly x = Poly::Var("x",Poly::POS);
 	Poly y = Poly::Var("y",Poly::NEG);
 	auto c = z3.declare_const("c",Smt::INT);
 	auto d = z3.declare_const("d",Smt::INT);
 	Poly p = x * c + d, q = x * 5 + 3;
 	cout << "Poly: " << p << " >= " << q << endl;
-	cout << "Smt: " << z3.expand(p.ge(q)) << endl;
+	auto ppre = p.as_smt();
+	auto ppost = z3.expand(ppre);
+	cout << "Smt exp: " << ppre << " --> " << ppost << endl;
+	cout << "Smt order exp: " << p.vars().quantify(Smt::INT,ppost) << " --> " << z3.expand(p.as_smt()) << endl;
+	cout << "Smt order: " << p.ge(q) << endl;
 
 	return 0;
 }

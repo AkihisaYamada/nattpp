@@ -23,6 +23,7 @@ struct Poly {
 	struct Var : std::string {
 		Range range;
 		Var( std::string_view const& str, Range range ) : std::string(str), range(range) {}
+		Var( Var const& other ) = default;
 	};
 	using Sig = Sum<Add,Mul,Cond,Smt::PreExp,Var>;
 	static Range range_mult( Range r1, Range r2 ) {
@@ -45,47 +46,72 @@ struct Poly {
 			return FULL;
 		}
 	}
-	struct Vars {
+	struct VarSet : Map<std::string,Range> {
+		using Map::Map;
+		Smt::PostExp quantify( Smt::BaseSort sort, Smt::PostExp const& body ) const {
+			auto ret = body;
+			for( auto const& [var,range] : *this ) {
+				ret = Smt::Forall(var,sort) >>= [&]{
+					switch(range){
+						case POS: return Smt::PostExp(Smt::Local(var)).ge(0);
+						case NEG: return Smt::PostExp(Smt::Local(var)).le(0);
+						default: return Smt::PostExp(true);
+					}
+				}().imp(ret);
+			}
+			return ret;
+		}
+	};
+	struct VarProd {
 		std::multiset<Var> _vars;
 		Range _range;
-		Vars( std::multiset<Var>&& org, Range range ) : _vars(std::move(org)), _range(range) {}
+		VarProd( std::multiset<Var>&& org, Range range ) : _vars(std::move(org)), _range(range) {}
 	public:
-		Vars() : _range(NONE) {}
-		Vars( Var const& v ) : _vars{v}, _range(v.range) {}
+		VarProd() : _range(NONE) {}
+		VarProd( Var const& v ) : _vars{v}, _range(v.range) {}
 		Range range() const {
 			return _range;
 		}
 		std::multiset<Var> const& vars() const {
 			return _vars;
 		}
-		Vars operator*( Vars const& vs2 ) const {
+		VarProd operator*( VarProd const& vs2 ) const {
 			std::multiset<Var> vs = _vars;
 			vs.insert(vs2.vars().begin(),vs2.vars().end());
-			return Vars( std::move(vs), range_mult(_range,vs2._range) );
+			return VarProd( std::move(vs), range_mult(_range,vs2._range) );
 		}
-		auto operator==( Vars const& vs2 ) const {
+		auto operator==( VarProd const& vs2 ) const {
 			return _vars == vs2._vars;
 		}
-		auto operator<=>( Vars const& vs2 ) const {
+		auto operator<=>( VarProd const& vs2 ) const {
 			return _vars <=> vs2._vars;
 		}
+		Smt::PreExp as_smt() const;
 		friend Poly;
 	};
 private:
-	OrdMap<Vars,Smt::PreExp> _map;
+	OrdMap<VarProd,Smt::PreExp> _map;
+	VarSet _vars;
 public:
 	Poly() {}
 	template<typename T> requires std::is_constructible_v<Smt::PreExp,T>
 	Poly( T&& c ) : _map{{{},Smt::PreExp(std::forward<T>(c))}} {}
-	Poly( Var const& v ) : _map{{v,Smt::PreExp(1)}} {}
-	OrdMap<Vars,Smt::PreExp> const& map() const & {
+	Poly( Var const& v ) : _map{{v,1}}, _vars{{v,v.range}} {}
+	OrdMap<VarProd,Smt::PreExp> const& map() const & {
 		return _map;
 	}
-	Smt::PreExp operator[]( Vars const& vars ) const& {
+	Smt::PreExp operator[]( VarProd const& vars ) const& {
 		if( auto const& c = _map.find(vars) ) {
 			return *c;
 		}
 		return Smt::PreExp(0);
+	}
+	void set_coeff( VarProd const& vars, Smt::PreExp const& coeff ) {
+		if( _map.emplace(vars,coeff).second ) {
+			for( auto const& var : vars._vars ) {
+				_vars.emplace(var,var.range);
+			}
+		}
 	}
 	void memoize( Smt::Solver& solver )& {
 		for( auto& [vs,coeff] : _map ) {
@@ -94,7 +120,7 @@ public:
 	}
 	friend Poly operator+( Poly const& p1, Poly const& p2 );
 	friend Poly& operator+=( Poly& p1, Poly const& p2 );
-	Poly monom_mult( Smt::PreExp const& c, Vars const& vs ) const;
+	Poly monom_mult( Smt::PreExp const& c, VarProd const& vs ) const;
 	friend Poly operator*( Poly const& p1, Poly const& p2 );
 	friend Poly& operator*=( Poly& p1, Poly const& p2 ) {
 		return p1 = p1 * p2;
@@ -103,6 +129,9 @@ public:
 	Smt::PostExp gt( Poly const& p2 ) const;
 	Smt::Compare compare( Poly const& p2, Smt::Solver& solver ) const;
 	Smt::PostExp separate( Poly const& p2 ) const;
+	Smt::PreExp as_smt() const;
+	VarSet vars() && { return std::move(_vars); }
+	VarSet const& vars() const& { return _vars; }
 	friend Poly ite( Poly const& c, Poly const& p1, Poly const& p2 );
 	static Algebra<Template::Sym,Poly> algebra_of_range( Range ran );
 	static Algebra<Template::Sym,Poly> const ALGEBRA;
@@ -159,6 +188,6 @@ std::ostream& operator<<( std::ostream& os, Poly::Range const& r );
 
 std::ostream& operator<<( std::ostream& os, Poly::Var const& v );
 
-std::ostream& operator<<( std::ostream& os, Poly::Vars const& vs );
+std::ostream& operator<<( std::ostream& os, Poly::VarProd const& vs );
 
 #endif

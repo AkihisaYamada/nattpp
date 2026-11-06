@@ -178,6 +178,29 @@ public:
 	using Fun = Sum<std::string,Val>;
 	static std::string const TRUE_F, FALSE_F, AND, OR, NOT, IMP, ITE, ADD, MUL, EQ, GE, LE, GT, LT, CONS, CAR, CDR, LIST, NTH, MAX;
 	static Set<std::string> const FUNS;
+	class Local {
+		friend Smt;
+		std::string _name;
+	public:
+		explicit Local( std::string_view const& name ) : _name(name) {}
+		std::string name() && { return std::move(_name); }
+		std::string const& name() const& { return _name; }
+	};
+	class LocalDecl : Local {
+		friend Smt;
+		BaseSort _sort;
+	public:
+		using Local::name;
+		explicit LocalDecl( std::string_view const& name, BaseSort const& sort ) : Local(name), _sort(sort) {}
+		BaseSort sort() && { return std::move(_sort); }
+		BaseSort const& sort() const& { return _sort; }
+	};
+	class Forall : public LocalDecl {
+	public: using LocalDecl::LocalDecl;
+	};
+	class Exists : public LocalDecl {
+	public: using LocalDecl::LocalDecl;
+	};
 	class PostExp;
 	static PostExp const TRUE, FALSE;
 	class Compare;
@@ -189,6 +212,10 @@ public:
 		friend std::ostream& operator<<( std::ostream& os, Smt::PostExp const& e ) {
 			return os << (Term<Smt::Fun>)e;
 		}
+		explicit PostExp( Forall&& x, PostExp const& body ) :
+			_term("forall",Term<Fun>{"",Term<Fun>{std::move(x._name),std::move(x._sort).name()}},body) {}
+		explicit PostExp( Exists&& x, PostExp const& body ) :
+			_term("exists",Term<Fun>{"",Term<Fun>{std::move(x._name),std::move(x._sort).name()}},body) {}
 	public:
 		PostExp( PostExp const& ) = default;
 		PostExp( PostExp && ) = default;
@@ -197,6 +224,13 @@ public:
 		PostExp( uint64_t i ) : _term(Val(i)) {}
 		PostExp( int i ) : _term(Val(i)) {}
 		PostExp( Val v ) : _term(v) {}
+		PostExp( Local&& x ) : _term(x.name()) {}
+		friend PostExp operator>>=( Forall&& x, PostExp const& body ) {
+			return PostExp(std::move(x),body);
+		}
+		friend PostExp operator>>=( Exists&& x, PostExp const& body ) {
+			return PostExp(std::move(x),body);
+		}
 		operator Term<Fun> const&() const& {
 			return _term;
 		}
@@ -385,6 +419,9 @@ public:
 		friend PreExp operator+( PreExp const& x, PreExp const& y );
 		friend PreExp operator*( PreExp const& x, PreExp const& y ) {
 			return PreExp(MUL,{x,y});
+		}
+		friend PreExp& operator*=( PreExp& x, PreExp const& y ) {
+			return x = x * y;
 		}
 		PreExp cons( PreExp const& y ) const {
 			return PreExp(CONS,{*this,y});

@@ -36,26 +36,10 @@ bool order_some_rule(
 	return false;
 }
 
-bool order_some_dp_or_edge(
-	UsableRuleOrder& order,
-	Problem const& p,
-	bool edge,
-	std::function<void(std::vector<std::pair<ruleId,std::vector<ruleId>>>&&,std::vector<ruleId>&&)> const& f
-) {
-	auto& solver = order.solver();
-	auto& component = p.components.front();
-	Smt::PostExp orient_some_dp = false;
-	Smt::PostExp separate_some_edge = false;
-	Smt::PostExp contain_usables = true;
-	Smt::PostExp contain_dps = true;
-	struct OrientInfo {
-		ruleId i;
-		Smt::PostExp oriented;
-		std::vector<std::pair<ruleId,Smt::PostExp>> edges;
-	};
-	std::vector<OrientInfo> encs;
+static std::pair<Set<ruleId>,Smt::PostExp> _contain_usables( UsableRuleOrder& order, Problem const& p ){
 	Set<ruleId> usables;// collect potential usable rules
-	for( auto const& [i,js] : component.graph ) {
+	Smt::PostExp ret = true;
+	for( auto const& [i,js] : p.components.front().graph ) {
 		if( auto const& us = p.dp_use_map.find(i) ) {
 			for( auto const& u : **us ) {
 				usables.emplace(u);
@@ -66,42 +50,43 @@ bool order_some_dp_or_edge(
 		if( auto const& rule = p.rules.find(i) ) {
 			auto const& [l,r,w] = *rule;
 			auto const& [ge,str] = order.rule_compare(i,l,r);
-			contain_usables = contain_usables && order.rule_used(i).imp(ge);// if the rule is used, then it should be weakly oriented
+			ret = ret && order.rule_used(i).imp(ge);// if the rule is used, then it should be weakly oriented
 		}
 	}
+	return {usables,ret};
+}
+
+bool order_some_dp(
+	UsableRuleOrder& order,
+	Problem const& p,
+	std::function<void(std::vector<ruleId>&&,std::vector<ruleId>&&)> const& callback
+) {
+	auto& solver = order.solver();
+	auto& component = p.components.front();
+	auto [usables,contain_usables] = _contain_usables(order,p);
+	Smt::PostExp orient_some_dp = false;
+	Smt::PostExp contain_dps = true;
+	struct OrientInfo {
+		ruleId i;
+		Smt::PostExp oriented;
+	};
+	std::vector<OrientInfo> encs;
+
 	for( auto const& [i,js] : component.graph ) {
 		auto const& [l,r,w] = *ASSERTED(p.rules.find(i));
 		auto const& [ge,str] = order.rule_compare(i,l,r);
 		contain_dps = contain_dps && ge && order.term_used(r);// rhs of DP should be marked used
 		orient_some_dp = orient_some_dp || str;
-		auto& edges = encs.emplace_back(i,str).edges;
-		if( edge ) {// constraints for edge removal
-			for( auto const& j : js ) {
-				auto sep = order.edge_separate(i,j,p);
-				if( sep == false ) continue;
-				separate_some_edge = separate_some_edge || sep;
-				edges.emplace_back(j,sep);
-			}
-		}
+		encs.emplace_back(i,str);
 	}
 	solver.push();
-	solver.ass( contain_usables && contain_dps && (orient_some_dp || separate_some_edge) );
+	solver.ass( contain_usables && contain_dps && orient_some_dp );
 	solver.check_sat();
 	if( solver.result().is_sat() ) {
-		std::vector<std::pair<ruleId,std::vector<ruleId>>> dp_results;
-		for( auto& [i,str,edge_encs] : encs ) {
+		std::vector<ruleId> dp_results;
+		for( auto& [i,str] : encs ) {
 			if( solver.get_value(str) == true ) {
-				dp_results.emplace_back(i,std::vector<ruleId>{});
-			} else {// i is not oriented, check which edges are separated
-				std::vector<ruleId> edge_results;
-				for( auto const& [j,sep] : edge_encs ) {
-					if( solver.get_value(sep) == true ) {
-						edge_results.emplace_back(j);
-					}
-				}
-				if( !edge_results.empty() ) {// some edges are separated
-					dp_results.emplace_back(i,std::move(edge_results));
-				}
+				dp_results.emplace_back(i);
 			}
 		}
 		std::vector<ruleId> uses;
@@ -110,7 +95,66 @@ bool order_some_dp_or_edge(
 				uses.push_back(usable);
 			}
 		}
-		f(std::move(dp_results),std::move(uses));
+		callback(std::move(dp_results),std::move(uses));
+		solver.pop();
+		return true;
+	}
+	solver.pop();
+	return false;
+}
+
+bool unorder_some_edge(
+	UsableRuleOrder& order,
+	Problem const& p,
+	std::function<void(std::vector<std::pair<ruleId,std::vector<ruleId>>>&&,std::vector<ruleId>&&)> const& callback
+) {
+	auto& solver = order.solver();
+	auto& component = p.components.front();
+	Smt::PostExp separate_some_edge = false;
+	auto [usables,contain_usables] = _contain_usables(order,p);
+	Smt::PostExp mark_usables = true;
+	struct OrientInfo {
+		ruleId i;
+		std::vector<std::pair<ruleId,Smt::PostExp>> edges;
+	};
+	std::vector<OrientInfo> encs;
+
+	for( auto const& [i,js] : component.graph ) {
+		auto const& [l,r,w] = *ASSERTED(p.rules.find(i));
+		for( auto const& t : r.args() ) {
+			mark_usables = mark_usables && order.term_used(t);// args of DP should be marked used
+		}
+		auto& edges = encs.emplace_back(i).edges;
+		for( auto const& j : js ) {
+			auto sep = order.edge_separate(i,j,p);
+			if( sep == false ) continue;
+			separate_some_edge = separate_some_edge || sep;
+			edges.emplace_back(j,sep);
+		}
+	}
+	solver.push();
+	solver.ass( contain_usables && mark_usables && separate_some_edge );
+	solver.check_sat();
+	if( solver.result().is_sat() ) {
+		std::vector<std::pair<ruleId,std::vector<ruleId>>> dp_results;
+		for( auto& [i,edge_encs] : encs ) {
+			std::vector<ruleId> edge_results;
+			for( auto const& [j,sep] : edge_encs ) {
+				if( solver.get_value(sep) == true ) {
+					edge_results.emplace_back(j);
+				}
+			}
+			if( !edge_results.empty() ) {// some edges are separated
+				dp_results.emplace_back(i,std::move(edge_results));
+			}
+		}
+		std::vector<ruleId> uses;
+		for( auto const& usable : usables ) {
+			if( solver.get_value(order.rule_used(usable)) == true ) {
+				uses.push_back(usable);
+			}
+		}
+		callback(std::move(dp_results),std::move(uses));
 		solver.pop();
 		return true;
 	}

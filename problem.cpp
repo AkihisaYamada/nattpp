@@ -1,4 +1,5 @@
 #include<fstream>
+#include <limits>
 #include"problem.hpp"
 #include"reach.hpp"
 #include"graph.hpp"
@@ -49,6 +50,8 @@ bool Problem::reads_sym_decl( ::Reader& eis ) & {
 			} else if( *key == ":index" ) {
 				if( index ) throw eis.error("#duplicate-index",fun);
 				index = {ruleId(eis.read_nat())};
+			} else if( *key == ":defined_by" ) {// ignore defined-by
+				eis.read_exp();
 			} else {
 				throw eis.error("#unknown-key",*key);
 			}
@@ -118,10 +121,12 @@ Problem::Problem( istream& is ) : next_rule(ruleId(0)) {
 					number = {eis.read_nat([](auto n){ return n < 10; })};
 				} else if( *key == ":problem" ) {
 					if( mode != NONE ) throw eis.error("#duplicate-problem");
-					if( eis.reads_sym("sat") ) {
-						mode = SAT;
+					if( eis.reads_sym("termination") ) {
+						mode = SN;
 					} else if( eis.reads_sym("dp") ) {
 						mode = DP;
+					} else if( eis.reads_sym("sat") ) {
+						mode = SAT;
 					} else {
 						throw eis.error("#unknown-problem");
 					}
@@ -139,6 +144,18 @@ Problem::Problem( istream& is ) : next_rule(ruleId(0)) {
 				if( reads_sym_decl(eis) ) {
 				} else if( eis.reads_sym("rule") ) {
 					read_rule_decl(eis,tis);
+				} else if( mode == DP && eis.reads_sym("component") ) {
+					auto& graph = components.emplace_back().graph;
+					auto read_rule_id = [&]{
+						return ruleId(eis.read_nat([&]( auto n ){ return n < std::to_underlying(next_rule); } ));
+					};
+					while( eis.opens() ) {
+						eis.read_sym("node");
+						auto& nexts = graph.emplace(read_rule_id(),Set<ruleId>{}).first;
+						while( !eis.closes() ) {
+							nexts.emplace(read_rule_id());
+						}
+					}
 				} else {
 					throw Error{"#unknown-command",eis.read_exp()};
 				};
@@ -281,7 +298,10 @@ void Problem::decomp_sccs() & {
 	auto dg = Graph(component.graph);
 	auto sccs = dg.sccs();
 	for( uint32_t i = 0; i < sccs.size(); i++ ) {
-		if( auto const& nodes = sccs[i].ref<Set<ruleId>>() ) {// nontrivial SCCs
+		if( auto triv = sccs[i].ref<ruleId>() ) {// trivial SCC
+			component.graph.erase(*triv);
+			erase_rule(*triv);
+		} else if( auto const& nodes = sccs[i].ref<Set<ruleId>>() ) {// nontrivial SCCs
 			auto& back = components.emplace_back();
 			for( auto const& dpind : *nodes ) {
 				auto& nexts = back.graph.emplace(dpind,Set<ruleId>{}).first;
@@ -291,32 +311,28 @@ void Problem::decomp_sccs() & {
 					}
 				});
 			}
+		} else {
+			assert(false);
 		}
 	}
 }
 
 ostream& Problem::print( ostream& os ) const& {
-	os << "(problem";
+	os << "(format TRS";
 	switch( mode ) {
-		case SN: case NONE: os << " termination"; break;
-		case DP: os << " dp"; break;
-		case SAT: os << " sat"; break;
+		case NONE: break;
+		case SN: os << " :problem termination"; break;
+		case DP: os << " :problem dp"; break;
+		case SAT: os << " :problem sat"; break;
 		default: assert(false);
 	}
-	os << flush;
-	Trs::print_sig(os,sig,"\n  ");
-	Trs::print_rules(os,rules,"\n  ");
-	int subno = 1;
+	os << ')' << flush;
+	Trs::print_sig(os,sig,"\n");
+	Trs::print_rules(os,rules,"\n");
 	for( auto const& c : components ) {
-		os << "\n  (component";
-		for( auto const& [n,rule] : rules ) {
-			os << "\n    (rule " << rule.print_content() << " :number " << n << ')' << flush;
-		}
-		os << "\n    (edges" << ConstGraph(c.graph).print_nodes("\n      ") << ")"
-		   << "\n    :number " << subno << ')' << flush;
-		subno++;
+		os << "\n(component" << ConstGraph(c.graph).print_nodes("\n  ") << ')' << flush;
 	}
-	return os << ')';
+	return os;
 }
 
 bool Problem::test() {

@@ -314,7 +314,7 @@ public:
 	Smt::PostExp separate_inner( Exp const& s, Exp const& t ) override {
 		A si = intp(s), ti = intp(t);
 		if( _log & SEP ) {
-			std::cerr << "; (>< " << s << ' ' << t << ")\n;   " << si << "\n;   " << ti << std::endl;
+			std::cerr << "; (< " << s << ' ' << t << ")\n;   " << si << "\n;   " << ti << std::endl;
 		}
 		return si.separate(ti);
 	}

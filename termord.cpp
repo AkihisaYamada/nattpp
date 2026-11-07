@@ -70,7 +70,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 		} else {
 			std::vector<Smt::PostExp> used_tbl;
 			Smt::PostExp collapse = map_opt->collapsible ? sol.declare_const("c_"+fesc,Smt::BOOL) : false;
-			if( _log & DEBUG ) cerr << "; collapse[" << f << "] => trivial weight" << endl;
+			if( _log & DEBUG ) cerr << "; collapse[" << f << "] => trivial weight: " << _weight->fun_triv(f) << endl;
 			sol.ass(collapse.imp(_weight->fun_triv(f)));
 			std::vector<Smt::PostExp> mapped_tbl;
 			std::vector<std::vector<Smt::PostExp>> map_tbl;
@@ -106,7 +106,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 			std::vector<Smt::PostExp> occupied;
 			auto add_occupied = [&]( uint16_t k )->Smt::PostExp const&{
 				return occupied.emplace_back(
-					sol.define_fun(fesc+"_o"+to_string(k),{},
+					sol.define_fun("o_"+fesc+"_"+to_string(k),{},
 						Smt::BOOL,Smt::PostExp::disj(0u,rank.arity,[&]( unsigned int const& i )->Smt::PostExp{ return map_tbl[i][k]; })
 					)
 				);
@@ -116,11 +116,13 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 				auto& next = add_occupied(k);
 				sol.ass(next.imp(occupied[k-1]));
 			}
+			auto collapse_imp_ex1 =
+				collapse.imp( occupied[0] && (post_arity > 1 ? !occupied[1] : Smt::PostExp(true) ) );
 			if( _log & DEBUG ) {
 				cerr << "; post-position occupancy: (" << print_list(occupied) << ")" << endl;
-				cerr << "; collapse => occupied[0] && !occupied[1]" << endl;
+				cerr << "; collapse => exactly one post argument is occupied: " << collapse_imp_ex1 << endl;
 			}
-			sol.ass(collapse.imp( occupied[0] && (post_arity > 1 ? !occupied[1] : Smt::PostExp(true) )));
+			sol.ass(collapse_imp_ex1);
 			_info.emplace(f,_SymInfo{
 				.arity = arity,
 				.status = status,
@@ -295,7 +297,7 @@ Smt::PostExp PathOrder::separate_inner( Exp const& l, Exp const& r ) {
 //				if( j_mapped == false ) break;
 		sep_all_arg = sep_all_arg && j_mapped.imp(separate(l,rargs[j])); // if t_j survives, then s > t_j is prerequisite
 	}
-	auto const& p_sep = !linfo->prec.eq(rinfo->prec);
+	auto const& p_sep = linfo->prec.gt(rinfo->prec);
 	auto const& args_sep = mapped_lex_separate(
 		sol, [&]( auto const& x, auto const& y ){ return separate(x,y); },
 		linfo->occupied, rinfo->occupied, linfo->map, rinfo->map, largs, rargs
@@ -404,7 +406,13 @@ Smt::PostExp TrsOrder::_Wrapper::edge_separate( ruleId i, ruleId j, Problem cons
 	if( auto const& cache = node_cache.tgts.find(j) ) {
 		return *cache;
 	}
-	auto sep = _ref->separate(node_cache.src,ASSERTED(p.rules.find(j))->first);
+	auto [f,ss] = *node_cache.src;
+	auto [g,ts] = *ASSERTED(p.rules.find(j))->first;
+	assert( f == g && ss.size() == ts.size() );
+	Smt::PostExp sep = false;
+	for( size_t i = 0; i < ss.size(); i++ ) {
+		 sep = sep || _ref->separate(ss[i],ts[i]);
+	}
 	auto ret = _ref->solver().let(Smt::BOOL,sep);
 	node_cache.tgts.emplace(j,ret);
 	return ret;

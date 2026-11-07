@@ -1,17 +1,19 @@
 #ifndef TRS_HPP_
 #define TRS_HPP_
+#include <utility>
 #include"util.hpp"
 #include"map.hpp"
 #include"set.hpp"
 #include"exp.hpp"
 
 enum class ruleId : uint32_t {};
-constexpr ruleId operator+( ruleId id, uint32_t n ) { return ruleId((uint32_t)id + n); }
+constexpr ruleId operator+( ruleId id, uint32_t n ) { return ruleId(std::to_underlying(id) + n); }
 constexpr ruleId& operator+=( ruleId& id, uint32_t n ) { return id = id + n; }
 constexpr ruleId& operator++( ruleId& id ) { return id += 1; }
 constexpr ruleId operator++( ruleId& id, int ) { auto ret = id; ++id; return ret; }
+constexpr bool operator<( ruleId x, ruleId y ) { return std::to_underlying(x) < std::to_underlying(y); }
 inline std::ostream& operator<<( std::ostream& os, ruleId id ) {
-	return os << (uint32_t)id;
+	return os << std::to_underlying(id);
 }
 namespace std {
 	inline string to_string( ruleId id ) {
@@ -54,7 +56,7 @@ struct Trs {
 	Sig sig;
 	Rules rules;
 	void insert_rule( ruleId i, Rule const& rule ) &;
-	void erase_rule( ruleId i ) &;
+	bool erase_rule( ruleId i ) &;
 	static std::ostream& print_sig( std::ostream& os, Sig const& sig, std::string_view const& sep );
 	static std::ostream& print_rules( std::ostream& os, Rules const& rules, std::string_view const& sep );
 };

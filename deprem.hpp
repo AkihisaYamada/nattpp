@@ -11,14 +11,19 @@ bool order_some_rule(
 );
 
 /**
- * @param callback(edges,usables) is called, where edges contain
- * - `{i,{}}` if DP i is oriented
- * - `{i,{j,...}}` if edges i->j ... are separated
+ * @param callback is called on (oriented dps, usable rules)
  */
-bool order_some_dp_or_edge(
+bool order_some_dp(
 	UsableRuleOrder& order,
 	Problem const& problem,
-	bool edge,
+	std::function<void(std::vector<ruleId>&&,std::vector<ruleId>&&)> const& callback
+);
+
+/** remove edge by co-rewrite pair
+ */
+bool unorder_some_edge(
+	UsableRuleOrder& order,
+	Problem const& problem,
 	std::function<void(std::vector<std::pair<ruleId,std::vector<ruleId>>>&&,std::vector<ruleId>&&)> const& callback
 );
 

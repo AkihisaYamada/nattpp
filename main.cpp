@@ -220,7 +220,7 @@ int main( int argc, char* argv[] ) try {
 		bool full_edge = allow_edge == EdgeMode::FULL;
 		dprem_specs.emplace_back( "sum", auto_edge );
 		dprem_specs.emplace_back( "max", full_edge );
-		dprem_specs.emplace_back( LPO_SPEC, auto_edge );
+		dprem_specs.emplace_back( LPO_SPEC, full_edge );
 		dprem_specs.emplace_back( "imaxsum", full_edge );
 		dprem_specs.emplace_back( Exp{"path-order",":weight","maxsum",":status","map"}, full_edge );
 		dprem_specs.emplace_back( "sum_negsum", full_edge );
@@ -241,6 +241,9 @@ int main( int argc, char* argv[] ) try {
 		cout << "Unsupported!" << endl;
 		exit(-1);
 	}
+	auto print_scc_count = print_steps ? function([&]{
+		cerr << "; SCCs: " << p.components.size() << endl;
+	}) : []{};
 
 	auto print_component = print_proofs ? function([&]{
 		*prf << "(scc";
@@ -314,9 +317,6 @@ int main( int argc, char* argv[] ) try {
 				}
 				*prf << ')' << endl;
 			}
-			// compute max-sum heuristic of dps. TODO: improve
-			_max_sum_heuristic(heuristic,p.sig,p.rules);
-//			if( print_maxsym ) cerr << "; max symbols: " << print_list(heuristic) << endl;
 			if( print_usables ) {
 				cerr << "(uses_graph" << ConstGraph(p.uses_map).print_nodes("\n  ") << ')' << endl;
 				cerr << "(usables" << ConstGraph(p.dp_use_map).print_nodes("\n  ") << ')' << endl;
@@ -327,9 +327,12 @@ int main( int argc, char* argv[] ) try {
 				if( print_steps ) cerr << "; no SCC" << endl;
 				throw Answer::YES;
 			}
+			print_scc_count();
 			print_component();
 		}
-		uint32_t target_ind = 2;
+		// compute max-sum heuristic of dps. TODO: improve
+		_max_sum_heuristic(heuristic,p.sig,p.rules);
+		if( print_maxsym ) cerr << "; max symbols: " << print_list(heuristic) << endl;
 		struct DpRemover {
 			int stage;
 			bool edge;
@@ -342,36 +345,38 @@ int main( int argc, char* argv[] ) try {
 				remover.order->extend_sig(p.sig,heuristic);
 				remover.stage = 1;
 			}
-			return order_some_dp_or_edge( *remover.order, p, remover.edge, [&]( auto&& rem, auto&& usables ){
+			if( order_some_dp( *remover.order, p, [&]( auto&& rem, auto&& usables ){
 				if( print_proofs ) {
-					*prf << "(remove-dp\n  (" << remover.order->print_name();
-					for( auto [f,rank] : p.sig ) {
-						*prf << "\n    (" << f << remover.order->print_sym_info(f) << ')';
-					};
-					*prf << ")\n ";
+					*prf << "(remove-dp\n  " << remover.order->print(p.sig) << "\n  " <<
+						print_list(rem) << "\n  :usables (" << print_list(usables) << "))" << endl;
 				}
-				for( auto [i,js] : rem ) {
-					if( js.empty() ) {
-						comp.graph.erase(i);
-						if( print_proofs ) *prf << ' ' << i;
-					} else {
+				for( auto i : rem ) {
+					comp.graph.erase(i);
+					p.erase_rule(i);
+				}
+			}) ) {
+				return true;
+			}
+			return remover.edge && unorder_some_edge( *remover.order, p, [&]( auto&& nodes, auto&& usables ){
+				if( print_proofs ) {
+					*prf << "(remove-edge\n  (" << remover.order->print(p.sig) << endl;
+					for( auto const& [i,js] : nodes ) {
 						auto& tgts = comp.graph[i];
-						auto itr = print_proofs ?
-							*prf << " (edges " << i,
-							function([&]( ruleId j ){
-								tgts.erase(j);
-								*prf << ' ' << j;
-							}) :
-							[&]( ruleId j ) {
-								tgts.erase(j);
-							};
+						*prf << "  (edges " << i;
 						for( auto j : js ) {
-							itr(j);
+							tgts.erase(j);
+							*prf << ' ' << j;
 						}
-						if( print_proofs ) *prf << ')';
+						*prf << ')' << endl;
+					}
+				} else {
+					for( auto const& [i,js] : nodes ) {
+						auto& tgts = comp.graph[i];
+						for( auto j : js ) {
+							tgts.erase(j);
+						}
 					}
 				}
-				if( print_proofs ) *prf << "\n  :usables (" << print_list(usables) << "))" << endl;
 			});
 		};
 
@@ -382,8 +387,8 @@ int main( int argc, char* argv[] ) try {
 		for(;;) {
 			if( p.components.front().graph.empty() ) {
 				p.components.pop_front();
-				target_ind++;
 				if( p.components.empty() ) throw Answer::YES;
+				print_scc_count();
 				print_component();
 				continue;
 			}
@@ -407,23 +412,6 @@ int main( int argc, char* argv[] ) try {
 		} else if( a == Answer::MAYBE ) {
 			cout << "MAYBE" << endl;
 			if( print_on_fail ) {
-				if( p.mode == Problem::DP ) {
-					auto usables = Set<ruleId>();
-					for( auto const& comp : p.components ) {
-						for( auto const& [i,dp] : comp.graph ) {
-							for( auto const& u : **ASSERTED(p.dp_use_map.find(i)) ) {
-								usables.emplace(u);
-							}
-						}
-					}
-					for( auto it = p.rules.begin(); it != p.rules.end(); ) {
-						if( usables.contains(it->first) ) {
-							it++;
-						} else {
-							it = p.rules.erase(it);
-						}
-					}
-				}
 				cerr << p << endl;
 			}
 		} else {

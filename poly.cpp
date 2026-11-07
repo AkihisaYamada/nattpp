@@ -164,6 +164,7 @@ Smt::Compare Poly::compare( Poly const& p2, Smt::Solver& solver ) const {
 }
 
 Smt::PostExp Poly::separate( Poly const& p2 ) const {
+	return p2.gt(*this);//TODO!
 	auto const& c1 = (*this)[{}].as_post();
 	auto const& c2 = p2[{}].as_post();
 	auto gt = c1.gt(c2), lt = c1.lt(c2);

@@ -62,10 +62,10 @@ Proc Proc::of( Exp const& x ) {
 	auto const& f = x.fun();
 	if( f == "cmd" ) {
 		size_t n = 0;
-		auto const& cmd = x.get_arg(n).unapplied().value_or_throw( Error("#malformed-cmd",x) ).c_str();
+		auto const& cmd = x.get_arg(n).is_unapplied().value_or_throw( Error("#malformed-cmd",x) ).c_str();
 		vector<char const*> cmd_args;
 		while( auto const& arg = x.gets_arg(n) ) {
-			auto str = arg->unapplied().value_or_throw( Error("#malformed-cmd-arg",*arg) );
+			auto str = arg->is_unapplied().value_or_throw( Error("#malformed-cmd-arg",*arg) );
 			cmd_args.push_back(str.c_str());
 		}
 		Opt<OStream> tee;

@@ -193,4 +193,9 @@ std::ostream& operator<<( std::ostream& os, Subst<F> const& subst ) {
 	return os << ')';
 }
 
+class StrDeriver : public Deriver<std::string,std::string> {
+public:
+	static StrDeriver of( Exp const& exp );
+};
+
 #endif

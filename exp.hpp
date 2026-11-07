@@ -120,10 +120,11 @@ public:
 	bool operator==( Term const& other ) const {
 		return _ref == other._ref;
 	}
-	Opt<F const&> unapplied() const& {
+	Opt<F const&> is_unapplied() const& {
 		if( args().empty() ) return {fun()};
 		return {};
 	}
+	F const& as_unapplied() const&;
 };
 template<typename F>
 std::compare_three_way_result_t<F>
@@ -165,6 +166,11 @@ inline unsigned long as_nat( std::string_view const& str, std::function<bool(uns
 	return ret;
 }
 
+template<typename F>
+F const& Term<F>::as_unapplied() const& {
+	return is_unapplied().value_or_throw(Error("#unexpected-argument"));
+}
+
 /** deleted for inefficiency */
 Opt<std::string_view> is_key( std::string && ) = delete;
 Opt<std::string_view> is_key( Term<std::string> && ) = delete;
@@ -173,7 +179,7 @@ inline Opt<std::string_view> is_key( std::string const& str ) {
 	return {};
 }
 inline Opt<std::string_view> is_key( Term<std::string> const& x ) {
-	return x.unapplied() >>= []( auto const& val ){ return is_key(val); };
+	return x.is_unapplied() >>= []( auto const& val ){ return is_key(val); };
 }
 Opt<std::string_view> is_str( std::string && ) = delete;
 inline Opt<std::string_view> is_str( std::string const& str ) {
@@ -181,7 +187,7 @@ inline Opt<std::string_view> is_str( std::string const& str ) {
 	return {};
 }
 inline Opt<std::string_view> is_str( Term<std::string> const& x ) {
-	return x.unapplied() >>= []( auto const& val ){ return is_str(val); };
+	return x.is_unapplied() >>= []( auto const& val ){ return is_str(val); };
 }
 inline Opt<bool> is_bool( std::string const& str ) {
 	if( str == "true" ) return {true};
@@ -220,13 +226,13 @@ struct Exp : Term<std::string> {
 		return Exp(Term<std::string>::get_arg(i));
 	}
 	Opt<bool> is_bool() const& {
-		return unapplied() >>= ::is_bool;
+		return is_unapplied() >>= ::is_bool;
 	}
 	bool as_bool() const& {
 		return is_bool().value_or_throw(Error("#expected-bool",*this));
 	}
 	Opt<unsigned long> is_nat() const& {
-		return unapplied() >>= ::is_nat;
+		return is_unapplied() >>= ::is_nat;
 	}
 	unsigned long as_nat() const& {
 		return is_nat().value_or_throw(Error("#expected-nat",*this));

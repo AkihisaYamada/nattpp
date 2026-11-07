@@ -82,6 +82,7 @@ int main( int argc, char* argv[] ) try {
 	bool print_usables = false;
 	bool print_on_fail = false;
 	enum { UNSET, SN, SOME } mode = UNSET;
+	Opt<StrDeriver> osubst;
 	Opt<Exp> default_smt_spec;
 	Opt<Smt::BaseSort> default_sort;
 	int default_log = -1;
@@ -175,6 +176,10 @@ int main( int argc, char* argv[] ) try {
 					use_dp = true;
 					default_strategy = false;
 				}}},
+				{ "-subst", { " <subst>\tapply substitution", [&]{
+					require_arg();
+					osubst = {StrDeriver::of(Exp::of(argv[i]))};
+				}}},
 				{ "-h", { ":\tshow this help", [&]{
 					cout << "usage: " << argv[0] << " [<option>...] [<input>]" << endl << "options:" << endl;
 					for( auto const& [opt,body] : map ) {
@@ -213,7 +218,6 @@ int main( int argc, char* argv[] ) try {
 	}
 	auto p = Problem( ois ? *ois : cin );
 	auto prf = OStream( oprf ? *oprf : cerr );
-	if( print_problem ) cerr << p << endl;
 	if( default_strategy ) {
 		rulerem_specs.emplace_back("mono-sum");
 		bool auto_edge = allow_edge & (EdgeMode::AUTO | EdgeMode::FULL);
@@ -240,7 +244,15 @@ int main( int argc, char* argv[] ) try {
 	} else if( p.mode == Problem::SAT ) {
 		cout << "Unsupported!" << endl;
 		exit(-1);
+	} else if( osubst ) {
+		cerr << *osubst << endl;
+		for( auto const& [i,rule] : p.rules ) {
+			auto const& [l,r,w] = rule;
+			cout << "(rule " << osubst->subst(l) << ' ' << osubst->subst(r) << " :number " << i << ')' << endl;
+		}
+		exit(0);
 	}
+	if( print_problem ) cerr << p << endl;
 	auto print_scc_count = print_steps ? function([&]{
 		cerr << "; SCCs: " << p.components.size() << endl;
 	}) : []{};

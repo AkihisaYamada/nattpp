@@ -358,7 +358,7 @@ PathOrder::StatusFun PathOrder::StatusFun::of( Exp const& x ) {
 	if( x.fun() == "map" ) {
 		int num;
 		if( auto const& arg = x.gets_arg(n) ) {
-			num = std::stoi(arg->unapplied().value_or_throw(Error("#malformed-number",*arg)));
+			num = std::stoi(arg->is_unapplied().value_or_throw(Error("#malformed-number",*arg)));
 		} else {
 			num = -1;
 		}

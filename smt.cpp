@@ -799,7 +799,7 @@ Smt::PostExp Smt::Solver::let( Sort const& sort, PostExp const& val ) & {
 };
 
 Smt::Logic Smt::Logic::of( Exp const& x ) {
-	if( auto c = x.unapplied() ) {
+	if( auto c = x.is_unapplied() ) {
 		if( *c == "QF_LIA" ) return QF_LIA;
 		if( *c == "QF_LRA" ) return QF_LRA;
 		if( *c == "LIA" ) return LIA;

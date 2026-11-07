@@ -246,7 +246,7 @@ Term<Sum<Template::Sym,Arg>> Template::Deriver::_deriver_of(
 			return false;
 		});
 		exp.get_end(n);
-		if( auto const& aggfun = agg.unapplied() ) {
+		if( auto const& aggfun = agg.is_unapplied() ) {
 			auto args = vector<Term<Sum<Template::Sym,Arg>>>();
 			for( uint16_t i = from.value_or(0); i < rank.arity; i++ ) {
 				args.emplace_back(_deriver_of(argexp,f,rank,i,finfo,heuristic));

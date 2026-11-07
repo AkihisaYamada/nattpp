@@ -2,7 +2,8 @@
 #define _SMT_HPP
 
 #include<iostream>
-#include <numeric>
+#include<numeric>
+#include"util.hpp"
 #include"set.hpp"
 #include"algebra.hpp"
 #include"proc.hpp"

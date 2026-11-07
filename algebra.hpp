@@ -2,7 +2,6 @@
 #define _ALGEBRA_HPP
 
 #include<functional>
-#include"util.hpp"
 #include"map.hpp"
 #include"exp.hpp"
 

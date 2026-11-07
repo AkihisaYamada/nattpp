@@ -134,7 +134,7 @@ static Smt::PostExp order_sub( Poly const& p1, Poly const& p2 ) {
 	},[&]( auto it1 ){// e1 * vars >= 0
 		auto const& e1 = it1->second.as_post();
 		switch( it1->first.range() ) {
-			case Poly::NONE:
+			case Poly::NONE: return;
 			case Poly::POS: ge = ge && e1.ge(0); return;
 			case Poly::NEG: ge = ge && e1.le(0); return;
 			case Poly::FULL: ge = ge && e1.eq(0); return;
@@ -142,7 +142,7 @@ static Smt::PostExp order_sub( Poly const& p1, Poly const& p2 ) {
 	},[&]( auto it2 ){// 0 >= e2 * vars
 		auto const& e2 = it2->second.as_post();
 		switch( it2->first.range() ) {
-			case Poly::NONE:
+			case Poly::NONE: return;
 			case Poly::POS: ge = ge && Smt::PostExp(0).ge(e2); return;
 			case Poly::NEG: ge = ge && Smt::PostExp(0).le(e2); return;
 			case Poly::FULL: ge = ge && Smt::PostExp(0).eq(e2); return;
@@ -182,7 +182,7 @@ Smt::PostExp Poly::separate( Poly const& p2 ) const {
 	},[&]( auto it1 ){// e1 * vars >= 0
 		auto const& e1 = it1->second.as_post();
 		switch( it1->first.range() ) {
-			case Poly::NONE:
+			case Poly::NONE: return;
 			case Poly::POS: ge = ge && e1.ge(0); le = le && e1.le(0); return;
 			case Poly::NEG: ge = ge && e1.le(0); le = le && e1.ge(0); return;
 			case Poly::FULL: ge = ge && e1.eq(0); le = le && e1.eq(0); return;
@@ -190,7 +190,7 @@ Smt::PostExp Poly::separate( Poly const& p2 ) const {
 	},[&]( auto it2 ){// 0 >= e2 * vars
 		auto const& e2 = it2->second.as_post();
 		switch( it2->first.range() ) {
-			case Poly::NONE:
+			case Poly::NONE: return;
 			case Poly::POS: ge = ge && Smt::PostExp(0).ge(e2); le = le && Smt::PostExp(0).le(e2); return;
 			case Poly::NEG: ge = ge && Smt::PostExp(0).le(e2); le = le && Smt::PostExp(0).ge(e2); return;
 			case Poly::FULL: ge = ge && Smt::PostExp(0).eq(e2); le = le && Smt::PostExp(0).eq(e2); return;

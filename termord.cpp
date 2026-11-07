@@ -31,7 +31,7 @@ PathOrder::PathOrder(
 	int log
 ) : _weight(
 		[&]{// ugly but C++ 
-			if( log & DEBUG ) cerr << "; initializing path order" << endl;
+			if( log & INIT ) cerr << "; initializing path order" << endl;
 			return std::move(weight);
 		}()
 	),
@@ -39,18 +39,18 @@ PathOrder::PathOrder(
 	_mono(_weight->solver().declare_const("MONO",Smt::BOOL)),
 	_status(std::move(status))
 {
-	if( log & DEBUG ) cerr << "; monotonicity flag: " << _mono << endl;
+	if( log & INIT ) cerr << "; monotonicity flag: " << _mono << endl;
 }
 void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) {
 	if( _info.find(f) ) return;
 	auto& sol = solver();
 	auto const& sort = sol.logic().base_sort();
-	if( _log & DEBUG ) cerr << "; fun " << f << ' ' << rank.print_content() << endl;
+	if( _log & INIT ) cerr << "; fun " << f << ' ' << rank.print_content() << endl;
 	_weight->extend_sig(f,rank,heuristic);
 	std::string fesc = escape(f);
 	auto prec = sol.declare_const("p_"+fesc,sol.logic().base_sort());//sol.declare_fresh(sort);
 	sol.ass( Smt::ge(prec,0) );
-	if( _log & DEBUG ) cerr << "; prec " << f << ": " << prec << endl;
+	if( _log & INIT ) cerr << "; prec " << f << ": " << prec << endl;
 	uint16_t arity = rank.arity;
 	Status status = _status.fun(rank);
 	if( auto map_opt = status.mapped() ) {
@@ -70,8 +70,9 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 		} else {
 			std::vector<Smt::PostExp> used_tbl;
 			Smt::PostExp collapse = map_opt->collapsible ? sol.declare_const("c_"+fesc,Smt::BOOL) : false;
-			if( _log & DEBUG ) cerr << "; collapse[" << f << "] => trivial weight: " << _weight->fun_triv(f) << endl;
-			sol.ass(collapse.imp(_weight->fun_triv(f)));
+			auto col_imp_triv = collapse.imp(_weight->fun_triv(f));
+			if( _log & INIT ) cerr << "; collapse[" << f << "] => trivial weight: " << col_imp_triv << endl;
+			sol.ass(col_imp_triv);
 			std::vector<Smt::PostExp> mapped_tbl;
 			std::vector<std::vector<Smt::PostExp>> map_tbl;
 			for( uint16_t i = 0; i < arity; i++ ) {
@@ -84,25 +85,22 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 						sol.ass( !map_tbl[i][k] || !map_tbl[j][k] );
 					}
 				}
-				if( _log & DEBUG ) cerr << ";  map[" << f << ',' << i << "] = " << print_list(mapi) << std::endl;
+				if( _log & INIT ) cerr << ";  map[" << f << ',' << i << "] = {" << print_list(mapi) << '}' << std::endl;
 				// mapped[i] means i-th argument survives mapping
 				auto const& mappedi = mapped_tbl.emplace_back(
-					sol.define_fun( fesc+"_s"+to_string(i), {}, Smt::BOOL, Smt::PostExp::disj(mapi))
+					sol.define_fun( "s_"+fesc+"_"+to_string(i), {}, Smt::BOOL, Smt::PostExp::disj(mapi))
 				);
-				if( _log & DEBUG ) cerr << "; monotonicity => mapped[" << f << ',' << i << "]" << endl;
+				if( _log & INIT ) cerr << "; monotonicity => mapped[" << f << ',' << i << "]" << endl;
 				sol.ass( _mono.imp(mappedi) );
-				if( _log & DEBUG ) cerr << "; mapped[" << f << ',' << i << "] => weight weak simple" << endl;
-				sol.ass( mappedi.imp(_weight->arg_infl(f,i)) );
-				if( _log & DEBUG ) cerr << "; used[" << f << ',' << i << "] := weight used or mapped[" << i << "]" << endl;
-				used_tbl.emplace_back(
-					sol.define_fun( fesc+"_u"+to_string(i), {},
-						Smt::BOOL, _weight->arg_used(f,i) || mappedi
-					)
-				);
-				if( _log & DEBUG ) cerr << "; collapse[" << f << "] => weight used => mapped" << endl;
-				sol.ass( collapse.imp( _weight->arg_used(f,i).imp(mappedi) ) ); 
+				auto map_imp_infl = mappedi.imp(_weight->arg_infl(f,i));
+				if( _log & INIT ) cerr << "; mapped[" << f << ',' << i << "] => weight weak simple: " << map_imp_infl << endl;
+				sol.ass( map_imp_infl );
+				used_tbl.emplace_back(_weight->arg_used(f,i));
+				auto col_imp_used_imp_mapped = collapse.imp( _weight->arg_used(f,i).imp(mappedi) );
+				if( _log & INIT ) cerr << "; collapse[" << f << "] => weight used => mapped: " << col_imp_used_imp_mapped << endl;
+				sol.ass( col_imp_used_imp_mapped ); 
 			}
-			if( _log & DEBUG ) cerr << "; require argument mapping to be contiguous" << endl;
+			if( _log & INIT ) cerr << "; require argument mapping to be contiguous" << endl;
 			std::vector<Smt::PostExp> occupied;
 			auto add_occupied = [&]( uint16_t k )->Smt::PostExp const&{
 				return occupied.emplace_back(
@@ -118,8 +116,8 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 			}
 			auto collapse_imp_ex1 =
 				collapse.imp( occupied[0] && (post_arity > 1 ? !occupied[1] : Smt::PostExp(true) ) );
-			if( _log & DEBUG ) {
-				cerr << "; post-position occupancy: (" << print_list(occupied) << ")" << endl;
+			if( _log & INIT ) {
+				cerr << "; post-position occupancy: {" << print_list(occupied) << "}" << endl;
 				cerr << "; collapse => exactly one post argument is occupied: " << collapse_imp_ex1 << endl;
 			}
 			sol.ass(collapse_imp_ex1);
@@ -145,7 +143,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 			});
 		}
 	} else {// straight status
-		if( _log & DEBUG ) cerr << "; straight status requires inflationarity on all arguments" << endl;
+		if( _log & INIT ) cerr << "; straight status requires inflationarity on all arguments" << endl;
 		sol.ass( Smt::PostExp::conj( 0, arity, [&]( uint16_t i ){ return _weight->arg_infl(f,i); } ) );
 		_info.emplace(f,_SymInfo{
 			.arity = arity,
@@ -217,7 +215,7 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 		str_all_arg = str_all_arg && j_mapped.imp(str_j); // if t_j survives, then s > t_j is prerequisite
 	}
 	if( ge_all_arg == false ) return { false, false };
-	auto const& p_ge = linfo->prec.ge(rinfo->prec), p_str = !linfo->prec.eq(rinfo->prec);
+	auto const& p_ge = linfo->prec.ge(rinfo->prec), p_str = linfo->prec.gt(rinfo->prec);
 	auto const& [args_ge,args_str] = mapped_lex_compare(
 		sol, [&]( auto const& x, auto const& y ){ return compare(x,y); },
 		linfo->occupied, rinfo->occupied, linfo->map, rinfo->map, largs, rargs
@@ -372,16 +370,16 @@ PathOrder::StatusFun PathOrder::StatusFun::of( Exp const& x ) {
 	throw Error("#malformed-status",x);
 }
 int TermOrder::log_of( Exp const& x ) {
-	if( x == "rule" ) {
-		return RULE;
+	if( x == "init" ) {
+		return INIT;
+	} else if( x == "rule" ) {
+		return INIT | RULE;
 	} else if( x == "pair" ) {
-		return RULE | PAIR;
+		return INIT | RULE | PAIR;
 	} else if( x == "use" ) {
-		return RULE | PAIR | USE;
-	} else if( x == "init" ) {
-		return RULE | PAIR | USE | INIT;
+		return INIT | RULE | PAIR | USE;
 	} else if( x == "debug" ) {
-		return RULE | PAIR | USE | INIT | DEBUG;
+		return INIT | RULE | PAIR | USE | DEBUG;
 	} else {
 		throw Error("#unknown-log",x);
 	}
@@ -571,7 +569,8 @@ std::unique_ptr<TrsOrder> TrsOrder::make( std::unique_ptr<TermOrder>&& ref ) {
 	}
 	return std::make_unique<_Wrapper>(std::move(ref));
 }
-std::unique_ptr<UsableRuleOrder> UsableRuleOrder::make( Trs const& trs, std::unique_ptr<TrsOrder>&& ref ) {
+std::unique_ptr<UsableRuleOrder> UsableRuleOrder::make( std::unique_ptr<TrsOrder>&& ref, Trs const& trs, bool use ) {
+	if( !use ) return std::make_unique<_Trivial>(std::move(ref));
 	if( dynamic_cast<UsableRuleOrder*>(ref.get()) ) {
 		return std::unique_ptr<UsableRuleOrder>(
 			static_cast<UsableRuleOrder*>(ref.release())

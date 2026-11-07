@@ -154,9 +154,8 @@ public:
 struct UsableRuleOrder : TrsOrder {
 	virtual Smt::PostExp term_used( Trs::Term const& t ) & = 0;
 	virtual Smt::PostExp rule_used( ruleId i ) & = 0;
-	static std::unique_ptr<UsableRuleOrder> make( Trs&& trs, std::unique_ptr<TrsOrder> const& org ) = delete;
-	static std::unique_ptr<UsableRuleOrder> make( Trs const& trs, std::unique_ptr<TrsOrder>&& org );
-	static std::unique_ptr<UsableRuleOrder> make_triv( std::unique_ptr<TrsOrder>&& org );
+	static std::unique_ptr<UsableRuleOrder> make( std::unique_ptr<TrsOrder> const& org, Trs&& trs ) = delete;
+	static std::unique_ptr<UsableRuleOrder> make( std::unique_ptr<TrsOrder>&& org, Trs const& trs, bool use );
 private:
 	struct _Wrapper;
 	struct _Trivial;
@@ -213,9 +212,6 @@ public:
 	Smt::PostExp arg_infl( std::string const& f, uint16_t i ) final override { return _ref->arg_infl(f,i); }
 	Smt::PostExp arg_used( std::string const& f, uint16_t i ) final override { return _ref->arg_used(f,i); }
 };
-inline std::unique_ptr<UsableRuleOrder> UsableRuleOrder::make_triv( std::unique_ptr<TrsOrder>&& org ) {
-	return std::make_unique<_Trivial>(std::move(org));
-}
 
 struct TrivOrder final : UsableRuleOrder {
 private:
@@ -371,9 +367,9 @@ private:
 		uint16_t arity;
 		Status status;
 		Smt::PostExp prec, collapse, empty;
-		std::function<Smt::PostExp(uint16_t,uint16_t)> map;// map(i,k) i-th argument is mapped to k-th position
-		std::function<Smt::PostExp(uint16_t)> mapped;// mapped(i) if the i-th argument is mapped
-		std::function<Smt::PostExp(uint16_t)> occupied;// occupied(k) if some argument is mapped to k-th position
+		std::function<Smt::PostExp(uint16_t,uint16_t)> map;// map(i,k) i-th argument is mapped to k-th place
+		std::function<Smt::PostExp(uint16_t)> mapped;// mapped(i) if the i-th argument is mapped to some place
+		std::function<Smt::PostExp(uint16_t)> occupied;// occupied(k) if some argument is mapped to k-th place
 		std::function<Smt::PostExp(uint16_t)> used;// flags if the corresponding argument is used
 	};
 	std::unique_ptr<TermOrder> _weight;
@@ -450,15 +446,14 @@ Smt::Compare mapped_lex_compare(
 	if( rocck == false ) {// rhs has no more post arguments
 		return {true,locck};// always ge, and strict if lhs is nonempty
 	}
-	auto k_ge =
-		Smt::PostExp::disj( 0, lin, [&]( uint16_t const& i ){// [l] >= [r]
-			return lmap(i,k) && Smt::PostExp::disj( 0, rin, [&]( uint16_t const& j ){
-				return rmap(j,k) && comp(ls[i],rs[j]).ge;
-			} );
+	auto k_ge =// if rhs survives, lhs must cover it
+		Smt::PostExp::conj( 0, rin, [&]( uint16_t const& j ){
+			return rmap(j,k).imp(
+				Smt::PostExp::disj( 0, lin, [&]( uint16_t const& i ){// [l] >= [r]
+					return lmap(i,k) && comp(ls[i],rs[j]).ge;
+				} )
+			);
 		} );
-	if( k_ge == false ) {// k-th element cannot be ordered -- is it possible?
-		return {!rocck, rocck || locck}; // ge iff rhs is empty, and str if not both are empty
-	}
 	auto k_str = solver.let( Smt::BOOL,
 		Smt::PostExp::disj( 0, lin, [&]( uint16_t const& i ){
 			return lmap(i,k) && Smt::PostExp::conj( 0, rin, [&]( uint16_t const& j ){// notice: [l] > []

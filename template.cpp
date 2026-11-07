@@ -321,8 +321,8 @@ void Template::Deriver::extend_sig( std::string const& f, Trs::Rank const& rank,
 		});
 	}
 	if( log & INIT ) {
-		cerr << "; intp infl[" << f << "] := (" << print_list( 0, rank.arity, [&](size_t i){ return finfo.args[i].infl; } ) << ")" << endl;
-		cerr << "; intp used[" << f << "] := (" << print_list( 0, rank.arity, [&](size_t i){ return finfo.args[i].used; } ) << ")" << endl;
+		cerr << "; intp infl[" << f << "] := {" << print_list( 0, rank.arity, [&](size_t i){ return finfo.args[i].infl; } ) << "}" << endl;
+		cerr << "; intp used[" << f << "] := {" << print_list( 0, rank.arity, [&](size_t i){ return finfo.args[i].used; } ) << "}" << endl;
 	}
 	assign(f,_deriver_of(_template_exp,f,rank,0,finfo,heuristic));
 }

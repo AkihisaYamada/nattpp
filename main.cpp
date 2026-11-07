@@ -92,7 +92,8 @@ int main( int argc, char* argv[] ) try {
 	enum EdgeMode { NONE, AUTO = 1, FULL = AUTO << 1, FALLBACK = FULL << 1 } allow_edge = EdgeMode::NONE;
 	bool use_dp = true;
 	vector<Exp> rulerem_specs;
-	vector<std::pair<Exp,bool>> dprem_specs;
+	struct DpRemInfo { Exp exp; bool usable; bool edge; };
+	vector<DpRemInfo> dprem_specs;
 	for( int i = 1; i < argc; i++ ) {
 		if( argv[i][0] == '-' ) {
 			string_view opt = argv[i];
@@ -168,7 +169,7 @@ int main( int argc, char* argv[] ) try {
 				}}},
 				{ "-d", { " <ord>:\tdependency pair remover", [&]{
 					require_arg();
-					dprem_specs.push_back({Exp::of(argv[i]),false});
+					dprem_specs.push_back({Exp::of(argv[i]),false,false});
 					default_strategy = false;
 					use_dp = true;
 				}}},
@@ -222,18 +223,18 @@ int main( int argc, char* argv[] ) try {
 		rulerem_specs.emplace_back("mono-sum");
 		bool auto_edge = allow_edge & (EdgeMode::AUTO | EdgeMode::FULL);
 		bool full_edge = allow_edge == EdgeMode::FULL;
-		dprem_specs.emplace_back( "sum", auto_edge );
-		dprem_specs.emplace_back( "max", full_edge );
-		dprem_specs.emplace_back( LPO_SPEC, full_edge );
-		dprem_specs.emplace_back( "imaxsum", full_edge );
-		dprem_specs.emplace_back( Exp{"path-order",":weight","maxsum",":status","map"}, full_edge );
-		dprem_specs.emplace_back( "sum_negsum", full_edge );
-		dprem_specs.emplace_back( "mat2b", auto_edge );
-		dprem_specs.emplace_back( "imaxsum_negsum", full_edge );
+		dprem_specs.emplace_back( "sum", true, auto_edge );
+		dprem_specs.emplace_back( "max", true, full_edge );
+		dprem_specs.emplace_back( LPO_SPEC, true, full_edge );
+		dprem_specs.emplace_back( "imaxsum", true, full_edge );
+		dprem_specs.emplace_back( Exp{"path-order",":weight","maxsum",":status","map"}, true, full_edge );
+		dprem_specs.emplace_back( "sum_negsum", true, full_edge );
+		dprem_specs.emplace_back( "mat2b", true, auto_edge );
+		dprem_specs.emplace_back( "imaxsum_negsum", true, full_edge );
 		if( allow_edge & EdgeMode::FALLBACK ) {
-			dprem_specs.emplace_back("sum",true);
-			dprem_specs.emplace_back(LPO_SPEC,true);
-			dprem_specs.emplace_back("mat2b",true);
+			dprem_specs.emplace_back("sum",true,true);
+			dprem_specs.emplace_back(LPO_SPEC,true,true);
+			dprem_specs.emplace_back("mat2b",true,true);
 		}
 		use_dp = true;
 	}
@@ -393,8 +394,8 @@ int main( int argc, char* argv[] ) try {
 		};
 
 		vector<DpRemover> dp_removers;
-		for( auto [x,edge] : dprem_specs ) {
-			dp_removers.emplace_back(0,edge,UsableRuleOrder::make(p,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log))));
+		for( auto [x,usable,edge] : dprem_specs ) {
+			dp_removers.emplace_back(0,edge,UsableRuleOrder::make(TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log)),p,usable));
 		}
 		for(;;) {
 			if( p.components.front().graph.empty() ) {

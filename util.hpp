@@ -17,7 +17,7 @@
     return f(std::forward<decltype(x)>(x),std::forward<decltype(y)>(y));\
 })
 
-enum { NONE = 0, RULE = 1 << 1, PAIR = RULE << 1, SEP = RULE << 1, USE = SEP << 1, INIT = USE << 1, DEBUG = INIT << 1 };
+enum { NONE = 0, INIT = 1, RULE = INIT << 1, PAIR = RULE << 1, SEP = RULE << 1, USE = SEP << 1, DEBUG = USE << 1 };
 
 std::string escape( std::string const& str );
 

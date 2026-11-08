@@ -240,7 +240,7 @@ Term<Sum<Template::Sym,Arg>> Template::Deriver::_deriver_of(
 		if( auto const& aggfun = agg.is_unapplied() ) {
 			auto args = vector<Term<Sum<Template::Sym,Arg>>>();
 			for( uint16_t i = from.value_or(0); i < rank.arity; i++ ) {
-				args.emplace_back(_deriver_of(argexp,f,rank,i,finfo,heuristic));
+				args.emplace_back(_deriver_of(argexp,f,rank,{i},finfo,heuristic));
 			}
 			return app(Template::Fun(*aggfun),std::move(args));
 		}
@@ -250,11 +250,11 @@ Term<Sum<Template::Sym,Arg>> Template::Deriver::_deriver_of(
 		while( auto const& arg = exp.gets_arg(i) ) {
 			auto const& mode = arg->fun();
 			uint j = 0;
-			if( mode == "arity" ? Exp(arg->get_arg(j)).as_nat([](auto n){ return n < 255; }) == rank.arity :
+			if( mode == "arity" ? Exp(arg->get_arg(j)).as_nat() == rank.arity :
 				mode == "name" ? arg->get_arg(j).as_unapplied() == f :
 				mode == "index" ? [&]{
 					uint16_t pos = poso.value_or_throw(Error("#template","\"cond index not allowed here\""));
-					return Exp(arg->get_arg(j)).as_nat([](auto n){ return n < 255; }) == pos;
+					return Exp(arg->get_arg(j)).as_nat() == pos;
 				}() :
 				mode == "otherwise" || (throw Error("#template","\"unsupported cond\"",mode),false)
 			) {

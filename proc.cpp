@@ -61,7 +61,7 @@ OStream OStream::of( Exp const& x ) {
 Proc Proc::of( Exp const& x ) {
 	auto const& f = x.fun();
 	if( f == "cmd" ) {
-		size_t n = 0;
+		uint n = 0;
 		auto const& cmd = x.get_arg(n).is_unapplied().value_or_throw( Error("#malformed-cmd",x) ).c_str();
 		vector<char const*> cmd_args;
 		while( auto const& arg = x.gets_arg(n) ) {

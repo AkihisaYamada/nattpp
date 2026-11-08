@@ -341,11 +341,14 @@ public:
 };
 
 struct PathOrder final : MemoizedTermOrder {
+	enum class Collapse {
+		NONE, AUTO, FORCE,
+	};
 	struct Status {
 		struct Straight {};
 		struct Mapped {
 			uint16_t post_arity;
-			bool collapsible;
+			Collapse collapse;
 		};
 	private:
 		Sum<Straight,Mapped> _sum;
@@ -357,11 +360,8 @@ struct PathOrder final : MemoizedTermOrder {
 			return _sum.ref<Mapped>();
 		}
 	};
-	struct StatusFun {
-		std::function<Status(Trs::Rank const&)> fun;
-		StatusFun( std::function<Status(Trs::Rank const&)>&& arg ) : fun(std::move(arg)) {}
-		static StatusFun of( Exp const& );
-	};
+	using StatusFun = std::function<Status( std::string const&, Trs::Rank const& )>;
+	static StatusFun status_fun_of( Exp const& );
 private:
 	struct _SymInfo {
 		uint16_t arity;

@@ -257,7 +257,7 @@ Algebra<Template::Sym,MPoly> MPoly::algebra_of_range( Poly::Range ran ) {
 		if( ran != Poly::NONE ) {
 			if( auto const& var = f.is_var() ) return Poly::Var(*var,ran);
 		}
-		assert(false);
+		throw Error("#mpoly","\"variable range unspecified\"");
 	};
 }
 Algebra<Template::Sym,MPoly> const MPoly::ALGEBRA = algebra_of_range(Poly::NONE);
@@ -322,6 +322,13 @@ Smt::Compare MPoly::compare( MPoly const& y, Smt::Solver& solver ) const {
 }
 Smt::PostExp MPoly::separate( MPoly const& y ) const {
 	return gt(y) || y.gt(*this);
+}
+
+Poly::Range Poly::range_of( std::string const& str ) {
+	if( str == "full" ) return FULL;
+	if( str == "pos" ) return POS;
+	if( str == "neg" ) return NEG;
+	throw Error("#syntax","\"unknown range\"",str);
 }
 
 int Poly::test() {

@@ -52,7 +52,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 	sol.ass( Smt::ge(prec,0) );
 	if( _log & INIT ) cerr << "; prec " << f << ": " << prec << endl;
 	uint16_t arity = rank.arity;
-	Status status = _status.fun(rank);
+	Status status = _status(f,rank);
 	if( auto map_opt = status.mapped() ) {
 		uint16_t post_arity = map_opt->post_arity;
 		if( post_arity == 0 ) {// empty status
@@ -69,7 +69,10 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 			});
 		} else {
 			std::vector<Smt::PostExp> used_tbl;
-			Smt::PostExp collapse = map_opt->collapsible ? sol.declare_const("c_"+fesc,Smt::BOOL) : false;
+			Smt::PostExp collapse =
+				map_opt->collapse == Collapse::AUTO ? sol.declare_const("c_"+fesc,Smt::BOOL) :
+				map_opt->collapse == Collapse::FORCE ? true :
+				false;
 			auto col_imp_triv = collapse.imp(_weight->fun_triv(f));
 			if( _log & INIT ) cerr << "; collapse[" << f << "] => trivial weight: " << col_imp_triv << endl;
 			sol.ass(col_imp_triv);
@@ -160,7 +163,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 }
 
 Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
-	auto const& [w_ge,w_str] = _weight->compare(l,r);
+	auto [w_ge,w_str] = _weight->compare(l,r);
 	if( w_ge == false ) {
 		return {false,false};
 	}
@@ -200,7 +203,8 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 	}
 	auto const& rinfo = _info.find(rf);
 	if( !rinfo ) {// f(s..) >=? y
-		return { some_arg_ge,
+		w_str = sol.let(Smt::BOOL,w_str);
+		return { w_str || some_arg_ge,
 			w_str || linfo->collapse.imp(some_arg_str)// if f is collapsed, s = y is weak
 		};
 	}
@@ -214,7 +218,7 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 		ge_all_arg = ge_all_arg && j_mapped.imp(ge_j);
 		str_all_arg = str_all_arg && j_mapped.imp(str_j); // if t_j survives, then s > t_j is prerequisite
 	}
-	if( ge_all_arg == false ) return { false, false };
+//	if( ge_all_arg == false ) return { false, false };
 	auto const& p_ge = linfo->prec.ge(rinfo->prec), p_str = linfo->prec.gt(rinfo->prec);
 	auto const& [args_ge,args_str] = mapped_lex_compare(
 		sol, [&]( auto const& x, auto const& y ){ return compare(x,y); },
@@ -346,28 +350,75 @@ std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sy
 	return os << _weight->print_sym_info(sym);
 }
 
-PathOrder::StatusFun PathOrder::StatusFun::of( Exp const& x ) {
-	size_t n = 0;
-	Opt<bool> collapsible;
+PathOrder::Collapse collapse_mode_of( Exp const& x ) {
+	auto v = x.as_unapplied();
+	if( v == "none" ) return PathOrder::Collapse::NONE;
+	if( v == "auto" ) return PathOrder::Collapse::AUTO;
+	if( v == "force" ) return PathOrder::Collapse::FORCE;
+	throw Error("#path-order","\"unknown collapse mode\"",x);
+}
+
+PathOrder::Status _status_of( Exp const& x, std::string const& name, Trs::Rank const& rank ) {
+	uint i = 0;
 	if( x.fun() == "straight" ) {
-		x.get_end(n);
-		return StatusFun([](auto){ return Status::Straight(); });
+		x.get_end(i);
+		return PathOrder::Status::Straight();
 	}
 	if( x.fun() == "map" ) {
-		int num;
-		if( auto const& arg = x.gets_arg(n) ) {
-			num = std::stoi(arg->is_unapplied().value_or_throw(Error("#malformed-number",*arg)));
-		} else {
-			num = -1;
-		}
-		x.process_keys(n,
-			Exp::OnKey("collapse") >> [&]( auto const& val ){ collapsible = {val.as_bool()}; }
+		int postarity = -1;
+		Opt<PathOrder::Collapse> ocollapse;
+		x.process_keys(i,
+			Exp::OnKey("post-arity") >> [&]( auto const& val ){
+				postarity = val.as_nat([](auto n){ return n < 32; });
+			} || Exp::OnKey("collapse") >> [&]( auto const& val ){
+				ocollapse = {collapse_mode_of(val)};
+			}
 		);
-		return StatusFun([num,collapsible]( Trs::Rank const& rank ){
-			return Status::Mapped( num == -1 ? rank.arity : rank.arity ? num : 0, collapsible.value_or(true) );
-		});
+		return PathOrder::Status::Mapped(
+			postarity == -1 ? rank.arity : rank.arity ? postarity : 0,
+			ocollapse.value_or(PathOrder::Collapse::AUTO)
+		);
 	}
-	throw Error("#malformed-status",x);
+	if( x.fun() == "cond" ) {
+		while( auto const& xi = x.gets_arg(i) ) {
+			uint j = 0;
+			if( xi->fun() == "name" ? xi->get_arg(j).as_unapplied() == name :
+				xi->fun() == "arity" ? Exp(xi->get_arg(j)).as_nat([](auto n){ return n < 255; }) :
+				xi->fun() == "otherwise" || (throw Error("#path-order:status","\"unknown cond\"",*xi), false)
+			) {
+				auto xj = xi->get_arg(j);
+				xi->get_end(j);
+				return _status_of(xj,name,rank);
+			}
+		}
+		throw Error("#path-order:status","\"unmatching cond\"",name);
+	}
+	throw Error("#path-order","\"malformed status\"",x);
+}
+
+PathOrder::StatusFun PathOrder::status_fun_of( Exp const& x ) {
+	uint i = 0;
+	if( x.fun() == "straight" ) {
+		x.get_end(i);
+		return [](auto,auto){ return Status::Straight(); };
+	}
+	if( x.fun() == "map" ) {
+		int postarity = -1;
+		Opt<Collapse> ocollapse;
+		x.process_keys(i,
+			Exp::OnKey("post-arity") >> [&]( auto const& val ){
+				postarity = val.as_nat([](auto n){ return n < 32; });
+			} || Exp::OnKey("collapse") >> [&]( auto const& val ){
+				ocollapse = {collapse_mode_of(val)};
+			}
+		);
+		return [postarity,collapse=ocollapse.value_or(Collapse::AUTO)]( std::string const&, Trs::Rank const& rank ){
+			return Status::Mapped( postarity == -1 ? rank.arity : rank.arity ? postarity : 0, collapse );
+		};
+	}
+	return [x]( std::string const& name, Trs::Rank const& rank ){
+		return _status_of(x,name,rank);
+	};
 }
 int TermOrder::log_of( Exp const& x ) {
 	if( x == "init" ) {
@@ -462,7 +513,7 @@ std::unique_ptr<TermOrder> TermOrder::make(
 	int default_log
 ) {
 	auto const& f = x.fun();
-	size_t n = 0;
+	uint n = 0;
 	Opt<Exp> smt;
 	auto mk_smt = [&]{ return smt ? Smt::Solver::of(*smt) : default_smt(); };
 	int log = -1;
@@ -526,16 +577,25 @@ std::unique_ptr<TermOrder> TermOrder::make(
 			tuple_algebra<Poly::Range,MPoly>({Poly::POS,Poly::NEG}),Template::IMAXSUM_NEGSUM,mk_smt(),false,log
 		);
 	} else if( f == "template" ) {
-		Exp t = x.get_arg(n);
+		std::vector<Poly::Range> rans;
+		{	Exp ranexp = x.get_arg(n);
+			uint j = 0;
+			rans.emplace_back(Poly::range_of(ranexp.fun()));
+			while( auto ranarg = ranexp.gets_arg(j) ) {
+				rans.emplace_back(Poly::range_of(ranarg->as_unapplied()));
+			}
+		}
+		Exp exp = x.get_arg(n);
 		x.process_keys( n, solver_key || log_key(log) || mono_key );
 		set_log();
-		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::ALGEBRA,t,mk_smt(),mono,log);
+		return std::make_unique<DerivedTermOrder<TupleVal<MPoly>>>(
+			tuple_algebra<Poly::Range,MPoly>(std::move(rans)),exp,mk_smt(),mono,log);
 	} else if( f == "path-order" ) {
 		Opt<Exp> w;
 		Opt<PathOrder::StatusFun> status;
 		x.process_keys( n,
 			Exp::OnKey("weight") >> [&]( auto const& val ){ w = {val}; } ||
-			Exp::OnKey("status") >> [&]( auto const& val ){ status = {PathOrder::StatusFun::of(val)}; } ||
+			Exp::OnKey("status") >> [&]( auto const& val ){ status = {PathOrder::status_fun_of(val)}; } ||
 			log_key(log) || (w ? Exp::NO_KEY : solver_key) );
 		x.get_end(n);
 		set_log();
@@ -545,7 +605,7 @@ std::unique_ptr<TermOrder> TermOrder::make(
 				std::make_unique<TrivOrder>(mk_smt()),
 			status ?
 				*status :
-				PathOrder::StatusFun( []( Trs::Rank const& rank ){ return PathOrder::Status::Straight(); } ),
+				PathOrder::StatusFun( [](auto,auto){ return PathOrder::Status::Straight(); } ),
 			log
 		);
 	} else {
@@ -597,7 +657,7 @@ void TermOrder::test() {
 	auto lpo = TrsOrder::make(
 		std::make_unique<PathOrder>(
 			std::make_unique<TrivOrder>(Smt::Z3(Smt::LIA)),
-			PathOrder::StatusFun( [&](Trs::Rank const&){ return PathOrder::Status::Mapped(2); } ),
+			PathOrder::StatusFun( [](auto,auto){ return PathOrder::Status::Mapped(2); } ),
 			RULE
 		)
 	);

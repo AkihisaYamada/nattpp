@@ -830,7 +830,7 @@ Smt::Sort Smt::Sort::of( Exp const& x ) {
 }
 
 Smt::Solver Smt::Solver::of( Exp const& x ) {
-	size_t n = 0;
+	uint n = 0;
 	Opt<OStream> tee;
 	Opt<bool> let;
 	Exp::KeyValProc proc_tee_key = [&]( auto key, auto val ){

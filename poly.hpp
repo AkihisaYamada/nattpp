@@ -15,6 +15,7 @@ struct Poly {
 		using ::Error::Error;
 	};
 	enum Range { NONE, POS, NEG, FULL };
+	static Range range_of( std::string const& );
 	struct Add {};
 	static Add constexpr ADD = {};
 	struct Mul {};

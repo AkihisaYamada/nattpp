@@ -152,7 +152,7 @@ Opt<Exp> Reader::reads_exp() {
 	return {};
 }
 
-void Exp::process_keys( size_t& i, KeyValProc const& f ) const& {
+void Exp::process_keys( uint& i, KeyValProc const& f ) const& {
 	size_t n = args().size();
 	while( i < n ) {
 		auto const& key = is_key(arg(i)).value_or_throw(Error("#unexpected",arg(i)));

@@ -71,16 +71,16 @@ public:
 	std::pair<Fun,std::vector<Term>> const& operator*() const& {
 		return *_ref;
 	}
-	Term arg( size_t i ) && {
+	Term arg( uint i ) && {
 		assert( i < args().size() );
 		return args()[i];
 	}
-	Term const& arg( size_t i ) const& {
+	Term const& arg( uint i ) const& {
 		assert( i < args().size() );
 		return args()[i];
 	}
 	/** Returns i-th argument and increment i. */
-	Opt<Term const&> gets_arg( size_t& i ) const& {
+	Opt<Term const&> gets_arg( uint& i ) const& {
 		if( i < args().size() ) {
 			auto const& a = arg(i);
 			if( !is_key(a) ) {
@@ -91,9 +91,9 @@ public:
 		return {};
 	}
 	/** Returns i-th argument and increment i. */
-	Term const& get_arg( size_t& i ) const&;
+	Term const& get_arg( uint& i ) const&;
 	/** Asserts i is the number of arguments. */
-	void get_end( size_t i ) const&;
+	void get_end( uint i ) const&;
 	template<typename Fn>
 	Term<std::invoke_result_t<Fn, F const&>> map( Fn&& f ) const {
 		Term<std::invoke_result_t<Fn, F const&>> ret = f(fun());
@@ -148,11 +148,11 @@ struct Error : std::exception, Term<std::string> {
 	using Term<std::string>::Term;
 };
 template<typename F>
-Term<F> const& Term<F>::get_arg( size_t& i ) const& {
+Term<F> const& Term<F>::get_arg( uint& i ) const& {
 	return gets_arg(i).value_or_throw(Error("#too-few-args",*this));
 }
 template<typename F>
-void Term<F>::get_end( size_t i ) const& {
+void Term<F>::get_end( uint i ) const& {
 	if( i != args().size() ) throw Error("#expected-rparen",arg(i));
 }
 
@@ -221,8 +221,8 @@ struct Exp : Term<std::string> {
 		}
 	};
 	/** Processes key-value pairs from the ith argument. */
-	void process_keys( size_t& i, KeyValProc const& f ) const&;
-	Exp get_arg( size_t& i ) const& {
+	void process_keys( uint& i, KeyValProc const& f ) const&;
+	Exp get_arg( uint& i ) const& {
 		return Exp(Term<std::string>::get_arg(i));
 	}
 	Opt<bool> is_bool() const& {

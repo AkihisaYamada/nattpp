@@ -101,6 +101,18 @@ int main( int argc, char* argv[] ) try {
 				i++;
 				if( i == argc ) throw Error("#missing-arg",opt);
 			};
+			static auto print_ref = [&]( std::string const& )->bool& {
+				static Map<std::string,bool&> print_map = {
+					{"problem",print_problem},
+					{"proof",print_proofs},
+					{"step",print_steps},
+					{"dg",print_dg},
+					{"usable",print_usables},
+					{"fail",print_on_fail},
+					{"maxsum",print_maxsym},
+				};
+				return print_map.find(argv[i]).value_or_throw(Error("#main","\"unknown print option\"",argv[i]));
+			};
 			OrdMap<std::string,std::pair<std::string,std::function<void(void)>>> map = {
 				{ "-q", { ":\tquiet mode", [&]{
 					print_problem = print_proofs = print_steps = print_freezed = print_dp = print_on_fail = false;
@@ -147,20 +159,13 @@ int main( int argc, char* argv[] ) try {
 					require_arg();
 					default_log = TermOrder::log_of(argv[i]);
 				}}},
-				{ "-print-on-fail", { ":\tprint remaining problem on unsuccessful proof", [&]{
-					print_on_fail = true;
+				{ "-print", { " (problem|proof|step|dg|dp|usable|failure|maxsum):\tprint dependency graph", [&]{
+					require_arg();
+					print_ref(argv[i]) = true;
 				}}},
-				{ "-print-dp", { ":\tprint dependency pairs", [&]{
-					print_dp = true;
-				}}},
-				{ "-print-dg", { ":\tprint dependency graph", [&]{
-					print_dg = true;
-				}}},
-				{ "-print-usables", { ":\tprint usable rules", [&]{
-					print_usables = true;
-				}}},
-				{ "-print-maxsum", { ":\tprint max-sum heuristic", [&]{
-					print_maxsym = true;
+				{ "-no-print", { " (problem|proof|step|dg|dp|usable|failure|maxsum):\tprint dependency graph", [&]{
+					require_arg();
+					print_ref(argv[i]) = false;
 				}}},
 				{ "-r", { " <ord>:\trule remover", [&]{
 					require_arg();
@@ -228,8 +233,8 @@ int main( int argc, char* argv[] ) try {
 		dprem_specs.emplace_back( LPO_SPEC, true, full_edge );
 		dprem_specs.emplace_back( "imaxsum", true, full_edge );
 		dprem_specs.emplace_back( Exp{"path-order",":weight","maxsum",":status","map"}, true, full_edge );
-		dprem_specs.emplace_back( "sum_negsum", true, full_edge );
 		dprem_specs.emplace_back( "mat2b", true, auto_edge );
+		dprem_specs.emplace_back( "sum_negsum", true, full_edge );
 		dprem_specs.emplace_back( "imaxsum_negsum", true, full_edge );
 		if( allow_edge & EdgeMode::FALLBACK ) {
 			dprem_specs.emplace_back("sum",true,true);
@@ -258,7 +263,7 @@ int main( int argc, char* argv[] ) try {
 		cerr << "; SCCs: " << p.components.size() << endl;
 	}) : []{};
 
-	auto print_component = print_proofs ? function([&]{
+	auto print_component = print_steps || print_proofs ? function([&]{
 		*prf << "(scc";
 		for( auto const& [i,js] : p.components.front().graph ) {
 			*prf << ' ' << i;
@@ -372,16 +377,17 @@ int main( int argc, char* argv[] ) try {
 			}
 			return remover.edge && unorder_some_edge( *remover.order, p, [&]( auto&& nodes, auto&& usables ){
 				if( print_proofs ) {
-					*prf << "(remove-edge\n  (" << remover.order->print(p.sig) << endl;
+					*prf << "(remove-edge\n  " << remover.order->print(p.sig) << flush;
 					for( auto const& [i,js] : nodes ) {
 						auto& tgts = comp.graph[i];
-						*prf << "  (edges " << i;
+						*prf << "\n  (" << i;
 						for( auto j : js ) {
 							tgts.erase(j);
 							*prf << ' ' << j;
 						}
-						*prf << ')' << endl;
+						*prf << ')' << flush;
 					}
+					*prf << ')' << endl;
 				} else {
 					for( auto const& [i,js] : nodes ) {
 						auto& tgts = comp.graph[i];
@@ -412,6 +418,7 @@ int main( int argc, char* argv[] ) try {
 					if( print_steps ) cerr << "; no more SCC" << endl;
 					throw Answer::YES;
 				}
+				print_scc_count();
 				print_component();
 				continue;
 			}
@@ -423,6 +430,7 @@ int main( int argc, char* argv[] ) try {
 		} else if( a == Answer::NO ) {
 			cout << "NO" << endl;
 		} else if( a == Answer::MAYBE ) {
+			if( print_steps ) cerr << "; failed" << endl;
 			cout << "MAYBE" << endl;
 			if( print_on_fail ) {
 				cerr << p << endl;

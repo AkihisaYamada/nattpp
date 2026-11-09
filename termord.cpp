@@ -527,54 +527,50 @@ std::unique_ptr<TermOrder> TermOrder::make(
 	} else if( f == "mono-sum" ) {
 		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
-		return std::make_unique<DerivedTermOrder<Poly>>(Poly::POS_ALGEBRA,Template::MONO_SUM,mk_smt(),true,log);
+		return std::make_unique<DerivedTermOrder<Poly>>("mono-sum",Poly::POS_ALGEBRA,Template::MONO_SUM,mk_smt(),true,log);
 	} else if( f == "sum" ) {
 		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
-		return std::make_unique<DerivedTermOrder<Poly>>(Poly::POS_ALGEBRA,Template::SUM,mk_smt(),false,log);
-	} else if( f == "mono-bpoly" ) {
-		x.process_keys( n, solver_key || log_key(log) );
-		set_log();
-		return std::make_unique<DerivedTermOrder<Poly>>(Poly::POS_ALGEBRA,Template::MONO_POLY2,mk_smt(),true,log);
+		return std::make_unique<DerivedTermOrder<Poly>>("sum",Poly::POS_ALGEBRA,Template::SUM,mk_smt(),false,log);
 	} else if( f == "mat2b" ) {
 		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<Poly>>>(
-			tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::POS}),Template::MAT2B,mk_smt(),false,log
+			"mat2b", tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::POS}), Template::MAT2B, mk_smt(), false, log
 		);
 	} else if( f == "mat2n" ) {
 		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<Poly>>>(
-			tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::POS}),Template::MAT2N,mk_smt(),false,log
+			"mat2n", tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::POS}), Template::MAT2N, mk_smt(), false, log
 		);
 	} else if( f == "max" ) {
 		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
-		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::POS_ALGEBRA,Template::MAX,mk_smt(),false,log);
+		return std::make_unique<DerivedTermOrder<MPoly>>("max",MPoly::POS_ALGEBRA,Template::MAX,mk_smt(),false,log);
 	} else if( f == "maxsum" ) {
 		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
-		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::POS_ALGEBRA,Template::MAXSUM,mk_smt(),false,log);
+		return std::make_unique<DerivedTermOrder<MPoly>>("maxsum",MPoly::POS_ALGEBRA,Template::MAXSUM,mk_smt(),false,log);
 	} else if( f == "imax" ) {
 		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
-		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::POS_ALGEBRA,Template::IMAX,mk_smt(),false,log);
+		return std::make_unique<DerivedTermOrder<MPoly>>("imax",MPoly::POS_ALGEBRA,Template::IMAX,mk_smt(),false,log);
 	} else if( f == "imaxsum" ) {
 		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
-		return std::make_unique<DerivedTermOrder<MPoly>>(MPoly::POS_ALGEBRA,Template::IMAXSUM,mk_smt(),false,log);
+		return std::make_unique<DerivedTermOrder<MPoly>>("imaxsum",MPoly::POS_ALGEBRA,Template::IMAXSUM,mk_smt(),false,log);
 	} else if( f == "sum_negsum" ) {
 		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<MPoly>>>(
-			tuple_algebra<Poly::Range,MPoly>({Poly::POS,Poly::NEG}),Template::SUM_NEGSUM,mk_smt(),false,log
+			"sum_negsum",tuple_algebra<Poly::Range,MPoly>({Poly::POS,Poly::NEG}), Template::SUM_NEGSUM, mk_smt(), false, log
 		);
 	} else if( f == "imaxsum_negsum" ) {
 		x.process_keys( n, solver_key || log_key(log) );
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<MPoly>>>(
-			tuple_algebra<Poly::Range,MPoly>({Poly::POS,Poly::NEG}),Template::IMAXSUM_NEGSUM,mk_smt(),false,log
+			"imaxsum_negsum", tuple_algebra<Poly::Range,MPoly>({Poly::POS,Poly::NEG}), Template::IMAXSUM_NEGSUM, mk_smt(), false, log
 		);
 	} else if( f == "template" ) {
 		std::vector<Poly::Range> rans;
@@ -589,7 +585,7 @@ std::unique_ptr<TermOrder> TermOrder::make(
 		x.process_keys( n, solver_key || log_key(log) || mono_key );
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<MPoly>>>(
-			tuple_algebra<Poly::Range,MPoly>(std::move(rans)),exp,mk_smt(),mono,log);
+			"custom-template", tuple_algebra<Poly::Range,MPoly>(std::move(rans)), exp, mk_smt(), mono, log );
 	} else if( f == "path-order" ) {
 		Opt<Exp> w;
 		Opt<PathOrder::StatusFun> status;

@@ -9,6 +9,7 @@ struct TermOrder {
 	virtual int log() = 0;
 	virtual void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) = 0;
 	virtual Smt::Solver& solver() = 0;
+	virtual std::ostream& print_class( std::ostream& os ) = 0;
 	virtual std::ostream& print_name( std::ostream& os ) = 0;
 	virtual std::ostream& print_sym_info( std::ostream& os, std::string const& f ) = 0;
 	virtual Smt::Compare compare( Exp const& l, Exp const& r ) = 0;
@@ -30,13 +31,18 @@ struct TermOrder {
 			return print_name(os);
 		});
 	}
+	Printable print_class() & {
+		return Printable([&]( std::ostream& os )->std::ostream&{
+			return print_class(os);
+		});
+	}
 	Printable print_sym_info( std::string const& f ) {
 		return Printable([&]( std::ostream& os )->std::ostream&{
 			return print_sym_info(os,f);
 		});
 	}
 	virtual std::ostream& print( std::ostream& os, Trs::Sig const& sig ) {
-		os << '(' << print_name();
+		os << '(' << print_class();
 		for( auto [f,rank] : sig ) {
 			os << "\n    (" << f << print_sym_info(f) << ')';
 		}
@@ -109,6 +115,7 @@ public:
 		_ref->extend_sig(f,rank,heuristic);
 	}
 	std::ostream& print_name( std::ostream& os ) override { return _ref->print_name(os); }
+	std::ostream& print_class( std::ostream& os ) override { return _ref->print_class(os); }
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override { return _ref->print_sym_info(os,f); }
 	Smt::PostExp mono() override { return _ref->mono(); }
 	Smt::PostExp fun_triv( std::string const& f ) override { return _ref->fun_triv(f); }
@@ -142,6 +149,7 @@ public:
 	}
 	Smt::Solver& solver() final override { return _ref->solver(); }
 	std::ostream& print_name( std::ostream& os ) final override { return _ref->print_name(os); }
+	std::ostream& print_class( std::ostream& os ) override { return _ref->print_class(os); }
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) final override { return _ref->print_sym_info(os,f); }
 	Smt::Compare compare( Exp const& l, Exp const& r ) final override { return _ref->compare(l,r); }
 	Smt::PostExp separate( Exp const& s, Exp const& t ) final override { return _ref->separate(s,t); }
@@ -171,19 +179,20 @@ public:
 	Smt::PostExp rule_used( ruleId i ) & override;
 	Smt::Compare rule_compare( ruleId i, Trs::Term const& l, Trs::Term const& r ) override { return _ref->rule_compare(i,l,r); }
 	Smt::PostExp edge_separate( ruleId i, ruleId j, Problem const& p ) override { return _ref->edge_separate(i,j,p); }
-	int log() final override { return _ref->log(); }
+	int log() override { return _ref->log(); }
 	void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) override {
 		_ref->extend_sig(f,rank,heuristic);
 	}
-	Smt::Solver& solver() final override { return _ref->solver(); }
-	std::ostream& print_name( std::ostream& os ) final override { return _ref->print_name(os); }
-	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) final override { return _ref->print_sym_info(os,f); }
-	Smt::Compare compare( Exp const& l, Exp const& r ) final override { return _ref->compare(l,r); }
-	Smt::PostExp separate( Exp const& s, Exp const& t ) final override { return _ref->separate(s,t); }
-	Smt::PostExp mono() final override { return _ref->mono(); }
+	Smt::Solver& solver() override { return _ref->solver(); }
+	std::ostream& print_name( std::ostream& os ) override { return _ref->print_name(os); }
+	std::ostream& print_class( std::ostream& os ) override { return _ref->print_class(os); }
+	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override { return _ref->print_sym_info(os,f); }
+	Smt::Compare compare( Exp const& l, Exp const& r ) override { return _ref->compare(l,r); }
+	Smt::PostExp separate( Exp const& s, Exp const& t ) override { return _ref->separate(s,t); }
+	Smt::PostExp mono() override { return _ref->mono(); }
 	Smt::PostExp fun_triv( std::string const& f ) override { return _ref->fun_triv(f); }
-	Smt::PostExp arg_infl( std::string const& f, uint16_t i ) final override { return _ref->arg_infl(f,i); }
-	Smt::PostExp arg_used( std::string const& f, uint16_t i ) final override { return _ref->arg_used(f,i); }
+	Smt::PostExp arg_infl( std::string const& f, uint16_t i ) override { return _ref->arg_infl(f,i); }
+	Smt::PostExp arg_used( std::string const& f, uint16_t i ) override { return _ref->arg_used(f,i); }
 };
 struct UsableRuleOrder::_Trivial final : UsableRuleOrder {
 private:
@@ -198,19 +207,20 @@ public:
 	}
 	Smt::Compare rule_compare( ruleId i, Trs::Term const& l, Trs::Term const& r ) override { return _ref->rule_compare(i,l,r); }
 	Smt::PostExp edge_separate( ruleId i, ruleId j, Problem const& p ) override { return _ref->edge_separate(i,j,p); }
-	int log() final override { return _ref->log(); }
+	int log() override { return _ref->log(); }
 	void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) override {
 		_ref->extend_sig(f,rank,heuristic);
 	}
-	Smt::Solver& solver() final override { return _ref->solver(); }
-	std::ostream& print_name( std::ostream& os ) final override { return _ref->print_name(os); }
-	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) final override { return _ref->print_sym_info(os,f); }
-	Smt::Compare compare( Exp const& l, Exp const& r ) final override { return _ref->compare(l,r); }
-	Smt::PostExp separate( Exp const& s, Exp const& t ) final override { return _ref->separate(s,t); }
-	Smt::PostExp mono() final override { return _ref->mono(); }
+	Smt::Solver& solver() override { return _ref->solver(); }
+	std::ostream& print_name( std::ostream& os ) override { return _ref->print_name(os); }
+	std::ostream& print_class( std::ostream& os ) override { return _ref->print_class(os); }
+	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override { return _ref->print_sym_info(os,f); }
+	Smt::Compare compare( Exp const& l, Exp const& r ) override { return _ref->compare(l,r); }
+	Smt::PostExp separate( Exp const& s, Exp const& t ) override { return _ref->separate(s,t); }
+	Smt::PostExp mono() override { return _ref->mono(); }
 	Smt::PostExp fun_triv( std::string const& f ) override { return _ref->fun_triv(f); }
-	Smt::PostExp arg_infl( std::string const& f, uint16_t i ) final override { return _ref->arg_infl(f,i); }
-	Smt::PostExp arg_used( std::string const& f, uint16_t i ) final override { return _ref->arg_used(f,i); }
+	Smt::PostExp arg_infl( std::string const& f, uint16_t i ) override { return _ref->arg_infl(f,i); }
+	Smt::PostExp arg_used( std::string const& f, uint16_t i ) override { return _ref->arg_used(f,i); }
 };
 
 struct TrivOrder final : UsableRuleOrder {
@@ -229,6 +239,9 @@ public:
 		return false;
 	}
 	std::ostream& print_name( std::ostream& os ) override {
+		return os << "trivial-order";
+	}
+	std::ostream& print_class( std::ostream& os ) override {
 		return os << "trivial-order";
 	}
 	std::ostream& print_sym_info( std::ostream& os, std::string const& sig ) override {
@@ -265,28 +278,33 @@ struct DerivedTermOrder final : MemoizedTermOrder {
 private:
 	Smt::Solver _solver;
 	OrdMap<Trs::Term,A> _evals;
+	std::string _name;
 	int _log;
 	Algebra<std::string,A> const _intp;
 public:
 	Template::Deriver deriver;
 	DerivedTermOrder(
+		std::string name,
 		Algebra<Template::Sym,A>&& org,
 		Exp const& temp,
 		Smt::Solver&& sol_,
 		Smt::PostExp const& mono,
 		int log_
 	) : _solver(std::move(sol_)),
+		_name(name),
 		_log(log_),
 		deriver(temp,_solver,mono,log_),
 		_intp(deriver.derive(std::move(org))) {
 	}
 	DerivedTermOrder(
+		std::string name,
 		Algebra<Template::Sym,A> const& org,
 		Exp const& temp,
 		Smt::Solver&& sol_,
 		Smt::PostExp const& mono,
 		int log_
 	) : _solver(std::move(sol_)),
+		_name(name),
 		_log(log_),
 		deriver(temp,_solver,mono,log_),
 		_intp(deriver.derive(org)) {
@@ -314,8 +332,11 @@ public:
 		}
 		return si.separate(ti);
 	}
+	std::ostream& print_class( std::ostream& os ) override {
+		return os << "derived-order";
+	}
 	std::ostream& print_name( std::ostream& os ) override {
-		return os << "interpretation-order";
+		return os << _name;
 	};
 	Smt::Solver& solver() override {
 		return _solver;
@@ -386,6 +407,9 @@ public:
 	void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) override;
 	std::ostream& print_name( std::ostream& os ) override {
 		return os << "path-order " << _weight->print_name();
+	}
+	std::ostream& print_class( std::ostream& os ) override {
+		return os << "path-order " << _weight->print_class();
 	}
 	std::ostream& print_sym_info( std::ostream& os, std::string const& f ) override;
 	Smt::Solver& solver() override {

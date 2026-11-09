@@ -183,7 +183,7 @@ public:
 		return def;
 	}
 	/** @brief Returns a reference to the value or given default. */
-	T& value_or( T& def ) requires( !std::is_const_v<T> ){
+	T& value_or( T& def ) requires( !std::is_const_v<T> ) {
 		if(_ptr) return *_ptr;
 		return def;
 	}
@@ -193,7 +193,7 @@ public:
 		return def();
 	}
 	template<typename E>
-	T& value_or_throw( E const& err )& {
+	T& value_or_throw( E const& err ) requires( !std::is_const_v<T> ) {
 		if(_ptr) return *_ptr;
 		throw err;
 	}

@@ -157,7 +157,7 @@ Smt::PostExp Poly::ge( Poly const& p2 ) const {
 Smt::PostExp Poly::separate( Poly const& p2 ) const {
 	return order_sub(p2,*this) && p2[{}].as_post().gt((*this)[{}].as_post());
 }
-Smt::Compare Poly::compare( Poly const& p2, Smt::Solver& solver ) const {
+Smt::Compare Poly::order( Poly const& p2, Smt::Solver& solver ) const {
 	auto const& c1 = (*this)[{}].as_post();
 	auto const& c2 = p2[{}].as_post();
 	return { order_sub(*this,p2) && c1.ge(c2), c1.gt(c2) };
@@ -268,7 +268,7 @@ Smt::PostExp MPoly::separate( MPoly const& y ) const {
 	} );
 }
 
-Smt::Compare MPoly::compare( MPoly const& y, Smt::Solver& solver ) const {
+Smt::Compare MPoly::order( MPoly const& y, Smt::Solver& solver ) const {
 	Smt::PostExp ge_all = true, gt_all = true;
 	for( auto const& yp : y._set ){
 		Smt::PostExp some_ge = false, some_gt = false;

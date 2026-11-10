@@ -289,7 +289,7 @@ public:
 		PostExp cons( PostExp const& y ) const {
 			return Term<Fun>(CONS,*this,y);
 		}
-		Compare compare( PostExp const& y ) const;
+		Compare order( PostExp const& y ) const;
 		PostExp separate( PostExp const& y ) const;
 		Exp exp() const;
 		static PostExp disj( auto i, auto const& end, auto const& f ) {
@@ -599,7 +599,7 @@ inline Smt::Sort::Sort( Sort const& x, Sort const& y ) : _un(Ref<_Cons>::make(x,
 inline OptRef<Smt::Sort::_Cons> Smt::Sort::cons() const & {
 	return _un.ref<Ref<_Cons>>() >>= [](auto ref)->OptRef<_Cons>{ return {ref}; };
 }
-inline Smt::Compare Smt::PostExp::compare( Smt::PostExp const& y ) const {
+inline Smt::Compare Smt::PostExp::order( Smt::PostExp const& y ) const {
 	if( *this == y ) return { true, false };
 	return {this->ge(y),this->ge(y)};
 }

@@ -14,7 +14,7 @@ bool order_some_rule(
 		if( order.log() & RULE ) {
 			cerr << "; " << rule << endl;
 		}
-		auto const& [ge,gt] = order.rule_compare(i,rule.first,rule.second);
+		auto const& [ge,gt] = order.rule_order(i,rule.first,rule.second);
 		all_ge = all_ge && ge;
 		gts.emplace_back(i,gt);
 	}
@@ -49,7 +49,7 @@ static std::pair<Set<ruleId>,Smt::PostExp> _contain_usables( UsableRuleOrder& or
 	for( auto const& i : usables ) {
 		if( auto const& rule = p.rules.find(i) ) {
 			auto const& [l,r,w] = *rule;
-			auto const& [ge,str] = order.rule_compare(i,l,r);
+			auto const& [ge,str] = order.rule_order(i,l,r);
 			ret = ret && order.rule_used(i).imp(ge);// if the rule is used, then it should be weakly oriented
 		}
 	}
@@ -68,7 +68,7 @@ bool order_some_dp(
 	std::vector<std::pair<ruleId,Smt::PostExp>> encs;
 	for( auto const& [i,js] : component.graph ) {
 		auto const& [l,r,w] = *ASSERTED(p.rules.find(i));
-		auto const& [ge,str] = order.rule_compare(i,l,r);
+		auto const& [ge,str] = order.rule_order(i,l,r);
 		contain_dps = contain_dps && ge && order.term_used(r);// rhs of DP should be marked used
 		orient_some_dp = orient_some_dp || str;
 		encs.emplace_back(i,str);
@@ -116,7 +116,7 @@ bool unorder_some_edge(
 		}
 		auto& edges = encs.emplace_back(i).edges;
 		for( auto const& j : js ) {
-			auto sep = order.edge_separate(i,j,p);
+			auto sep = order.edge_co_order(i,j,p);
 			if( sep == false ) continue;
 			separate_some_edge = separate_some_edge || sep;
 			edges.emplace_back(j,sep);

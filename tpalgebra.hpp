@@ -16,11 +16,11 @@ struct TupleVal {
 		}
 	}
 
-	Smt::Compare compare( TupleVal const& r, Smt::Solver& solver ) const {
+	Smt::Compare order( TupleVal const& r, Smt::Solver& solver ) const {
 		size_t n = vec.size();
 		if( n == 0 ) throw Error("#tuple_algebra","\"comparing empty tuple\"");
 		if( n != r.vec.size() ) throw Error("#tuple_algebra","\"comparing wrong size\"");
-		auto const& ord0 = vec[0].compare(r.vec[0],solver);
+		auto const& ord0 = vec[0].order(r.vec[0],solver);
 		auto ge2 = Smt::PostExp::conj( 1, n, [&]( size_t i ){ return vec[i].ge(r.vec[i]); });
 		return { ord0.ge && ge2, ord0.str };
 	}

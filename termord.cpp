@@ -220,7 +220,7 @@ Smt::Compare PathOrder::_compare_sub( _TermComp const& comp_sub, _TermComp const
 	}
 //	if( ge_all_arg == false ) return { false, false };
 	auto const& [p_ge,p_str] = p_comp(*linfo,*rinfo);
-	auto const& [args_ge,args_str] = mapped_lex_compare(
+	auto const& [args_ge,args_str] = mapped_lex_order(
 		sol, [&]( auto const& x, auto const& y ){ return comp_sub(x,y); },
 		linfo->occupied, rinfo->occupied, linfo->map, rinfo->map, largs, rargs
 	);
@@ -372,16 +372,16 @@ int TermOrder::log_of( Exp const& x ) {
 	}
 }
 
-Smt::Compare TrsOrder::_Wrapper::rule_compare( ruleId i, Trs::Term const& l, Trs::Term const& r ) {
-	if( auto const& opt = _rule_compare_cache.find(i) ) return *opt;
+Smt::Compare TrsOrder::_Wrapper::rule_order( ruleId i, Trs::Term const& l, Trs::Term const& r ) {
+	if( auto const& opt = _rule_order_cache.find(i) ) return *opt;
 	Smt::Solver& sol = _ref->solver();
 	if( log() & RULE ) cerr << "; " << _ref->print_name() << ": (rule-n " << i << ' ' << l << ' ' << r << ')' << endl;
-	auto [ge,gt] = _ref->compare(l,r);
+	auto [ge,gt] = _ref->order(l,r);
 	Smt::Compare ret = {sol.let(Smt::BOOL,ge),sol.let(Smt::BOOL,gt)};
-	_rule_compare_cache.emplace(i,ret);
+	_rule_order_cache.emplace(i,ret);
 	return ret;
 }
-Smt::PostExp TrsOrder::_Wrapper::edge_separate( ruleId i, ruleId j, Problem const& p ) {
+Smt::PostExp TrsOrder::_Wrapper::edge_co_order( ruleId i, ruleId j, Problem const& p ) {
 	_DgNodeCache& node_cache = _edge_separate_cache.find(i) || [&]->_DgNodeCache&{
 		auto src = ASSERTED(p.rules.find(i))->second.map(// register renamed the rhs of the source DP
 			[&]( auto const& f ){ return p.sig.find(f) ? f : std::string("`")+f; }
@@ -585,8 +585,8 @@ void TermOrder::test() {
 	auto x = z3.declare_const("x",Smt::INT);
 	auto y = z3.declare_const("y",Smt::INT);
 	auto z = z3.declare_const("z",Smt::INT);
-	cout << lex_compare([]( auto& l, auto& r ){ return l.compare(r); },vector{x,y},{x,z}).ge << endl;
-	cout << lex_compare([]( auto& l, auto& r ){ return l.compare(r); },vector{x},{x,z}).ge << endl;
+	cout << lex_order([]( auto& l, auto& r ){ return l.order(r); },vector{x,y},{x,z}).ge << endl;
+	cout << lex_order([]( auto& l, auto& r ){ return l.order(r); },vector{x},{x,z}).ge << endl;
 
 	Trs::Sig sig = {{"+",{2}}};
 
@@ -598,6 +598,6 @@ void TermOrder::test() {
 		)
 	);
 	lpo->extend_sig(sig,{});
-	cout << lpo->rule_compare(ruleId(0),{"+","x","y"},{"x"}) << endl;
+	cout << lpo->rule_order(ruleId(0),{"+","x","y"},{"x"}) << endl;
 
 }

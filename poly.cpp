@@ -154,49 +154,13 @@ static Smt::PostExp order_sub( Poly const& p1, Poly const& p2 ) {
 Smt::PostExp Poly::ge( Poly const& p2 ) const {
 	return order_sub(*this,p2) && (*this)[{}].as_post().ge(p2[{}].as_post());
 }
-Smt::PostExp Poly::gt( Poly const& p2 ) const {
-	return order_sub(*this,p2) && (*this)[{}].as_post().gt(p2[{}].as_post());
+Smt::PostExp Poly::separate( Poly const& p2 ) const {
+	return order_sub(p2,*this) && p2[{}].as_post().gt((*this)[{}].as_post());
 }
 Smt::Compare Poly::compare( Poly const& p2, Smt::Solver& solver ) const {
 	auto const& c1 = (*this)[{}].as_post();
 	auto const& c2 = p2[{}].as_post();
 	return { order_sub(*this,p2) && c1.ge(c2), c1.gt(c2) };
-}
-
-Smt::PostExp Poly::separate( Poly const& p2 ) const {
-	return p2.gt(*this);//TODO!
-	auto const& c1 = (*this)[{}].as_post();
-	auto const& c2 = p2[{}].as_post();
-	auto gt = c1.gt(c2), lt = c1.lt(c2);
-	if( gt == false && lt == false ) return false;
-	Smt::PostExp ge = true, le = true;
-	iter2(map(),p2.map(),[&]( auto it1, auto it2 ){
-		auto const& e1 = it1->second.as_post();
-		auto const& e2 = it2->second.as_post();
-		switch( it1->first.range() ) {
-			case Poly::NONE: return;
-			case Poly::POS: ge = ge && e1.ge(e2); le = le && e1.le(e2); return;
-			case Poly::NEG: ge = ge && e1.le(e2); le = le && e1.ge(e2); return;
-			case Poly::FULL: ge = ge && e1.eq(e2); le = le && e1.eq(e2); return;
-		}
-	},[&]( auto it1 ){// e1 * vars >= 0
-		auto const& e1 = it1->second.as_post();
-		switch( it1->first.range() ) {
-			case Poly::NONE: return;
-			case Poly::POS: ge = ge && e1.ge(0); le = le && e1.le(0); return;
-			case Poly::NEG: ge = ge && e1.le(0); le = le && e1.ge(0); return;
-			case Poly::FULL: ge = ge && e1.eq(0); le = le && e1.eq(0); return;
-		}
-	},[&]( auto it2 ){// 0 >= e2 * vars
-		auto const& e2 = it2->second.as_post();
-		switch( it2->first.range() ) {
-			case Poly::NONE: return;
-			case Poly::POS: ge = ge && Smt::PostExp(0).ge(e2); le = le && Smt::PostExp(0).le(e2); return;
-			case Poly::NEG: ge = ge && Smt::PostExp(0).le(e2); le = le && Smt::PostExp(0).ge(e2); return;
-			case Poly::FULL: ge = ge && Smt::PostExp(0).eq(e2); le = le && Smt::PostExp(0).eq(e2); return;
-		}
-	});
-	return gt && ge || lt && le;
 }
 
 ostream& operator<<( ostream& os, Poly::Sig const& f ) {
@@ -298,9 +262,9 @@ Smt::PostExp MPoly::ge( MPoly const& y ) const {
 		return Smt::PostExp::disj( _set, [&]( auto const& xp ){ return xp.ge(yp); } );
 	} );
 }
-Smt::PostExp MPoly::gt( MPoly const& y ) const {
-	return Smt::PostExp::conj( y._set, [&]( auto const& yp ){
-		return Smt::PostExp::disj( _set, [&]( auto const& xp ){ return xp.gt(yp); } );
+Smt::PostExp MPoly::separate( MPoly const& y ) const {
+	return Smt::PostExp::conj( _set, [&]( auto const& xp ){
+		return Smt::PostExp::disj( y._set, [&]( auto const& yp ){ return xp.separate(yp); } );
 	} );
 }
 
@@ -319,9 +283,6 @@ Smt::Compare MPoly::compare( MPoly const& y, Smt::Solver& solver ) const {
 		gt_all = gt_all && some_gt;
 	}
 	return {ge_all,gt_all};
-}
-Smt::PostExp MPoly::separate( MPoly const& y ) const {
-	return gt(y) || y.gt(*this);
 }
 
 Poly::Range Poly::range_of( std::string const& str ) {

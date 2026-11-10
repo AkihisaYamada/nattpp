@@ -172,33 +172,38 @@ public:
 	bool contains( U const& other ) const {
 		return *this && **this == other;
 	}
+	/** @brief Returns the const reference to the value or given default. */
+	T const& value_or( T const& def ) {
+		if(_ptr) return *_ptr;
+		return def;
+	}
+	/** @brief Returns the reference to the value or given default. */
+	T& value_or( T& def ) requires( !std::is_const_v<T> ) {
+		if(_ptr) return *_ptr;
+		return def;
+	}
 	/** @brief Returns a copy of the value or moves the given default. */
 	T value_or( T&& def ) {
 		if(_ptr) return *_ptr;
 		return std::move(def);
 	}
-	/** @brief Returns a reference to the value or given default. */
-	T const& value_or( T const& def ) {
+	/** @brief Returns the reference to the value or computes the default. */
+	T& operator||( std::function<T&()> const& def ) {
 		if(_ptr) return *_ptr;
-		return def;
-	}
-	/** @brief Returns a reference to the value or given default. */
-	T& value_or( T& def ) requires( !std::is_const_v<T> ) {
-		if(_ptr) return *_ptr;
-		return def;
+		return def();
 	}
 	/** @brief Copies the value or computes default. */
-	T operator||( std::function<T()> const& def ) const& {
+	T operator||( std::function<T()> const& def ) const& requires( !std::is_const_v<T> ) {
 		if(_ptr) return *_ptr;
 		return def();
 	}
 	template<typename E>
-	T& value_or_throw( E const& err ) requires( !std::is_const_v<T> ) {
+	T& value_or_throw( E const& err ) {
 		if(_ptr) return *_ptr;
 		throw err;
 	}
 	template<typename E>
-	T const& value_or_throw( E const& err ) const& {
+	T const& value_or_throw( E const& err ) const& requires( !std::is_const_v<T> ) {
 		if(_ptr) return *_ptr;
 		throw err;
 	}

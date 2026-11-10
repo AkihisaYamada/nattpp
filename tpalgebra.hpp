@@ -24,12 +24,14 @@ struct TupleVal {
 		auto ge2 = Smt::PostExp::conj( 1, n, [&]( size_t i ){ return vec[i].ge(r.vec[i]); });
 		return { ord0.ge && ge2, ord0.str };
 	}
+	Smt::Compare co_order( TupleVal const& r, Smt::Solver& solver ) const {
+		assert(false);
+	}
 	Smt::PostExp separate( TupleVal const& r ) const {
 		size_t n = vec.size();
 		if( n == 0 ) throw Error("#tuple_algebra","\"separating empty tuple\"");
 		if( n != r.vec.size() ) throw Error("#tuple_algebra","\"separating wrong size\"");
-		// specific to the matrix interpretation ordering
-		return vec[0].separate(r.vec[0]) || Smt::PostExp::disj( 1, n, [&]( size_t i ){ return r.vec[i].gt(vec[i]); });
+		return Smt::PostExp::disj( 0, n, [&]( size_t i ){ return vec[i].separate(r.vec[i]); });
 	}
 	friend std::ostream& operator<<( std::ostream& os, TupleVal const& t ) {
 		os << "(tp";

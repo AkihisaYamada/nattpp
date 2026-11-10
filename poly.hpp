@@ -127,9 +127,11 @@ public:
 		return p1 = p1 * p2;
 	}
 	Smt::PostExp ge( Poly const& p2 ) const;
-	Smt::PostExp gt( Poly const& p2 ) const;
-	Smt::Compare compare( Poly const& p2, Smt::Solver& solver ) const;
 	Smt::PostExp separate( Poly const& p2 ) const;
+	Smt::Compare compare( Poly const& p2, Smt::Solver& solver ) const;
+	Smt::Compare co_order( Poly const& y, Smt::Solver& solver ) const {
+		return compare(y,solver);
+	}
 	Smt::PreExp as_smt() const;
 	VarSet vars() && { return std::move(_vars); }
 	VarSet const& vars() const& { return _vars; }
@@ -159,9 +161,11 @@ public:
 	friend MPoly operator*( MPoly const& x, MPoly const& y );
 	friend MPoly& max_eq( MPoly& x, MPoly const& y );
 	Smt::PostExp ge( MPoly const& p2 ) const;
-	Smt::PostExp gt( MPoly const& p2 ) const;
+	Smt::PostExp separate( MPoly const& p2 ) const;
 	Smt::Compare compare( MPoly const& y, Smt::Solver& solver ) const;
-	Smt::PostExp separate( MPoly const& y ) const;
+	Smt::Compare co_order( MPoly const& y, Smt::Solver& solver ) const {
+		return compare(y,solver);
+	}
 	void memoize( Smt::Solver& solver )& {
 		for( auto& p : _set ) {
 			p.memoize(solver);

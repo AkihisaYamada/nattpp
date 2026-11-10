@@ -64,14 +64,8 @@ bool order_some_dp(
 	auto& solver = order.solver();
 	auto& component = p.components.front();
 	auto [usables,contain_usables] = _contain_usables(order,p);
-	Smt::PostExp orient_some_dp = false;
-	Smt::PostExp contain_dps = true;
-	struct OrientInfo {
-		ruleId i;
-		Smt::PostExp oriented;
-	};
-	std::vector<OrientInfo> encs;
-
+	Smt::PostExp orient_some_dp = false, contain_dps = true;
+	std::vector<std::pair<ruleId,Smt::PostExp>> encs;
 	for( auto const& [i,js] : component.graph ) {
 		auto const& [l,r,w] = *ASSERTED(p.rules.find(i));
 		auto const& [ge,str] = order.rule_compare(i,l,r);
@@ -79,10 +73,8 @@ bool order_some_dp(
 		orient_some_dp = orient_some_dp || str;
 		encs.emplace_back(i,str);
 	}
-	solver.push();
-	solver.ass( contain_usables && contain_dps && orient_some_dp );
-	solver.check_sat();
-	if( solver.result().is_sat() ) {
+	bool ret = solver.push().ass( contain_usables && contain_dps && orient_some_dp ).check_sat().result().is_sat();
+	if( ret ) {
 		std::vector<ruleId> dp_results;
 		for( auto& [i,str] : encs ) {
 			if( solver.get_value(str) == true ) {
@@ -96,11 +88,9 @@ bool order_some_dp(
 			}
 		}
 		callback(std::move(dp_results),std::move(uses));
-		solver.pop();
-		return true;
 	}
 	solver.pop();
-	return false;
+	return ret;
 }
 
 bool unorder_some_edge(
@@ -132,10 +122,8 @@ bool unorder_some_edge(
 			edges.emplace_back(j,sep);
 		}
 	}
-	solver.push();
-	solver.ass( contain_usables && mark_usables && separate_some_edge );
-	solver.check_sat();
-	if( solver.result().is_sat() ) {
+	bool ret = solver.push().ass( contain_usables && mark_usables && separate_some_edge ).check_sat().result().is_sat();
+	if( ret ) {
 		std::vector<std::pair<ruleId,std::vector<ruleId>>> dp_results;
 		for( auto& [i,edge_encs] : encs ) {
 			std::vector<ruleId> edge_results;
@@ -155,9 +143,16 @@ bool unorder_some_edge(
 			}
 		}
 		callback(std::move(dp_results),std::move(uses));
-		solver.pop();
-		return true;
 	}
 	solver.pop();
-	return false;
+	return ret;
+}
+
+bool order_by_edge(
+	UsableRuleOrder& order,
+	Problem const& problem,
+	std::function<void(std::vector<std::pair<ruleId,std::vector<ruleId>>>&&,std::vector<ruleId>&&)> const& callback
+) {
+
+
 }

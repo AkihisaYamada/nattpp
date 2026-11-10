@@ -162,8 +162,8 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 	}
 }
 
-Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
-	auto [w_ge,w_str] = _weight->compare(l,r);
+Smt::Compare PathOrder::_compare_sub( _TermComp const& comp_sub, _TermComp const& w_comp, _SymComp const& p_comp, Exp const& l, Exp const& r ) {
+	auto [w_ge,w_str] = w_comp(l,r);
 	if( w_ge == false ) {
 		return {false,false};
 	}
@@ -178,7 +178,7 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 		// x >=? g(t...)
 		Smt::PostExp ge_all_arg = true, str_all_arg = true;
 		for( uint16_t j = 0; j < rinfo->arity; j++ ) {
-			auto const& [j_ge,j_str] = compare(l,rargs[j]);
+			auto const& [j_ge,j_str] = comp_sub(l,rargs[j]);
 			ge_all_arg = ge_all_arg && rinfo->mapped(j).imp(j_ge);
 			str_all_arg = str_all_arg && rinfo->mapped(j).imp(j_str);
 		}
@@ -197,7 +197,7 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 	for( uint16_t i = 0; i < largs.size(); i++ ) {
 		auto const& i_mapped = linfo->mapped(i);
 //			if( i_mapped == false ) break;
-		auto const& [i_ge,i_str] = compare(largs[i],r);
+		auto const& [i_ge,i_str] = comp_sub(largs[i],r);
 		some_arg_ge = some_arg_ge || i_mapped && i_ge;// s_i survives and s_i ≥ t
 		some_arg_str = some_arg_str || i_mapped && i_str;
 	}
@@ -214,14 +214,14 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 	for( uint16_t j = 0; j < rargs.size(); j++ ) {
 		auto const& j_mapped = rinfo->mapped(j);
 //				if( j_mapped == false ) break;
-		auto const& [ge_j,str_j] = compare(l,rargs[j]);
+		auto const& [ge_j,str_j] = comp_sub(l,rargs[j]);
 		ge_all_arg = ge_all_arg && j_mapped.imp(ge_j);
 		str_all_arg = str_all_arg && j_mapped.imp(str_j); // if t_j survives, then s > t_j is prerequisite
 	}
 //	if( ge_all_arg == false ) return { false, false };
-	auto const& p_ge = linfo->prec.ge(rinfo->prec), p_str = linfo->prec.gt(rinfo->prec);
+	auto const& [p_ge,p_str] = p_comp(*linfo,*rinfo);
 	auto const& [args_ge,args_str] = mapped_lex_compare(
-		sol, [&]( auto const& x, auto const& y ){ return compare(x,y); },
+		sol, [&]( auto const& x, auto const& y ){ return comp_sub(x,y); },
 		linfo->occupied, rinfo->occupied, linfo->map, rinfo->map, largs, rargs
 	);
 	if( _log & DEBUG ) {
@@ -252,70 +252,6 @@ Smt::Compare PathOrder::compare_inner( Exp const& l, Exp const& r ) {
 		rinfo->collapse && str_all_arg ||
 		!linfo->collapse && !rinfo->collapse && (p_str || args_str);
 	return {ge,str};
-}
-
-Smt::PostExp PathOrder::separate_inner( Exp const& l, Exp const& r ) {
-	auto const& w_sep = _weight->separate(l,r);
-	if( w_sep == true ) {
-		return true;
-	}
-	auto const& [lf,largs] = *l;
-	auto const& linfo = _info.find(lf);
-	if( !linfo ) {// x <>? t
-		return false;// TODO: improve
-		auto const& [rf,rargs] = *r;
-		auto const& rinfo = _info.find(rf);
-		if( !rinfo ) {// x <> y cannot be ensured
-			return false;
-		}
-		// x <>? g(t...)
-		Smt::PostExp sep_all_arg = true;
-		for( uint16_t j = 0; j < rinfo->arity; j++ ) {
-			sep_all_arg = sep_all_arg && rinfo->mapped(j).imp(separate(l,rargs[j]));
-		}
-		return w_sep || rinfo->collapse && sep_all_arg;
-	}
-	// f(s...) <>? t
-	auto const& [rf,rargs] = *r;
-	auto& sol = solver();
-	Smt::PostExp some_arg_ge = false;
-	Smt::PostExp some_arg_str = false;
-	for( uint16_t i = 0; i < largs.size(); i++ ) {
-		auto const& i_mapped = linfo->mapped(i);
-//			if( i_mapped == false ) break;
-		auto const& [i_ge,i_str] = compare(largs[i],r);
-		some_arg_ge = some_arg_ge || i_mapped && i_ge;// s_i survives and s_i ≥ t
-		some_arg_str = some_arg_str || i_mapped && i_str;
-	}
-	auto const& rinfo = _info.find(rf);
-	if( !rinfo ) {// f(s...) <> y
-		return false;// TODO: improve
-		return w_sep || linfo->collapse.imp(some_arg_str);// if f is collapsed
-	}
-	// f(s...) <>? g(t...)
-	Smt::PostExp sep_all_arg = true;
-	for( uint16_t j = 0; j < rargs.size(); j++ ) {
-		auto const& j_mapped = rinfo->mapped(j);
-//				if( j_mapped == false ) break;
-		sep_all_arg = sep_all_arg && j_mapped.imp(separate(l,rargs[j])); // if t_j survives, then s > t_j is prerequisite
-	}
-	auto const& p_sep = linfo->prec.gt(rinfo->prec);
-	auto const& args_sep = mapped_lex_separate(
-		sol, [&]( auto const& x, auto const& y ){ return separate(x,y); },
-		linfo->occupied, rinfo->occupied, linfo->map, rinfo->map, largs, rargs
-	);
-	if( _log & DEBUG ) {
-		cerr << "; path-order separate: arguments (" << lf;
-		for( auto const& a : largs ) cerr << ' ' << a;
-		cerr << ") >< (" << rf;
-		for( auto const& a : rargs ) cerr << ' ' << a;
-		cerr << ") = " << args_sep << endl;
-	}
-	return
-		w_sep ||// w(s) > w(t)
-		some_arg_ge && linfo->collapse.imp(some_arg_str) ||// s_i ≥ t && (if f collapses then s_i > t)
-		rinfo->collapse && sep_all_arg ||
-		!linfo->collapse && !rinfo->collapse && (p_sep || args_sep);
 }
 
 std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sym ) {
@@ -446,21 +382,25 @@ Smt::Compare TrsOrder::_Wrapper::rule_compare( ruleId i, Trs::Term const& l, Trs
 	return ret;
 }
 Smt::PostExp TrsOrder::_Wrapper::edge_separate( ruleId i, ruleId j, Problem const& p ) {
-	_DgNodeCache& node_cache = _edge_separate_cache.find(i).value_or([&]->_DgNodeCache&{
+	_DgNodeCache& node_cache = _edge_separate_cache.find(i) || [&]->_DgNodeCache&{
 		auto src = ASSERTED(p.rules.find(i))->second.map(// register renamed the rhs of the source DP
 			[&]( auto const& f ){ return p.sig.find(f) ? f : std::string("`")+f; }
 		);
 		return _edge_separate_cache.emplace(i,_DgNodeCache{src}).first;
-	}());
+	};
 	if( auto const& cache = node_cache.tgts.find(j) ) {
 		return *cache;
 	}
 	auto [f,ss] = *node_cache.src;
-	auto [g,ts] = *ASSERTED(p.rules.find(j))->first;
+	auto tgt = ASSERTED(p.rules.find(j))->first;
+	auto [g,ts] = *tgt;
 	assert( f == g && ss.size() == ts.size() );
 	Smt::PostExp sep = false;
 	for( size_t i = 0; i < ss.size(); i++ ) {
 		 sep = sep || _ref->separate(ss[i],ts[i]);
+	}
+	if( log() & SEP ) {
+		cerr << "; (>? " << node_cache.src << ' ' << tgt << ") = " << sep << endl;
 	}
 	auto ret = _ref->solver().let(Smt::BOOL,sep);
 	node_cache.tgts.emplace(j,ret);

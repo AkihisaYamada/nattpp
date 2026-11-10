@@ -174,7 +174,7 @@ int main( int argc, char* argv[] ) try {
 				}}},
 				{ "-d", { " <ord>:\tdependency pair remover", [&]{
 					require_arg();
-					dprem_specs.push_back({Exp::of(argv[i]),false,false});
+					dprem_specs.push_back({Exp::of(argv[i]),true,true});
 					default_strategy = false;
 					use_dp = true;
 				}}},
@@ -375,7 +375,9 @@ int main( int argc, char* argv[] ) try {
 			}) ) {
 				return true;
 			}
-			return remover.edge && unorder_some_edge( *remover.order, p, [&]( auto&& nodes, auto&& usables ){
+			if( !remover.edge ) return false;
+			if( print_steps ) cerr << "; trying edge removal... " << endl;
+			return unorder_some_edge( *remover.order, p, [&]( auto&& nodes, auto&& usables ){
 				if( print_proofs ) {
 					*prf << "(remove-edge\n  " << remover.order->print(p.sig) << flush;
 					for( auto const& [i,js] : nodes ) {
@@ -387,7 +389,7 @@ int main( int argc, char* argv[] ) try {
 						}
 						*prf << ')' << flush;
 					}
-					*prf << ')' << endl;
+					*prf << "\n  :usables (" << print_list(usables) << "))" << endl;
 				} else {
 					for( auto const& [i,js] : nodes ) {
 						auto& tgts = comp.graph[i];

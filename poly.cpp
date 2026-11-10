@@ -162,6 +162,11 @@ Smt::Compare Poly::order( Poly const& p2, Smt::Solver& solver ) const {
 	auto const& c2 = p2[{}].as_post();
 	return { order_sub(*this,p2) && c1.ge(c2), c1.gt(c2) };
 }
+Smt::PostExp Poly::gt_if( Poly const& r, Poly const& t, Smt::Solver& solver ) const {
+	auto le = as_smt(), re = r.as_smt(), te = t.as_smt();
+	auto sort = solver.logic().base_sort();
+	return vars().quantify(sort, t.vars().quantify(sort, solver.expand(re.ge(te).imp(le.gt(re)))));
+}
 
 ostream& operator<<( ostream& os, Poly::Sig const& f ) {
 	if( f.ref<Poly::Add>() ) {
@@ -266,6 +271,9 @@ Smt::PostExp MPoly::separate( MPoly const& y ) const {
 	return Smt::PostExp::conj( _set, [&]( auto const& xp ){
 		return Smt::PostExp::disj( y._set, [&]( auto const& yp ){ return xp.separate(yp); } );
 	} );
+}
+Smt::PostExp MPoly::gt_if( MPoly const& r, MPoly const& t, Smt::Solver& solver ) const {
+	throw Error("#mpoly","\"gt_if for max polynomial unsupported\"");
 }
 
 Smt::Compare MPoly::order( MPoly const& y, Smt::Solver& solver ) const {

@@ -33,6 +33,9 @@ struct TupleVal {
 		if( n != r.vec.size() ) throw Error("#tuple_algebra","\"separating wrong size\"");
 		return Smt::PostExp::disj( 0, n, [&]( size_t i ){ return vec[i].separate(r.vec[i]); });
 	}
+	Smt::PostExp gt_if( TupleVal const& r, TupleVal const& t, Smt::Solver& solver ) const& {
+		throw Error("#tpalgebra","\"gt_if for tuple\"");
+	}
 	friend std::ostream& operator<<( std::ostream& os, TupleVal const& t ) {
 		os << "(tp";
 		for( auto const& val : t.vec ) {

@@ -762,6 +762,10 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 	if( auto lazy = p.is_lazy() ) {
 		return expand((*lazy)(*this));
 	}
+	if( auto o = p.is_forall() ) {
+		auto const& [var,body] = *o;
+		return ForAll(var) >>= expand(body);
+	}
 	assert(false);
 };
 Smt::PostExp Smt::Solver::let( Sort const& sort, PostExp const& val ) & {
@@ -866,11 +870,11 @@ int Smt::test() try {
 	cout << 1 + PostExp("x") << endl;
 	cout << !!(PostExp(0) + [](auto&){ return PostExp("x"); }) << endl;
 	cout << ite(PostExp("p"), 3 * PostExp("x") * PostExp("y"), PostExp(0)) << endl;
-	cout << !(Smt::eq(PostExp("x"),PostExp("y")) && Smt::ge(PostExp("y"),3)) << endl;
+	cout << (!PostExp("x").ge("y") && PostExp("y").ge(3)) << endl;
 	auto z3 = Smt::Solver::of({"z3","QF_LIA",":tee","cout"});
 	auto x = z3.declare_const("x","Int");
 	auto y = z3.define_fun("y",{},Smt::INT,5);
-	z3.ass( Smt::gt( x, y + 4 ) );
+	z3.ass( x.gt(y+4) );
 	bool sat = z3.check_sat().result().is_sat();
 	assert(sat);
 	auto xv = z3.get_value(x);
@@ -890,7 +894,7 @@ int Smt::test() try {
 	cout << z3.expand( If( PostExp("cond") ) ^ [](auto&){ return PostExp("then"); } ^ [](auto&){ return PostExp("else"); } ) << endl;
 
 	z3.ass(
-		Let(INT, x + y) ^ []( PostExp const& x5 ){ return Smt::ge(x5 + x5, 20); }
+		Let(INT, x + y) ^ []( PostExp const& x5 ){ return (x5 + x5).ge(20); }
 	);
 	sat = z3.check_sat().result().is_sat();
 	assert(sat);
@@ -906,7 +910,7 @@ int Smt::test() try {
 	auto xy = PreExp(x) * ite(y,0,1);
 	cout << xy << "  -->  " << z3.expand(xy) << endl;
 
-	cout << (Forall("x",INT) >>= PostExp(Local("x")).ge(0).disj(PostExp(0).ge(Local("x")))) << endl;
+	cout << (ForAll("x",INT) >>= PostExp(Local("x")).ge(0).disj(PostExp(0).ge(Local("x")))) << endl;
 
 	cout << "--- Smt::test done ---" << endl;
 	return 0;

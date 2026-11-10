@@ -196,7 +196,7 @@ public:
 		BaseSort sort() && { return std::move(_sort); }
 		BaseSort const& sort() const& { return _sort; }
 	};
-	class Forall : public LocalDecl {
+	class ForAll : public LocalDecl {
 	public: using LocalDecl::LocalDecl;
 	};
 	class Exists : public LocalDecl {
@@ -213,10 +213,6 @@ public:
 		friend std::ostream& operator<<( std::ostream& os, Smt::PostExp const& e ) {
 			return os << (Term<Smt::Fun>)e;
 		}
-		explicit PostExp( Forall&& x, PostExp const& body ) :
-			_term("forall",Term<Fun>{"",Term<Fun>{std::move(x._name),std::move(x._sort).name()}},body) {}
-		explicit PostExp( Exists&& x, PostExp const& body ) :
-			_term("exists",Term<Fun>{"",Term<Fun>{std::move(x._name),std::move(x._sort).name()}},body) {}
 	public:
 		PostExp( PostExp const& ) = default;
 		PostExp( PostExp && ) = default;
@@ -226,11 +222,11 @@ public:
 		PostExp( int i ) : _term(Val(i)) {}
 		PostExp( Val v ) : _term(v) {}
 		PostExp( Local&& x ) : _term(x.name()) {}
-		friend PostExp operator>>=( Forall&& x, PostExp const& body ) {
-			return PostExp(std::move(x),body);
+		friend PostExp operator>>=( ForAll&& x, PostExp const& body ) {
+			return Term<Fun>("forall",Term<Fun>{"",Term<Fun>{std::move(x._name),std::move(x._sort).name()}},body);
 		}
 		friend PostExp operator>>=( Exists&& x, PostExp const& body ) {
-			return PostExp(std::move(x),body);
+			return Term<Fun>("exists",Term<Fun>{"",Term<Fun>{std::move(x._name),std::move(x._sort).name()}},body);
 		}
 		operator Term<Fun> const&() const& {
 			return _term;
@@ -339,11 +335,19 @@ public:
 		class App;
 		class Let;
 		using Lazy = std::function<PostExp(Smt::Solver&)>;
-		Sum<PostExp,Ref<App>,Ref<Let>,Lazy> _un;
+		class _PreForAll;
+		class _PreExists;
+		Sum<PostExp,Ref<App>,Ref<_PreForAll>,Ref<_PreExists>,Ref<Let>,Lazy> _un;
 		explicit PreExp( Sort const& sort, PreExp const& val, std::function<PreExp(PostExp const&)> body ) :
 			_un(Ref<Let>::make(val,sort,body)) {}
 		explicit PreExp( std::string const& fun, std::vector<PreExp>&& args ) :
 			_un(Ref<App>::make(fun,std::move(args))) {
+		}
+		explicit PreExp( ForAll&& x, PreExp const& body ) :
+			_un(Ref<_PreForAll>::make(std::move(x),body)) {
+		}
+		explicit PreExp( Exists&& x, PreExp const& body ) :
+			_un(Ref<_PreExists>::make(std::move(x),body)) {
 		}
 		friend std::ostream& operator<<( std::ostream& os, Smt::PreExp const& e );
 	public:
@@ -356,6 +360,12 @@ public:
 		PreExp( T const& lazy ) : _un(std::in_place_type<Lazy>,lazy) {}
 		PreExp operator!() const {
 			return PreExp(NOT,{*this});
+		}
+		friend PreExp operator>>=( ForAll&& x, PreExp const& body ) {
+			return PreExp(std::move(x),body);
+		}
+		friend PreExp operator>>=( Exists&& x, PreExp const& body ) {
+			return PreExp(std::move(x),body);
 		}
 		Opt<PostExp> is_post() && {
 			return std::move(_un).ref<PostExp>();
@@ -380,6 +390,12 @@ public:
 		}
 		Opt<Lazy const&> is_lazy() const& {
 			return _un.ref<Lazy>();
+		}
+		OptRef<_PreForAll> is_forall() && {
+			return std::move(_un).ref<Ref<_PreForAll>>() >>= []( auto ref )->OptRef<_PreForAll>{ return ref; };
+		}
+		Opt<_PreForAll const&> is_forall() const& {
+			return _un.ref<Ref<_PreForAll>>() >>= []( auto ref )->Opt<_PreForAll const&>{ return {*ref}; };
 		}
 		Exp exp() const;
 		PostExp as_post() && {
@@ -417,6 +433,24 @@ public:
 				return ret;
 			};
 		}
+		PreExp eq( PreExp const& y ) const& {
+			return PreExp(EQ,{*this,y});
+		}
+		PreExp le( PreExp const& y ) const& {
+			return PreExp(LE,{*this,y});
+		}
+		PreExp ge( PreExp const& y ) const& {
+			return PreExp(GE,{*this,y});
+		}
+		PreExp gt( PreExp const& y ) const& {
+			return PreExp(GT,{*this,y});
+		}
+		PreExp lt( PreExp const& y ) const& {
+			return PreExp(LT,{*this,y});
+		}
+		PreExp imp( PreExp const& y ) const& {
+			return PreExp(IMP,{*this,y});
+		}
 		friend PreExp operator+( PreExp const& x, PreExp const& y );
 		friend PreExp operator*( PreExp const& x, PreExp const& y ) {
 			return PreExp(MUL,{x,y});
@@ -445,21 +479,6 @@ public:
 	}
 	static PreExp cdr( PreExp const& arg ) {
 		return PreExp{CDR,{arg}};
-	}
-	static PreExp eq( PreExp const& x, PreExp const& y ) {
-		return PreExp(EQ,{x,y});
-	}
-	static PreExp le( PreExp const& x, PreExp const& y ) {
-		return PreExp(LE,{x,y});
-	}
-	static PreExp ge( PreExp const& x, PreExp const& y ) {
-		return PreExp(GE,{x,y});
-	}
-	static PreExp gt( PreExp const& x, PreExp const& y ) {
-		return PreExp(GT,{x,y});
-	}
-	static PreExp lt( PreExp const& x, PreExp const& y ) {
-		return PreExp(LT,{x,y});
 	}
 	static PostExp ite( PostExp const& i, PostExp const& t, PostExp const& e );
 	static PreExp ite( PreExp const& i, PreExp const& t, PreExp const& e ) {
@@ -611,6 +630,14 @@ struct Smt::PreExp::Let {
 	PreExp val;
 	Sort sort;
 	std::function<PreExp(PostExp const&)> body;
+};
+struct Smt::PreExp::_PreForAll {
+	ForAll var;
+	PreExp body;
+};
+struct Smt::PreExp::_PreExists {
+	Exists var;
+	PreExp body;
 };
 
 inline Smt::Sort operator,( Smt::Sort const& x, Smt::Sort const& y ) {

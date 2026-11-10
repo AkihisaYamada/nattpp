@@ -153,6 +153,53 @@ bool order_by_edge(
 	Problem const& problem,
 	std::function<void(std::vector<std::pair<ruleId,std::vector<ruleId>>>&&,std::vector<ruleId>&&)> const& callback
 ) {
+	auto& solver = order.solver();
+	auto& component = problem.components.front();
+	Smt::PostExp separate_some_edge = false;
+	auto [usables,contain_usables] = _contain_usables(order,problem);
+	Smt::PostExp contain_dps = true;
+	Smt::PostExp mark_usables = true;
+	struct OrientInfo {
+		ruleId i;
+		std::vector<std::pair<ruleId,Smt::PostExp>> edges;
+	};
+	std::vector<OrientInfo> encs;
 
-
+	for( auto const& [i,js] : component.graph ) {
+		auto const& [l,r,w] = *ASSERTED(problem.rules.find(i));
+		auto const& [ge,str] = order.rule_order(i,l,r);
+		contain_dps = contain_dps && ge && order.term_used(r);// rhs of DP should be marked used
+		auto& edges = encs.emplace_back(i).edges;
+		for( auto const& j : js ) {
+			auto const& [s,t,v] = *ASSERTED(problem.rules.find(j));
+			auto sep = order.order_by_edge(i,j,problem);
+			if( sep == false ) continue;
+			separate_some_edge = separate_some_edge || sep;
+			edges.emplace_back(j,sep);
+		}
+	}
+	bool ret = solver.push().ass( contain_usables && mark_usables && separate_some_edge ).check_sat().result().is_sat();
+	if( ret ) {
+		std::vector<std::pair<ruleId,std::vector<ruleId>>> dp_results;
+		for( auto& [i,edge_encs] : encs ) {
+			std::vector<ruleId> edge_results;
+			for( auto const& [j,sep] : edge_encs ) {
+				if( solver.get_value(sep) == true ) {
+					edge_results.emplace_back(j);
+				}
+			}
+			if( !edge_results.empty() ) {// some edges are separated
+				dp_results.emplace_back(i,std::move(edge_results));
+			}
+		}
+		std::vector<ruleId> uses;
+		for( auto const& usable : usables ) {
+			if( solver.get_value(order.rule_used(usable)) == true ) {
+				uses.push_back(usable);
+			}
+		}
+		callback(std::move(dp_results),std::move(uses));
+	}
+	solver.pop();
+	return ret;
 }

@@ -52,7 +52,7 @@ struct Poly {
 		Smt::PostExp quantify( Smt::BaseSort sort, Smt::PostExp const& body ) const {
 			auto ret = body;
 			for( auto const& [var,range] : *this ) {
-				ret = Smt::Forall(var,sort) >>= [&]{
+				ret = Smt::ForAll(var,sort) >>= [&]{
 					switch(range){
 						case POS: return Smt::PostExp(Smt::Local(var)).ge(0);
 						case NEG: return Smt::PostExp(Smt::Local(var)).le(0);
@@ -133,6 +133,7 @@ public:
 		return order(y,solver);
 	}
 	Smt::PreExp as_smt() const;
+	Smt::PostExp gt_if( Poly const& r, Poly const& t, Smt::Solver& solver ) const;
 	VarSet vars() && { return std::move(_vars); }
 	VarSet const& vars() const& { return _vars; }
 	friend Poly ite( Poly const& c, Poly const& p1, Poly const& p2 );
@@ -162,6 +163,7 @@ public:
 	friend MPoly& max_eq( MPoly& x, MPoly const& y );
 	Smt::PostExp ge( MPoly const& p2 ) const;
 	Smt::PostExp separate( MPoly const& p2 ) const;
+	Smt::PostExp gt_if( MPoly const& r, MPoly const& t, Smt::Solver& solver ) const;
 	Smt::Compare order( MPoly const& y, Smt::Solver& solver ) const;
 	Smt::Compare co_order( MPoly const& y, Smt::Solver& solver ) const {
 		return order(y,solver);

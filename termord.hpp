@@ -14,6 +14,9 @@ struct TermOrder {
 	virtual std::ostream& print_sym_info( std::ostream& os, std::string const& f ) = 0;
 	virtual Smt::Compare order( Exp const& l, Exp const& r ) = 0;
 	virtual Smt::Compare co_order( Exp const& s, Exp const& t ) = 0;
+	virtual Smt::PostExp gt_if( Exp const& l, Exp const& r, Exp const& t ) {
+		throw Error("#term-order","\"unsupported gt_if\"");
+	}
 	virtual Smt::PostExp separate( Exp const& s, Exp const& t ) = 0;
 	virtual Smt::PostExp mono() = 0;
 	/** collapsing: f(...x_i...) = x_i for some i */
@@ -141,15 +144,21 @@ struct TrsOrder::_Wrapper final : TrsOrder {
 private:
 	std::unique_ptr<TermOrder> _ref;
 	Map<ruleId,Smt::Compare> _rule_order_cache;
-	struct _DgNodeCache {
-		Exp src;
-		Map<ruleId,Smt::PostExp> tgts;
-	};
-	Map<ruleId,_DgNodeCache> _edge_separate_cache;
+	Map<ruleId,Exp> _rename_cache;
+	Map<ruleId,Map<ruleId,Smt::PostExp>> _edge_separate_cache;
+	Map<ruleId,Map<ruleId,Smt::PostExp>> _order_by_edge_cache;
 public:
 	_Wrapper( std::unique_ptr<TermOrder>&& ref ) : _ref(std::move(ref)) {}
 	Smt::Compare rule_order( ruleId i, Trs::Term const& l, Trs::Term const& r ) override;
 	Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem const& p ) override;
+	Smt::PostExp order_by_edge( ruleId i, ruleId j, Problem const& p ) override;
+	Exp get_renamed_lhs( ruleId i, Problem const& p ) {
+		if( auto opt = _rename_cache.find(i) ) return *opt;
+		auto src = ASSERTED(p.rules.find(i))->first.map(// register renamed the rhs of the source DP
+			[&]( auto const& f ){ return p.sig.find(f) ? f : std::string("`")+f; }
+		);
+		return _rename_cache.emplace(i,src).first;
+	}
 	int log() override { return _ref->log(); }
 	void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) override {
 		_ref->extend_sig(f,rank,heuristic);
@@ -305,6 +314,9 @@ public:
 		if( _log & DEBUG ) std::cerr << "; template " << f << ": " << *deriver.find(f) << std::endl;
 	}
 	A const& intp( Trs::Term const& s ) & {
+		if( auto const& ret = _evals.find(s) ) {
+			return *ret;
+		}
 		auto [ret,fl] = _evals.emplace(s,_intp(s));
 		ret.memoize(_solver);
 		return ret;
@@ -329,6 +341,10 @@ public:
 			std::cerr << "; (< " << s << ' ' << t << ")\n;   " << si << "\n;   " << ti << std::endl;
 		}
 		return si.separate(ti);
+	}
+	Smt::PostExp gt_if( Exp const& l, Exp const& r, Exp const& t ) override {
+		A li = intp(l), ri = intp(r), ti = intp(t);
+		return li.gt_if(ri,ti,_solver);
 	}
 	std::ostream& print_class( std::ostream& os ) override {
 		return os << "derived-order";

@@ -49,7 +49,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 	_weight->extend_sig(f,rank,heuristic);
 	std::string fesc = escape(f);
 	auto prec = sol.declare_const("p_"+fesc,sol.logic().base_sort());//sol.declare_fresh(sort);
-	sol.ass( Smt::ge(prec,0) );
+	sol.ass( prec.ge(0) );
 	if( _log & INIT ) cerr << "; prec " << f << ": " << prec << endl;
 	uint16_t arity = rank.arity;
 	Status status = _status(f,rank);
@@ -382,17 +382,15 @@ Smt::Compare TrsOrder::_Wrapper::rule_order( ruleId i, Trs::Term const& l, Trs::
 	return ret;
 }
 Smt::PostExp TrsOrder::_Wrapper::edge_co_order( ruleId i, ruleId j, Problem const& p ) {
-	_DgNodeCache& node_cache = _edge_separate_cache.find(i) || [&]->_DgNodeCache&{
-		auto src = ASSERTED(p.rules.find(i))->second.map(// register renamed the rhs of the source DP
-			[&]( auto const& f ){ return p.sig.find(f) ? f : std::string("`")+f; }
-		);
-		return _edge_separate_cache.emplace(i,_DgNodeCache{src}).first;
+	auto& cache = _edge_separate_cache.find(i) || [&]()->Map<ruleId,Smt::PostExp>&{
+		return _edge_separate_cache.emplace(i,Map<ruleId,Smt::PostExp>{}).first;
 	};
-	if( auto const& cache = node_cache.tgts.find(j) ) {
-		return *cache;
+	if( auto const& o = cache.find(j) ) {
+		return *o;
 	}
-	auto [f,ss] = *node_cache.src;
-	auto tgt = ASSERTED(p.rules.find(j))->first;
+	auto src = ASSERTED(p.rules.find(i))->second;
+	auto [f,ss] = *src;
+	auto tgt = get_renamed_lhs(j,p);
 	auto [g,ts] = *tgt;
 	assert( f == g && ss.size() == ts.size() );
 	Smt::PostExp sep = false;
@@ -400,10 +398,27 @@ Smt::PostExp TrsOrder::_Wrapper::edge_co_order( ruleId i, ruleId j, Problem cons
 		 sep = sep || _ref->separate(ss[i],ts[i]);
 	}
 	if( log() & SEP ) {
-		cerr << "; (>? " << node_cache.src << ' ' << tgt << ") = " << sep << endl;
+		cerr << "; (>? " << src << ' ' << tgt << ") = " << sep << endl;
 	}
 	auto ret = _ref->solver().let(Smt::BOOL,sep);
-	node_cache.tgts.emplace(j,ret);
+	cache.emplace(j,ret);
+	return ret;
+}
+Smt::PostExp TrsOrder::_Wrapper::order_by_edge( ruleId i, ruleId j, Problem const& p ) {
+	auto& cache = _order_by_edge_cache.find(i) || [&]()->Map<ruleId,Smt::PostExp>&{
+		return _order_by_edge_cache.emplace(i,Map<ruleId,Smt::PostExp>{}).first;
+	};
+	if( auto const& o = cache.find(j) ) {
+		return *o;
+	}
+	auto [l,r,w] = *ASSERTED(p.rules.find(i));
+	auto tgt = get_renamed_lhs(j,p);
+	auto gt_if = _ref->gt_if(l,r,tgt);
+	if( log() & PAIR ) {
+		cerr << "; (>_if " << l << ' ' << r << ' ' << tgt << ") = " << gt_if << endl;
+	}
+	auto ret = _ref->solver().let(Smt::BOOL,gt_if);
+	cache.emplace(j,ret);
 	return ret;
 }
 

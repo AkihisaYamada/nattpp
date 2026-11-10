@@ -193,7 +193,7 @@ public:
 		return def();
 	}
 	/** @brief Copies the value or computes default. */
-	T operator||( std::function<T()> const& def ) const& requires( !std::is_const_v<T> ) {
+	T const& operator||( std::function<T()> const& def ) const& requires( !std::is_const_v<T> ) {
 		if(_ptr) return *_ptr;
 		return def();
 	}

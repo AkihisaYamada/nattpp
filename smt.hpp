@@ -203,6 +203,7 @@ public:
 	public: using LocalDecl::LocalDecl;
 	};
 	class PostExp;
+	class PreExp;
 	static PostExp const TRUE, FALSE;
 	class Compare;
 	class PostExp {
@@ -274,6 +275,7 @@ public:
 		PostExp conj( PostExp const& y ) const &;
 		PostExp disj( PostExp const& y ) const &;
 		PostExp imp( PostExp const& y ) const;
+		PreExp imp( PreExp const& y ) const;
 		PostExp eq( PostExp const& y ) const;
 		PostExp le( PostExp const& y ) const;
 		PostExp ge( PostExp const& y ) const;
@@ -543,7 +545,7 @@ public:
 			std::string ret = _make_fresh();
 			return declare_const(ret,sort);
 		}
-		PostExp expand( PreExp const& p );
+		PostExp expand( PreExp const& p, bool let = true );
 		PostExp define_fun(
 			std::string const& name,
 			std::initializer_list<std::pair<std::string,std::string>> const& params,
@@ -673,6 +675,10 @@ inline Smt::PreExp operator*( Smt::PostExp const& x, Smt::PreExp const& y ) {
 inline Smt::PreExp operator,( Smt::PreExp const& x, Smt::PreExp const& y ) {
 	return x.cons(y);
 }
+inline Smt::PreExp Smt::PostExp::imp( Smt::PreExp const& y ) const {
+	return PreExp(*this).imp(y);
+}
+
 inline std::ostream& operator<<( std::ostream& os, Smt::BaseSort const& x ) {
 	return os << x.name();
 }

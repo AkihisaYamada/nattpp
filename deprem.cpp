@@ -158,7 +158,6 @@ bool order_by_edge(
 	Smt::PostExp separate_some_edge = false;
 	auto [usables,contain_usables] = _contain_usables(order,problem);
 	Smt::PostExp contain_dps = true;
-	Smt::PostExp mark_usables = true;
 	struct OrientInfo {
 		ruleId i;
 		std::vector<std::pair<ruleId,Smt::PostExp>> edges;
@@ -178,7 +177,7 @@ bool order_by_edge(
 			edges.emplace_back(j,sep);
 		}
 	}
-	bool ret = solver.push().ass( contain_usables && mark_usables && separate_some_edge ).check_sat().result().is_sat();
+	bool ret = solver.push().ass( contain_usables && contain_dps && separate_some_edge ).check_sat().result().is_sat();
 	if( ret ) {
 		std::vector<std::pair<ruleId,std::vector<ruleId>>> dp_results;
 		for( auto& [i,edge_encs] : encs ) {

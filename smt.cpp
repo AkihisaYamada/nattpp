@@ -635,7 +635,7 @@ Smt::PostExp& Smt::PostExp::mul_eq( Smt::PostExp const& y, bool linear ) & {
 	return *this = Term<Fun>(MUL,*this,y);
 }
 
-Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
+Smt::PostExp Smt::Solver::expand( PreExp const& p, bool temp ) {
 	if( auto post = p.is_post() ) {
 		return *post;
 	}
@@ -645,7 +645,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 		if( fun == AND ) {
 			PostExp ret = true;
 			for( auto const& arg : args ) {
-				ret = ret.conj(expand(arg));
+				ret = ret.conj(expand(arg,temp));
 				if( ret == false ) break;
 			}
 			return ret;
@@ -653,52 +653,52 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 		if( fun == OR ) {
 			PostExp ret = false;
 			for( auto const& arg : args ) {
-				ret = ret.disj(expand(arg));
+				ret = ret.disj(expand(arg,temp));
 				if( ret == true ) break;
 			}
 			return ret;
 		}
 		if( fun == NOT ) {
 			assert( args.size() == 1 );
-			return !expand(args[0]);
+			return !expand(args[0],temp);
 		}
 		if( fun == IMP ) {
 			assert( args.size() == 2 );
-			auto const& x = expand(args[0]);
+			auto const& x = expand(args[0],temp);
 			if( x == false ) return true;
-			auto const& y = expand(args[1]);
+			auto const& y = expand(args[1],temp);
 			return x.imp(y);
 		}
 		if( fun == ITE ) {
 			assert( args.size() == 3 );
-			auto const& i = expand(args[0]);
+			auto const& i = expand(args[0],temp);
 			if( i == TRUE ) {
-				return expand(args[1]);
+				return expand(args[1],temp);
 			}
 			if( i == FALSE ) {
-				return expand(args[2]);
+				return expand(args[2],temp);
 			}
-			return ite(i,expand(args[1]),expand(args[2]));
+			return ite(i,expand(args[1],temp),expand(args[2],temp));
 		}
 		if( fun == EQ ) {
 			assert( args.size() == 2 );
-			return expand(args[0]).eq(expand(args[1]));
+			return expand(args[0],temp).eq(expand(args[1],temp));
 		}
 		if( fun == GE ) {
 			assert( args.size() == 2 );
-			return expand(args[0]).ge(expand(args[1]));
+			return expand(args[0],temp).ge(expand(args[1],temp));
 		}
 		if( fun == LE ) {
 			assert( args.size() == 2 );
-			return expand(args[0]).le(expand(args[1]));
+			return expand(args[0],temp).le(expand(args[1],temp));
 		}
 		if( fun == GT ) {
 			assert( args.size() == 2 );
-			return expand(args[0]).gt(expand(args[1]));
+			return expand(args[0],temp).gt(expand(args[1],temp));
 		}
 		if( fun == ADD ) {
 			for( auto const& arg : args ) {
-				auto const& earg = expand(arg);
+				auto const& earg = expand(arg,temp);
 				if( auto const& oi = earg.is_val() ) {
 					if( *oi == 0 ) {
 						continue;
@@ -717,12 +717,12 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 			}
 		} else if( fun == MUL ) {
 			assert( args.size() == 2 );
-			auto const& earg1 = expand(args[0]);
+			auto const& earg1 = expand(args[0],temp);
 			if( auto num1 = earg1.is_val() ) {
 				if( *num1 == 0 ) return 0;
-				if( *num1 == 1 ) return expand(args[1]);
+				if( *num1 == 1 ) return expand(args[1],temp);
 			}
-			auto const& earg2 = expand(args[1]);
+			auto const& earg2 = expand(args[1],temp);
 			if( auto num2 = earg2.is_val() ) {
 				if( *num2 == 0 ) return 0;
 				if( *num2 == 1 ) return earg1;
@@ -731,40 +731,40 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p ) {
 				if( earg1.is_app().contains(ITE) ) {
 					auto const& eargs1 = earg1._term.args();
 					assert( eargs1.size() == 3 );
-					auto v = let(logic().base_sort(),earg2);//TODO
+					auto v = temp ? let(logic().base_sort(),earg2) : earg2;//TODO
 					return ite( eargs1[0], Smt::mul(eargs1[1],v,true), Smt::mul(eargs1[2],v,true) );
 				}
 				if( earg2.is_app().contains(ITE) ) {
 					auto const& eargs2 = earg2._term.args();
 					assert( eargs2.size() == 3 );
-					auto v = let(logic().base_sort(),earg1);//TODO
+					auto v = temp ? let(logic().base_sort(),earg1) : earg1;//TODO
 					return ite( eargs2[0], Smt::mul(v,eargs2[1],true), Smt::mul(v,eargs2[2],true) );
 				}
 			}
 			return Term<Fun>(MUL,earg1,earg2);
 		} else if( fun == CAR ) {
 			assert( args.size() == 1 );
-			return car(expand(args[0]));
+			return car(expand(args[0],temp));
 		} else if( fun == CDR ) {
 			assert( args.size() == 1 );
-			return cdr(expand(args[0]));
+			return cdr(expand(args[0],temp));
 		} else {
 			for( auto const& arg : args ) {
-				eargs.push_back(expand(arg));
+				eargs.push_back(expand(arg,temp));
 			}
 		}
 		return app(fun,std::move(eargs));
 	}
 	if( auto tp = p.is_let() ) {
 		auto const& [val,sort,body] = *tp;
-		return expand(body(let(sort,expand(val))));
+		return expand(body(let(sort,expand(val,temp))));
 	}
 	if( auto lazy = p.is_lazy() ) {
-		return expand((*lazy)(*this));
+		return expand((*lazy)(*this),temp);
 	}
 	if( auto o = p.is_forall() ) {
 		auto const& [var,body] = *o;
-		return ForAll(var) >>= expand(body);
+		return ForAll(var) >>= expand(body,false);
 	}
 	assert(false);
 };

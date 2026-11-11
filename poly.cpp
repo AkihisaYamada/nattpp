@@ -165,7 +165,7 @@ Smt::Compare Poly::order( Poly const& p2, Smt::Solver& solver ) const {
 Smt::PostExp Poly::gt_if( Poly const& r, Poly const& t, Smt::Solver& solver ) const {
 	auto le = as_smt(), re = r.as_smt(), te = t.as_smt();
 	auto sort = solver.logic().base_sort();
-	return vars().quantify(sort, t.vars().quantify(sort, solver.expand(re.ge(te).imp(le.gt(re)))));
+	return solver.expand(vars().quantify(sort, t.vars().quantify(sort, re.ge(te).imp(le.gt(re)))));
 }
 
 ostream& operator<<( ostream& os, Poly::Sig const& f ) {

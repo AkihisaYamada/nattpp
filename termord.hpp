@@ -153,7 +153,7 @@ public:
 	Exp get_renamed_lhs( ruleId i, Problem const& p ) {
 		if( auto opt = _rename_cache.find(i) ) return *opt;
 		auto src = ASSERTED(p.rules.find(i))->first.map(// register renamed the rhs of the source DP
-			[&]( auto const& f ){ return p.sig.find(f) ? f : std::string("`")+f; }
+			[&]( auto const& f ){ return p.sig.find(f) ? f : std::string("_")+f; }
 		);
 		return _rename_cache.emplace(i,src).first;
 	}

@@ -93,6 +93,9 @@ public:
 	/** Returns i-th argument and increment i. */
 	Term const& get_arg( uint& i ) const&;
 	/** Asserts i is the number of arguments. */
+	bool gets_end( uint i ) const& {
+		return i == args().size();
+	}
 	void get_end( uint i ) const&;
 	template<typename Fn>
 	Term<std::invoke_result_t<Fn, F const&>> map( Fn&& f ) const {
@@ -153,7 +156,7 @@ Term<F> const& Term<F>::get_arg( uint& i ) const& {
 }
 template<typename F>
 void Term<F>::get_end( uint i ) const& {
-	if( i != args().size() ) throw Error("#expected-rparen",arg(i));
+	if( !gets_end(i) ) throw Error("#expected-rparen",arg(i));
 }
 
 Opt<unsigned long> is_nat( std::string_view const& str );
@@ -203,28 +206,6 @@ struct Exp : Term<std::string> {
 	Exp( Term<std::string> const& other ) : Term<std::string>(other) {}
 	Exp( Term<std::string> && other ) : Term<std::string>(std::move(other)) {}
 	static Exp of( std::string const& );
-	using KeyValProc = std::function<bool(std::string_view const&,Exp const&)>;
-	static KeyValProc const NO_KEY;
-	static KeyValProc on_key( std::string&& _key, std::function<void(Exp const&)>&& _proc ) {
-		return [key = std::move(_key), proc = std::move(_proc)]( std::string_view const& pkey, Exp const& val ){
-			if( pkey == key ) {
-				proc(val);
-				return true;
-			}
-			return false;
-		};
-	}
-	struct OnKey {
-		std::string&& key;
-		KeyValProc operator>>( auto&& proc ) && {
-			return on_key(std::move(key),std::move(proc));
-		}
-	};
-	/** Processes key-value pairs from the ith argument. */
-	void process_keys( uint& i, KeyValProc const& f ) const&;
-	Exp get_arg( uint& i ) const& {
-		return Exp(Term<std::string>::get_arg(i));
-	}
 	Opt<bool> is_bool() const& {
 		return is_unapplied() >>= ::is_bool;
 	}
@@ -242,9 +223,62 @@ struct Exp : Term<std::string> {
 		if( test(ret) ) return ret;
 		throw Error("#nat-out-of-range",*this);
 	}
+	class Proc;
+	using KeyValProc = std::function<bool(std::string_view const&,Exp const&)>;
+	Opt<Exp> gets_arg( uint& pos ) const& {
+		return Term<std::string>::gets_arg(pos);
+	}
+	Exp get_arg( uint& pos ) const& {
+		return Exp(Term<std::string>::get_arg(pos));
+	}
+	static KeyValProc const NO_KEY;
+	static KeyValProc on_key( std::string&& _key, std::function<void(Exp const&)>&& _proc ) {
+		return [key = std::move(_key), proc = std::move(_proc)]( std::string_view const& pkey, Exp const& val ){
+			if( pkey == key ) {
+				proc(val);
+				return true;
+			}
+			return false;
+		};
+	}
+	struct OnKey {
+		std::string&& key;
+		KeyValProc operator>>( auto&& proc ) && {
+			return on_key(std::move(key),std::move(proc));
+		}
+	};
+	/** Processes key-value pairs from the ith argument. */
+	void process_keys( uint& pos, KeyValProc const& f ) const&;
 	static void test();
 };
 inline Exp::KeyValProc const Exp::NO_KEY = []( std::string_view const&, Exp const& ){ return false; };
+
+class Exp::Proc {
+	Exp _exp;
+	uint _pos;
+public:
+	Proc( Exp const& e ) : _exp(e), _pos(0) {}
+	Exp exp() && { return _exp; }
+	Exp const& exp() const& { return _exp; }
+	std::string fun() && { return _exp.fun(); }
+	std::string const& fun() const& { return _exp.fun(); }
+	Proc& operator>>=( KeyValProc const& proc ) & {
+		_exp.process_keys(_pos,proc);
+		return *this;
+	}
+	Opt<Exp> gets_arg() & {
+		return _exp.gets_arg(_pos);
+	}
+	Exp get_arg() & {
+		return _exp.get_arg(_pos);
+	}
+	bool gets_end() const {
+		return _exp.gets_end(_pos);
+	}
+	void get_end() const {
+		return _exp.get_end(_pos);
+	}
+};
 
 class Reader {
 	std::istream& _is;

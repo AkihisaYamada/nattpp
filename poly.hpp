@@ -49,7 +49,7 @@ struct Poly {
 	}
 	struct VarSet : Map<std::string,Range> {
 		using Map::Map;
-		Smt::PostExp quantify( Smt::BaseSort sort, Smt::PostExp const& body ) const {
+		Smt::PreExp quantify( Smt::BaseSort sort, Smt::PreExp const& body ) const {
 			auto ret = body;
 			for( auto const& [var,range] : *this ) {
 				ret = Smt::ForAll(var,sort) >>= [&]{

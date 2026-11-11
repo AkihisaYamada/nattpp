@@ -67,7 +67,6 @@ void _max_sum_heuristic( Set<std::string>& maxsyms, Trs::Sig const& sig, Trs::Ru
 	}
 }
 
-
 int main( int argc, char* argv[] ) try {
 	Opt<ifstream> ois;
 	Opt<ofstream> oprf;
@@ -94,7 +93,7 @@ int main( int argc, char* argv[] ) try {
 	vector<Exp> rulerem_specs;
 	struct DpRemInfo { Exp exp; bool usable; bool edge; };
 	vector<DpRemInfo> dprem_specs;
-	vector<pair<Exp,bool>> edge_ord_specs;
+	vector<pair<Exp,bool>> edge_rem_specs;
 	for( int i = 1; i < argc; i++ ) {
 		if( argv[i][0] == '-' ) {
 			string_view opt = argv[i];
@@ -168,16 +167,24 @@ int main( int argc, char* argv[] ) try {
 					require_arg();
 					print_ref(argv[i]) = false;
 				}}},
-				{ "-r", { " <ord>:\trule remover", [&]{
-					require_arg();
-					rulerem_specs.push_back(Exp::of(argv[i]));
+				{ "-s", { "<exp>:\t strategy", [&]{
 					default_strategy = false;
-				}}},
-				{ "-d", { " <ord>:\tdependency pair remover", [&]{
 					require_arg();
-					dprem_specs.push_back({Exp::of(argv[i]),true,true});
-					default_strategy = false;
-					use_dp = true;
+					Exp::Proc proc = Exp::of(argv[i]);
+					if( proc.fun() == "rule-remover" ) {
+						rulerem_specs.emplace_back(proc.get_arg());
+						proc.get_end();
+					} else if( proc.fun() == "dp-remover" ) {
+						auto& spec = dprem_specs.emplace_back(proc.get_arg(),true,false);
+						proc >>= Exp::OnKey("usable")>>[&]( auto const& val ){
+							spec.usable = val.as_bool();
+						};
+					} else if( proc.fun() == "edge-remover" ) {
+						auto& spec = edge_rem_specs.emplace_back(proc.get_arg(),true);
+						proc.get_end();
+					} else {
+						throw Error("#strategy","\"malformed strategy\"",proc.exp());
+					}
 				}}},
 				{ "-dp", { ":\tcompute dependency pairs", [&]{
 					use_dp = true;
@@ -242,7 +249,7 @@ int main( int argc, char* argv[] ) try {
 			dprem_specs.emplace_back(LPO_SPEC,true,true);
 			dprem_specs.emplace_back("mat2b",true,true);
 		}
-		edge_ord_specs.emplace_back( Exp{"sum",":smt",Exp{"z3","LRA"}}, true );
+		edge_rem_specs.emplace_back( Exp{"sum",":smt",Exp{"z3","LRA"}}, true );
 		use_dp = true;
 	}
 	if( mode == UNSET && p.mode == Problem::NONE ) {
@@ -369,7 +376,7 @@ int main( int argc, char* argv[] ) try {
 			unique_ptr<UsableRuleOrder> order;
 		};
 		vector<EdgeRemover> edge_removers;
-		for( auto [x,cond] : edge_ord_specs ) {
+		for( auto [x,cond] : edge_rem_specs ) {
 			edge_removers.emplace_back(0,cond,UsableRuleOrder::make(TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log)),p,true));
 		}
 

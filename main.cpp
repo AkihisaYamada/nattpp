@@ -302,8 +302,8 @@ int main( int argc, char* argv[] ) try {
 			for( auto x : rulerem_specs ) {
 				rule_removers.emplace_back(0,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log)));
 			}
-			auto rule_removes = [&]( auto& pair ) {
-				auto& [stage,ord] = pair;
+			auto rule_removes = [&]( auto& remover ) {
+				auto& [stage,ord] = remover;
 				if( print_steps ) cerr << "; trying " << ord->print_name() << "... " << endl;
 				if( stage < 1 ) {// initialize for signature
 					ord->extend_sig(p.sig,heuristic);
@@ -425,6 +425,10 @@ int main( int argc, char* argv[] ) try {
 					}
 				};
 				if( print_steps ) cerr << "; trying edge removal..." << endl;
+				if( remover.stage == 0 ) {
+					remover.order->extend_sig(p.sig,heuristic);
+					remover.stage = 1;
+				}
 				return remover.cond ? order_by_edge(*remover.order,p,erase_edges) :
 					unorder_some_edge(*remover.order,p,erase_edges);
 			};

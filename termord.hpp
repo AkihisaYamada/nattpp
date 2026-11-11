@@ -133,9 +133,7 @@ public:
 struct TrsOrder : TermOrder {
 	virtual Smt::Compare rule_order( ruleId i, Trs::Term const& l, Trs::Term const& r ) = 0;
 	virtual Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem const& p ) = 0;
-	virtual Smt::PostExp order_by_edge( ruleId i, ruleId j, Problem const& p ) {
-		throw Error("#trs-order","\"unimplemented order_by_edge\"");
-	}
+	virtual Smt::PostExp order_by_edge( ruleId i, ruleId j, Problem const& p ) = 0;
 	static std::unique_ptr<TrsOrder> make( std::unique_ptr<TermOrder>&& );
 private:
 	struct _Wrapper;
@@ -196,6 +194,7 @@ public:
 	Smt::PostExp rule_used( ruleId i ) & override;
 	Smt::Compare rule_order( ruleId i, Trs::Term const& l, Trs::Term const& r ) override { return _ref->rule_order(i,l,r); }
 	Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem const& p ) override { return _ref->edge_co_order(i,j,p); }
+	Smt::PostExp order_by_edge( ruleId i, ruleId j, Problem const& p ) override { return _ref->order_by_edge(i,j,p); }
 	int log() override { return _ref->log(); }
 	void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) override {
 		_ref->extend_sig(f,rank,heuristic);
@@ -232,6 +231,7 @@ public:
 	Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem const& p ) override {
 		return _ref->edge_co_order(i,j,p);
 	}
+	Smt::PostExp order_by_edge( ruleId i, ruleId j, Problem const& p ) override { return _ref->order_by_edge(i,j,p); }
 	int log() override { return _ref->log(); }
 	void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) override {
 		_ref->extend_sig(f,rank,heuristic);
@@ -269,6 +269,7 @@ public:
 	Smt::PostExp arg_used( std::string const& f, uint16_t i ) override { return true; }
 	Smt::Compare rule_order( ruleId, Trs::Term const&, Trs::Term const& ) override { return {true,false}; }
 	Smt::PostExp edge_co_order( ruleId, ruleId, Problem const& ) override { return false; }
+	Smt::PostExp order_by_edge( ruleId, ruleId, Problem const& ) override { return false; }
 	Smt::PostExp term_used( Trs::Term const& ) & override { return true; }
 	Smt::PostExp rule_used( ruleId ) & override { return true; }
 };

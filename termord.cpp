@@ -404,24 +404,25 @@ Smt::PostExp TrsOrder::_Wrapper::edge_co_order( ruleId i, ruleId j, Problem cons
 	cache.emplace(j,ret);
 	return ret;
 }
-Smt::PostExp TrsOrder::_Wrapper::order_by_edge( ruleId i, ruleId j, Problem const& p ) {
-	auto& cache = _order_by_edge_cache.find(i) || [&]()->Map<ruleId,Smt::PostExp>&{
-		return _order_by_edge_cache.emplace(i,Map<ruleId,Smt::PostExp>{}).first;
+Smt::PostExp TrsOrder::_Wrapper::bound_edge( ruleId i, ruleId j, Problem const& p ) {
+	auto& cache = _bound_edge_cache.find(i) || [&]()->Map<ruleId,Smt::PostExp>&{
+		return _bound_edge_cache.emplace(i,Map<ruleId,Smt::PostExp>{}).first;
 	};
 	if( auto const& o = cache.find(j) ) {
 		return *o;
 	}
 	auto [l,r,w] = *ASSERTED(p.rules.find(i));
 	auto tgt = get_renamed_lhs(j,p);
-	auto gt_if = _ref->gt_if(l,r,tgt);
+
+	auto bnd = _ref->bound_if(r,tgt);
 	// Declare a boolean variable that implies orientation, but not necessarily vise versa.
 	// This is necessary for when the exact value does not contribute to satisfiability.
-	auto ret = gt_if.is_bool() ? gt_if : [&]{
+	auto ret = bnd.is_bool() ? bnd : [&]{
 		auto var = solver().declare_fresh(Smt::BOOL);
 		if( log() & PAIR ) {
-			cerr << "; (>_if " << l << ' ' << r << ' ' << tgt << ") = " << gt_if << endl;
+			cerr << "; (>_if " << l << ' ' << r << ' ' << tgt << ") = " << bnd << endl;
 		}
-		solver().ass(var.imp(gt_if));
+		solver().ass(var.imp(bnd));
 		return var;
 	}();
 	cache.emplace(j,ret);

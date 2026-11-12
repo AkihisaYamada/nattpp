@@ -27,7 +27,7 @@ bool unorder_some_edge(
 	std::function<void(std::vector<std::pair<ruleId,std::vector<ruleId>>>&&,std::vector<ruleId>&&)> const& callback
 );
 
-bool order_by_edge(
+bool bound_by_edge(
 	UsableRuleOrder& order,
 	Problem const& problem,
 	std::function<void(std::vector<std::pair<ruleId,std::vector<ruleId>>>&&,std::vector<ruleId>&&)> const& callback

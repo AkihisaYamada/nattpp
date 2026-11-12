@@ -133,7 +133,6 @@ public:
 		return order(y,solver);
 	}
 	Smt::PreExp as_smt() const;
-	Smt::PostExp gt_if( Poly const& r, Poly const& t, Smt::Solver& solver ) const;
 	VarSet vars() && { return std::move(_vars); }
 	VarSet const& vars() const& { return _vars; }
 	friend Poly ite( Poly const& c, Poly const& p1, Poly const& p2 );
@@ -163,7 +162,6 @@ public:
 	friend MPoly& max_eq( MPoly& x, MPoly const& y );
 	Smt::PostExp ge( MPoly const& p2 ) const;
 	Smt::PostExp separate( MPoly const& p2 ) const;
-	Smt::PostExp gt_if( MPoly const& r, MPoly const& t, Smt::Solver& solver ) const;
 	Smt::Compare order( MPoly const& y, Smt::Solver& solver ) const;
 	Smt::Compare co_order( MPoly const& y, Smt::Solver& solver ) const {
 		return order(y,solver);
@@ -172,6 +170,14 @@ public:
 		for( auto& p : _set ) {
 			p.memoize(solver);
 		}
+	}
+	Smt::PreExp as_smt() const {
+		if( _set.size() != 1 ) throw Error("#max-poly","\"as_smt unsupported\"");
+		return _set[0].as_smt();
+	}
+	Poly::VarSet const& vars() const& {
+		if( _set.size() != 1 ) throw Error("#max-poly","\"vars unsupported\"");
+		return _set[0].vars();
 	}
 };
 MPoly operator+( MPoly const& x, MPoly const& y );

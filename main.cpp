@@ -249,7 +249,29 @@ int main( int argc, char* argv[] ) try {
 			dprem_specs.emplace_back(LPO_SPEC,true,true);
 			dprem_specs.emplace_back("mat2b",true,true);
 		}
-		edge_rem_specs.emplace_back( Exp{"sum",":smt",Exp{"z3","LRA"}}, true );
+		edge_rem_specs.emplace_back(
+			Exp{"template",
+				Exp{"full","full"},
+				Exp{"tp",
+					Exp{"+",
+						Exp{"args","+",
+							Exp{"+",
+								Exp{"ite",Exp{"var",":sort","Bool"},Exp{"prj0","arg"},"0"},
+								Exp{"ite",Exp{"var",":sort","Bool"},Exp{"prj1","arg"},"0"}
+							},
+						},
+						"var"
+					},
+					Exp{"+",
+						Exp{"args","+",
+							Exp{"ite",Exp{"var",":sort","Bool"},Exp{"prj1","arg"},"0"},
+						},
+						"var"
+					},
+				},
+				":smt",Exp{"cvc5","NRA"}
+			},true
+		);
 		use_dp = true;
 	}
 	if( mode == UNSET && p.mode == Problem::NONE ) {
@@ -436,7 +458,7 @@ int main( int argc, char* argv[] ) try {
 					remover.order->extend_sig(p.sig,heuristic);
 					remover.stage = 1;
 				}
-				return remover.cond ? order_by_edge(*remover.order,p,erase_edges) :
+				return remover.cond ? bound_by_edge(*remover.order,p,erase_edges) :
 					unorder_some_edge(*remover.order,p,erase_edges);
 			};
 			if( std::ranges::any_of(dp_removers,dp_removes) ||

@@ -148,18 +148,19 @@ bool unorder_some_edge(
 	return ret;
 }
 
-bool order_by_edge(
+bool bound_by_edge(
 	UsableRuleOrder& order,
 	Problem const& problem,
 	std::function<void(std::vector<std::pair<ruleId,std::vector<ruleId>>>&&,std::vector<ruleId>&&)> const& callback
 ) {
 	auto& solver = order.solver();
 	auto& component = problem.components.front();
-	Smt::PostExp separate_some_edge = false;
+	Smt::PostExp rm_some_edge = false;
 	auto [usables,contain_usables] = _contain_usables(order,problem);
 	Smt::PostExp contain_dps = true;
 	struct OrientInfo {
 		ruleId i;
+		Smt::PostExp str;
 		std::vector<std::pair<ruleId,Smt::PostExp>> edges;
 	};
 	std::vector<OrientInfo> encs;
@@ -168,27 +169,31 @@ bool order_by_edge(
 		auto const& [l,r,w] = *ASSERTED(problem.rules.find(i));
 		auto const& [ge,str] = order.rule_order(i,l,r);
 		contain_dps = contain_dps && ge && order.term_used(r);// rhs of DP should be marked used
-		auto& edges = encs.emplace_back(i).edges;
+		auto& edges = encs.emplace_back(i,str).edges;
+		Smt::PostExp node_cond = false;
 		for( auto const& j : js ) {
 			auto const& [s,t,v] = *ASSERTED(problem.rules.find(j));
-			auto sep = order.order_by_edge(i,j,problem);
+			auto sep = order.bound_edge(i,j,problem);
 			if( sep == false ) continue;
-			separate_some_edge = separate_some_edge || sep;
+			node_cond = node_cond || sep;
 			edges.emplace_back(j,sep);
 		}
+		rm_some_edge = rm_some_edge || (str && node_cond);
 	}
-	bool ret = solver.push().ass( contain_usables && contain_dps && separate_some_edge ).check_sat().result().is_sat();
+	bool ret = solver.push().ass( contain_usables && contain_dps && rm_some_edge ).check_sat().result().is_sat();
 	if( ret ) {
 		std::vector<std::pair<ruleId,std::vector<ruleId>>> dp_results;
-		for( auto& [i,edge_encs] : encs ) {
-			std::vector<ruleId> edge_results;
-			for( auto const& [j,sep] : edge_encs ) {
-				if( solver.get_value(sep) == true ) {
-					edge_results.emplace_back(j);
+		for( auto& [i,str,edge_encs] : encs ) {
+			if( solver.get_value(str) == true ) {
+				std::vector<ruleId> edge_results;
+				for( auto const& [j,sep] : edge_encs ) {
+					if( solver.get_value(sep) == true ) {
+						edge_results.emplace_back(j);
+					}
 				}
-			}
-			if( !edge_results.empty() ) {// some edges are separated
-				dp_results.emplace_back(i,std::move(edge_results));
+				if( !edge_results.empty() ) {// some edges are separated
+					dp_results.emplace_back(i,std::move(edge_results));
+				}
 			}
 		}
 		std::vector<ruleId> uses;

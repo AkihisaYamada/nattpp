@@ -1,6 +1,26 @@
 #ifndef TPALGEBRA_HPP
 #define TPALGEBRA_HPP
 #include"template.hpp"
+#include"poly.hpp"
+
+struct TupleExp {
+	std::vector<Smt::PreExp> vec;
+	Smt::PreExp ge( TupleExp const& y ) const& {
+		Smt::PreExp ret = true;
+		if( vec.size() != y.vec.size() ) throw Error("#tuple","\"comparing different sizes\"");
+		for( uint i = 0; i < vec.size(); i++ ) {
+			ret = ret && vec[i].ge(y.vec[i]);
+		}
+		return ret;
+	}
+	Smt::PreExp ge( Smt::PreExp const& y ) const& {
+		Smt::PreExp ret = true;
+		for( auto const& xi : vec ) {
+			ret = ret && xi.ge(y);
+		}
+		return ret;
+	}
+};
 
 template<typename T>
 struct TupleVal {
@@ -33,8 +53,15 @@ struct TupleVal {
 		if( n != r.vec.size() ) throw Error("#tuple_algebra","\"separating wrong size\"");
 		return Smt::PostExp::disj( 0, n, [&]( size_t i ){ return vec[i].separate(r.vec[i]); });
 	}
-	Smt::PostExp gt_if( TupleVal const& r, TupleVal const& t, Smt::Solver& solver ) const& {
-		throw Error("#tpalgebra","\"gt_if for tuple\"");
+	TupleExp as_smt() const& {
+		TupleExp ret;
+		for( auto const& x : vec ) {
+			ret.vec.emplace_back(x.as_smt());
+		}
+		return ret;
+	}
+	Poly::VarSet const& vars() const& {
+		return vec[0].vars();// TODO: 0th component is assumed to contain all variables
 	}
 	friend std::ostream& operator<<( std::ostream& os, TupleVal const& t ) {
 		os << "(tp";

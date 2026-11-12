@@ -14,7 +14,7 @@ struct TermOrder {
 	virtual std::ostream& print_sym_info( std::ostream& os, std::string const& f ) = 0;
 	virtual Smt::Compare order( Exp const& l, Exp const& r ) = 0;
 	virtual Smt::Compare co_order( Exp const& s, Exp const& t ) = 0;
-	virtual Smt::PostExp gt_if( Exp const& l, Exp const& r, Exp const& t ) {
+	virtual Smt::PostExp bound_if( Exp const& r, Exp const& t ) {
 		throw Error("#term-order","\"unsupported gt_if\"");
 	}
 	virtual Smt::PostExp separate( Exp const& s, Exp const& t ) = 0;
@@ -133,7 +133,7 @@ public:
 struct TrsOrder : TermOrder {
 	virtual Smt::Compare rule_order( ruleId i, Trs::Term const& l, Trs::Term const& r ) = 0;
 	virtual Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem const& p ) = 0;
-	virtual Smt::PostExp order_by_edge( ruleId i, ruleId j, Problem const& p ) = 0;
+	virtual Smt::PostExp bound_edge( ruleId i, ruleId j, Problem const& p ) = 0;
 	static std::unique_ptr<TrsOrder> make( std::unique_ptr<TermOrder>&& );
 private:
 	struct _Wrapper;
@@ -144,12 +144,12 @@ private:
 	Map<ruleId,Smt::Compare> _rule_order_cache;
 	Map<ruleId,Exp> _rename_cache;
 	Map<ruleId,Map<ruleId,Smt::PostExp>> _edge_separate_cache;
-	Map<ruleId,Map<ruleId,Smt::PostExp>> _order_by_edge_cache;
+	Map<ruleId,Map<ruleId,Smt::PostExp>> _bound_edge_cache;
 public:
 	_Wrapper( std::unique_ptr<TermOrder>&& ref ) : _ref(std::move(ref)) {}
 	Smt::Compare rule_order( ruleId i, Trs::Term const& l, Trs::Term const& r ) override;
 	Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem const& p ) override;
-	Smt::PostExp order_by_edge( ruleId i, ruleId j, Problem const& p ) override;
+	Smt::PostExp bound_edge( ruleId i, ruleId j, Problem const& p ) override;
 	Exp get_renamed_lhs( ruleId i, Problem const& p ) {
 		if( auto opt = _rename_cache.find(i) ) return *opt;
 		auto src = ASSERTED(p.rules.find(i))->first.map(// register renamed the rhs of the source DP
@@ -194,7 +194,7 @@ public:
 	Smt::PostExp rule_used( ruleId i ) & override;
 	Smt::Compare rule_order( ruleId i, Trs::Term const& l, Trs::Term const& r ) override { return _ref->rule_order(i,l,r); }
 	Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem const& p ) override { return _ref->edge_co_order(i,j,p); }
-	Smt::PostExp order_by_edge( ruleId i, ruleId j, Problem const& p ) override { return _ref->order_by_edge(i,j,p); }
+	Smt::PostExp bound_edge( ruleId i, ruleId j, Problem const& p ) override { return _ref->bound_edge(i,j,p); }
 	int log() override { return _ref->log(); }
 	void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) override {
 		_ref->extend_sig(f,rank,heuristic);
@@ -231,7 +231,7 @@ public:
 	Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem const& p ) override {
 		return _ref->edge_co_order(i,j,p);
 	}
-	Smt::PostExp order_by_edge( ruleId i, ruleId j, Problem const& p ) override { return _ref->order_by_edge(i,j,p); }
+	Smt::PostExp bound_edge( ruleId i, ruleId j, Problem const& p ) override { return _ref->bound_edge(i,j,p); }
 	int log() override { return _ref->log(); }
 	void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) override {
 		_ref->extend_sig(f,rank,heuristic);
@@ -269,7 +269,7 @@ public:
 	Smt::PostExp arg_used( std::string const& f, uint16_t i ) override { return true; }
 	Smt::Compare rule_order( ruleId, Trs::Term const&, Trs::Term const& ) override { return {true,false}; }
 	Smt::PostExp edge_co_order( ruleId, ruleId, Problem const& ) override { return false; }
-	Smt::PostExp order_by_edge( ruleId, ruleId, Problem const& ) override { return false; }
+	Smt::PostExp bound_edge( ruleId, ruleId, Problem const& ) override { return false; }
 	Smt::PostExp term_used( Trs::Term const& ) & override { return true; }
 	Smt::PostExp rule_used( ruleId ) & override { return true; }
 };
@@ -343,9 +343,11 @@ public:
 		}
 		return si.separate(ti);
 	}
-	Smt::PostExp gt_if( Exp const& l, Exp const& r, Exp const& t ) override {
-		A li = intp(l), ri = intp(r), ti = intp(t);
-		return li.gt_if(ri,ti,_solver);
+	Smt::PostExp bound_if( Exp const& r, Exp const& t ) override {
+		A ri = intp(r), ti = intp(t);
+		auto re = ri.as_smt(), te = ti.as_smt();
+		auto sort = solver().logic().base_sort();
+		return solver().expand(ri.vars().quantify(sort, ti.vars().quantify(sort, re.ge(te).imp(re.ge(0)))));
 	}
 	std::ostream& print_class( std::ostream& os ) override {
 		return os << "derived-order";

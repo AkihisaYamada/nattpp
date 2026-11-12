@@ -407,12 +407,8 @@ public:
 		PostExp const& as_post() const& {
 			return *ASSERTED(is_post());
 		}
-		PreExp conj( PreExp const& y ) const {
-			return PreExp(AND,{*this,y});
-		}
-		PreExp disj( PreExp const& y ) const {
-			return PreExp(OR,{*this,y});
-		}
+		friend PreExp operator&&( PreExp const& x, PreExp const& y );
+		friend PreExp operator||( PreExp const& x, PreExp const& y );
 		static PreExp disj( auto&& begin, auto&& end, auto&& f ) {
 			return [begin=std::move(begin),end=std::move(end),f=std::move(f)]( Solver& solver ){
 				auto i = std::move(begin);
@@ -660,12 +656,11 @@ inline Smt::PostExp operator,( Smt::PostExp const& x, Smt::PostExp const& y ) {
 }
 
 inline Smt::PreExp operator&&( Smt::PreExp const& x, Smt::PreExp const& y ) {
-	return x.conj(y);
+	return Smt::PreExp(Smt::AND,{x,y});
 }
 inline Smt::PreExp operator||( Smt::PreExp const& x, Smt::PreExp const& y ) {
-	return x.disj(y);
+	return Smt::PreExp(Smt::OR,{x,y});
 }
-
 inline Smt::PreExp& operator+=( Smt::PreExp& x, Smt::PreExp const& y ) {
 	return x = x+y;
 }

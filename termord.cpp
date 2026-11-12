@@ -414,7 +414,7 @@ Smt::PostExp TrsOrder::_Wrapper::bound_edge( ruleId i, ruleId j, Problem const& 
 	auto [l,r,w] = *ASSERTED(p.rules.find(i));
 	auto tgt = get_renamed_lhs(j,p);
 
-	auto bnd = _ref->bound_if(r,tgt);
+	auto bnd = _ref->bound_if(l,r,tgt);
 	// Declare a boolean variable that implies orientation, but not necessarily vise versa.
 	// This is necessary for when the exact value does not contribute to satisfiability.
 	auto ret = bnd.is_bool() ? bnd : [&]{

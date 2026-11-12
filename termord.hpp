@@ -14,7 +14,7 @@ struct TermOrder {
 	virtual std::ostream& print_sym_info( std::ostream& os, std::string const& f ) = 0;
 	virtual Smt::Compare order( Exp const& l, Exp const& r ) = 0;
 	virtual Smt::Compare co_order( Exp const& s, Exp const& t ) = 0;
-	virtual Smt::PostExp bound_if( Exp const& r, Exp const& t ) {
+	virtual Smt::PostExp bound_if( Exp const& l, Exp const& r, Exp const& t ) {
 		throw Error("#term-order","\"unsupported gt_if\"");
 	}
 	virtual Smt::PostExp separate( Exp const& s, Exp const& t ) = 0;
@@ -343,11 +343,11 @@ public:
 		}
 		return si.separate(ti);
 	}
-	Smt::PostExp bound_if( Exp const& r, Exp const& t ) override {
-		A ri = intp(r), ti = intp(t);
-		auto re = ri.as_smt(), te = ti.as_smt();
+	Smt::PostExp bound_if( Exp const& l, Exp const& r, Exp const& t ) override {
+		A li = intp(l), ri = intp(r), ti = intp(t);
+		auto le = li.as_smt(), re = ri.as_smt(), te = ti.as_smt();
 		auto sort = solver().logic().base_sort();
-		return solver().expand(ri.vars().quantify(sort, ti.vars().quantify(sort, re.ge(te).imp(re.ge(0)))));
+		return solver().expand(ri.vars().quantify(sort, ti.vars().quantify(sort, re.ge(te).imp(le.ge(0)))));
 	}
 	std::ostream& print_class( std::ostream& os ) override {
 		return os << "derived-order";

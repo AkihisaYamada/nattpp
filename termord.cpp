@@ -404,7 +404,7 @@ Smt::PostExp TrsOrder::_Wrapper::edge_co_order( ruleId i, ruleId j, Problem cons
 	cache.emplace(j,ret);
 	return ret;
 }
-Smt::PostExp TrsOrder::_Wrapper::bound_edge( ruleId i, ruleId j, Problem const& p ) {
+Smt::PostExp TrsOrder::_Wrapper::separate_edge( ruleId i, ruleId j, Problem const& p ) {
 	auto& cache = _bound_edge_cache.find(i) || [&]()->Map<ruleId,Smt::PostExp>&{
 		return _bound_edge_cache.emplace(i,Map<ruleId,Smt::PostExp>{}).first;
 	};
@@ -414,15 +414,15 @@ Smt::PostExp TrsOrder::_Wrapper::bound_edge( ruleId i, ruleId j, Problem const& 
 	auto [l,r,w] = *ASSERTED(p.rules.find(i));
 	auto tgt = get_renamed_lhs(j,p);
 
-	auto bnd = _ref->bound_if(l,r,tgt);
+	auto sep = _ref->separate_if(l,r,tgt);
 	// Declare a boolean variable that implies orientation, but not necessarily vise versa.
 	// This is necessary for when the exact value does not contribute to satisfiability.
-	auto ret = bnd.is_bool() ? bnd : [&]{
+	auto ret = sep.is_bool() ? sep : [&]{
 		auto var = solver().declare_fresh(Smt::BOOL);
 		if( log() & PAIR ) {
-			cerr << "; (>_if " << l << ' ' << r << ' ' << tgt << ") = " << bnd << endl;
+			cerr << "; (separate_edge " << l << ' ' << r << ' ' << tgt << ") = " << sep << endl;
 		}
-		solver().ass(var.imp(bnd));
+		solver().ass(var.imp(sep));
 		return var;
 	}();
 	cache.emplace(j,ret);
@@ -475,7 +475,7 @@ std::unique_ptr<TermOrder> TermOrder::make(
 	int default_log
 ) {
 	auto const& f = x.fun();
-	uint n = 0;
+	Exp::Proc proc = x;
 	Opt<Exp> smt;
 	auto mk_smt = [&]{ return smt ? Smt::Solver::of(*smt) : default_smt(); };
 	int log = -1;
@@ -484,78 +484,82 @@ std::unique_ptr<TermOrder> TermOrder::make(
 	bool mono;
 	auto mono_key = Exp::OnKey("mono") >> [&]( Exp const& val ){ mono = val.as_bool(); };
 	if( f == "trivial" ) {
-		x.process_keys(n,solver_key);
+		proc >>= solver_key;
 		return std::make_unique<TrivOrder>(mk_smt());
 	} else if( f == "mono-sum" ) {
-		x.process_keys( n, solver_key || log_key(log) );
+		proc >>= solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<Poly>>("mono-sum",Poly::POS_ALGEBRA,Template::MONO_SUM,mk_smt(),true,log);
 	} else if( f == "sum" ) {
-		x.process_keys( n, solver_key || log_key(log) );
+		proc >>= solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<Poly>>("sum",Poly::POS_ALGEBRA,Template::SUM,mk_smt(),false,log);
 	} else if( f == "mat2b" ) {
-		x.process_keys( n, solver_key || log_key(log) );
+		proc >>= solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<Poly>>>(
 			"mat2b", tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::POS}), Template::MAT2B, mk_smt(), false, log
 		);
 	} else if( f == "mat2n" ) {
-		x.process_keys( n, solver_key || log_key(log) );
+		proc >>= solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<Poly>>>(
 			"mat2n", tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::POS}), Template::MAT2N, mk_smt(), false, log
 		);
 	} else if( f == "max" ) {
-		x.process_keys( n, solver_key || log_key(log) );
+		proc >>= solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>("max",MPoly::POS_ALGEBRA,Template::MAX,mk_smt(),false,log);
 	} else if( f == "maxsum" ) {
-		x.process_keys( n, solver_key || log_key(log) );
+		proc >>= solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>("maxsum",MPoly::POS_ALGEBRA,Template::MAXSUM,mk_smt(),false,log);
 	} else if( f == "imax" ) {
-		x.process_keys( n, solver_key || log_key(log) );
+		proc >>= solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>("imax",MPoly::POS_ALGEBRA,Template::IMAX,mk_smt(),false,log);
 	} else if( f == "imaxsum" ) {
-		x.process_keys( n, solver_key || log_key(log) );
+		proc >>= solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>("imaxsum",MPoly::POS_ALGEBRA,Template::IMAXSUM,mk_smt(),false,log);
 	} else if( f == "sum_negsum" ) {
-		x.process_keys( n, solver_key || log_key(log) );
+		proc >>= solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<MPoly>>>(
 			"sum_negsum",tuple_algebra<Poly::Range,MPoly>({Poly::POS,Poly::NEG}), Template::SUM_NEGSUM, mk_smt(), false, log
 		);
 	} else if( f == "imaxsum_negsum" ) {
-		x.process_keys( n, solver_key || log_key(log) );
+		proc >>= solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<MPoly>>>(
 			"imaxsum_negsum", tuple_algebra<Poly::Range,MPoly>({Poly::POS,Poly::NEG}), Template::IMAXSUM_NEGSUM, mk_smt(), false, log
 		);
+	} else if( f == "full_neg" ) {
+		proc >>= solver_key || log_key(log);
+		set_log();
+		return std::make_unique<DerivedTermOrder<TupleVal<Poly>>>(
+			"full_neg", tuple_algebra<Poly::Range,Poly>({Poly::FULL,Poly::NEG}), Template::FULL_NEG, mk_smt(), false, log
+		);
 	} else if( f == "template" ) {
 		std::vector<Poly::Range> rans;
-		{	Exp ranexp = x.get_arg(n);
-			uint j = 0;
+		{	Exp::Proc ranexp = proc.get_arg();
 			rans.emplace_back(Poly::range_of(ranexp.fun()));
-			while( auto ranarg = ranexp.gets_arg(j) ) {
+			while( auto ranarg = ranexp.gets_arg() ) {
 				rans.emplace_back(Poly::range_of(ranarg->as_unapplied()));
 			}
 		}
-		Exp exp = x.get_arg(n);
-		x.process_keys( n, solver_key || log_key(log) || mono_key );
+		Exp exp = proc.get_arg();
+		proc >>= solver_key || log_key(log) || mono_key;
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<MPoly>>>(
 			"custom-template", tuple_algebra<Poly::Range,MPoly>(std::move(rans)), exp, mk_smt(), mono, log );
 	} else if( f == "path-order" ) {
 		Opt<Exp> w;
 		Opt<PathOrder::StatusFun> status;
-		x.process_keys( n,
+		proc >>=
 			Exp::OnKey("weight") >> [&]( auto const& val ){ w = {val}; } ||
 			Exp::OnKey("status") >> [&]( auto const& val ){ status = {PathOrder::status_fun_of(val)}; } ||
-			log_key(log) || (w ? Exp::NO_KEY : solver_key) );
-		x.get_end(n);
+			log_key(log) || (w ? Exp::NO_KEY : solver_key);
 		set_log();
 		return std::make_unique<PathOrder>(
 			w ?

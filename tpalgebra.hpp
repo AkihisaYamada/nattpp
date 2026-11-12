@@ -13,13 +13,6 @@ struct TupleExp {
 		}
 		return ret;
 	}
-	Smt::PreExp ge( Smt::PreExp const& y ) const& {
-		Smt::PreExp ret = true;
-		for( auto const& xi : vec ) {
-			ret = ret && xi.ge(y);
-		}
-		return ret;
-	}
 };
 
 template<typename T>
@@ -53,12 +46,14 @@ struct TupleVal {
 		if( n != r.vec.size() ) throw Error("#tuple_algebra","\"separating wrong size\"");
 		return Smt::PostExp::disj( 0, n, [&]( size_t i ){ return vec[i].separate(r.vec[i]); });
 	}
-	TupleExp as_smt() const& {
-		TupleExp ret;
-		for( auto const& x : vec ) {
-			ret.vec.emplace_back(x.as_smt());
-		}
-		return ret;
+	Smt::PreExp gt_exp( TupleVal& y ) & {
+		return vec[0].gt_exp(y.vec[0]);
+	}
+	Smt::PreExp ge_exp( TupleVal& y ) & {
+		auto n = vec.size();
+		if( n == 0 ) throw Error("#tuple_algebra","\"ge_exp empty\"");
+		if( n != y.vec.size() ) throw Error("#tuple_algebra","\"ge_exp wrong size\"");
+		return Smt::PreExp::conj(0,n,[&]( auto i ){ return vec[i].ge_exp(y.vec[i]); });
 	}
 	Poly::VarSet const& vars() const& {
 		return vec[0].vars();// TODO: 0th component is assumed to contain all variables

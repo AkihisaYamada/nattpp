@@ -270,7 +270,7 @@ Term<Sum<Template::Sym,Arg>> Template::Deriver::_deriver_of(
 		exp.get_end(i);
 		return _deriver_of( heuristic ? e1 : e2, f, rank, poso, finfo, heuristic );
 	}
-	if( auto const& o = is_nat(fun) ) {
+	if( auto const& o = is_int(fun) ) {
 		exp.get_end(i);
 		return Smt::PostExp(*o);
 	}
@@ -313,7 +313,6 @@ void Template::Deriver::extend_sig( std::string const& f, Trs::Rank const& rank,
 }
 
 static Exp const _MONO = Exp("=>","#mono","_");// monotonicity requires non-zero coefficient
-static Exp const _USED = Exp("=>","_","#used");// non-zero coefficient implies used
 static Exp const _INFL = Exp("=>","#infl","_");// inflationary position requires non-zero coefficient (and more)
 static Exp const _TRIV = Exp("=>","#triv",Exp("=","_","0"));// trivial requires 0
 
@@ -321,7 +320,7 @@ static Exp const _CONST = Exp("var",":constrain",_TRIV);
 static Exp const _POSCONST =
 	Exp( "var", ":constrain", Exp( "and", Exp(">=","_","0"), _TRIV ) );
 
-static Exp _bool_constrain( Exp const& c ) {
+Exp Template::bool_constrain( Exp const& c ) {
 	return Exp("var",":sort","Bool",":constrain",c);
 }
 static Exp const _1_OR_2 = Exp("ite",Exp("var",":sort","Bool"),"2","1");
@@ -334,7 +333,7 @@ Exp const Template::MONO_SUM =
 Exp const Template::MONO_POLY2 = 
 	Exp("+",Exp("args","+",Exp("*",_1_OR_2,"arg")),_POSCONST);
 
-static Exp const _SUMCOEFF = _0_or_1_constrain(Exp("and",_MONO,_INFL,_USED));
+static Exp const _SUMCOEFF = _0_or_1_constrain(Exp("and",_MONO,_INFL,Template::USED));
 Exp const Template::SUM = Exp("+",Exp("args","+",Exp("*",_SUMCOEFF,"arg")),_POSCONST);
 Exp const Template::SIMP_MAX = Exp("cond",
 	Exp("arity","0",_POSCONST),
@@ -342,15 +341,15 @@ Exp const Template::SIMP_MAX = Exp("cond",
 );
 Exp const Template::MAX = Exp("cond",
 	Exp("arity","0",_POSCONST),
-	Exp("arity","1",Exp("+",Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),"arg","0"),_POSCONST)),
+	Exp("arity","1",Exp("+",Exp("ite",bool_constrain(Exp("and",USED,_INFL)),"arg","0"),_POSCONST)),
 	Exp("otherwise",
 		Exp("args","max",
 			Exp("cond",
 				Exp("index","0",// c_0 * arg_0 + a_0
-					Exp("+",Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),"arg","0"),_POSCONST)
+					Exp("+",Exp("ite",bool_constrain(Exp("and",USED,_INFL)),"arg","0"),_POSCONST)
 				),
 				Exp("otherwise",// c_i * (arg_i + a_i)
-					Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),Exp("+","arg",_POSCONST),"0")
+					Exp("ite",bool_constrain(Exp("and",USED,_INFL)),Exp("+","arg",_POSCONST),"0")
 				)
 			)
 		)
@@ -358,16 +357,16 @@ Exp const Template::MAX = Exp("cond",
 );
 Exp const Template::MAXSUM = Exp("cond",
 	Exp("arity","0",_POSCONST),
-	Exp("arity","1",Exp("+",Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),"arg","0"),_POSCONST)),
+	Exp("arity","1",Exp("+",Exp("ite",bool_constrain(Exp("and",USED,_INFL)),"arg","0"),_POSCONST)),
 	Exp("otherwise",
 		Exp("heuristic",
 			Exp("args","max",
 				Exp("cond",
 					Exp("index","0",// c_0 * arg_0 + a_0
-						Exp("+",Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),"arg","0"),_POSCONST)
+						Exp("+",Exp("ite",bool_constrain(Exp("and",USED,_INFL)),"arg","0"),_POSCONST)
 					),
 					Exp("otherwise",// c_i * (arg_i + a_i)
-						Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),Exp("+","arg",_POSCONST),"0")
+						Exp("ite",bool_constrain(Exp("and",USED,_INFL)),Exp("+","arg",_POSCONST),"0")
 					)
 				)
 			),
@@ -377,16 +376,16 @@ Exp const Template::MAXSUM = Exp("cond",
 );
 Exp const Template::IMAX = Exp("cond",
 	Exp("arity","0",_POSCONST),
-	Exp("arity","1",Exp("max",Exp("+",Exp("ite",_bool_constrain(_USED),"arg","0"),_CONST),"0")),
+	Exp("arity","1",Exp("max",Exp("+",Exp("ite",bool_constrain(USED),"arg","0"),_CONST),"0")),
 	Exp("otherwise",
 		Exp("max",
 			Exp("args","max",
 				Exp("cond",
 					Exp("index","0",// arg[0]? + a[0]
-						Exp("+",Exp("ite",_bool_constrain(_USED),"arg","0"),_CONST)
+						Exp("+",Exp("ite",bool_constrain(USED),"arg","0"),_CONST)
 					),
 					Exp("otherwise",// (arg[i] + a[i])?
-						Exp("ite",_bool_constrain(_USED),Exp("+","arg",_CONST),"0")
+						Exp("ite",bool_constrain(USED),Exp("+","arg",_CONST),"0")
 					)
 				)
 			),
@@ -402,14 +401,14 @@ Exp const Template::IMAXSUM = Exp("cond",
 				Exp("args","max",
 					Exp("cond",
 						Exp("index","0",// c_0 * arg_0 + a_0
-							Exp("+",Exp("ite",_bool_constrain(_USED),"arg","0"),_CONST)
+							Exp("+",Exp("ite",bool_constrain(USED),"arg","0"),_CONST)
 						),
 						Exp("otherwise",// c_i * (arg_i + a_i)
-							Exp("ite",_bool_constrain(_USED),Exp("+","arg",_CONST),"0")
+							Exp("ite",bool_constrain(USED),Exp("+","arg",_CONST),"0")
 						)
 					)
 				),
-				Exp("+",Exp("args","+",Exp("ite",_bool_constrain(_USED),"arg","0")),_CONST)
+				Exp("+",Exp("args","+",Exp("ite",bool_constrain(USED),"arg","0")),_CONST)
 			),
 			"0"
 		)
@@ -434,15 +433,15 @@ Exp const Template::MAT2N = Exp("tp",
 Exp const Template::MAT2B = Exp("tp",
 	Exp("+",Exp("args","+",
 		Exp("+",
-			Exp("ite",_bool_constrain(Exp("and",_MONO,_USED,_INFL)),Exp("prj0","arg"),"0"),
-			Exp("ite",_bool_constrain(Exp("and",_USED)),Exp("prj1","arg"),"0")
+			Exp("ite",bool_constrain(Exp("and",_MONO,USED,_INFL)),Exp("prj0","arg"),"0"),
+			Exp("ite",bool_constrain(Exp("and",USED)),Exp("prj1","arg"),"0")
 		)),
 		_POSCONST
 	),
 	Exp("+",Exp("args","+",
 		Exp("+",
-			Exp("ite",_bool_constrain(_USED),Exp("prj0","arg"),"0"),
-			Exp("ite",_bool_constrain(Exp("and",_USED,_INFL)),Exp("prj1","arg"),"0")
+			Exp("ite",bool_constrain(USED),Exp("prj0","arg"),"0"),
+			Exp("ite",bool_constrain(Exp("and",USED,_INFL)),Exp("prj1","arg"),"0")
 		)),
 		_POSCONST
 	)
@@ -455,8 +454,8 @@ Exp const Template::SUM_NEGSUM = Exp("tp",
 				Exp("+",
 					Exp("args","+",
 						Exp("+",
-							Exp("ite",_bool_constrain(_USED),Exp("prj0","arg"),"0"),
-							Exp("ite",_bool_constrain(_USED),Exp("prj1","arg"),"0")
+							Exp("ite",bool_constrain(USED),Exp("prj0","arg"),"0"),
+							Exp("ite",bool_constrain(USED),Exp("prj1","arg"),"0")
 						)
 					),
 					"var"
@@ -465,7 +464,7 @@ Exp const Template::SUM_NEGSUM = Exp("tp",
 		)
 	),
 	Exp("+",
-		Exp("args","+",Exp("ite",_bool_constrain(_USED),Exp("prj1","arg"),"0")),
+		Exp("args","+",Exp("ite",bool_constrain(USED),Exp("prj1","arg"),"0")),
 		Exp("var",":constrain",Exp("<=","_","0"))
 	)
 );
@@ -481,13 +480,13 @@ Exp const Template::IMAXSUM_NEGSUM = Exp("tp",
 							Exp("cond",
 								Exp("index","0",// arg[0]_0? + arg[0]_1? + a[i]_0
 									Exp("+",
-										Exp("ite",_bool_constrain(_USED),Exp("prj0","arg"),"0"),
-										Exp("ite",_bool_constrain(_USED),Exp("prj1","arg"),"0"),
+										Exp("ite",bool_constrain(USED),Exp("prj0","arg"),"0"),
+										Exp("ite",bool_constrain(USED),Exp("prj1","arg"),"0"),
 										_CONST
 									)
 								),
 								Exp("otherwise",// (arg[i]_0 + a[i]_0)
-									Exp("ite",_bool_constrain(_USED),
+									Exp("ite",bool_constrain(USED),
 										Exp("+",
 											Exp("prj0","arg"),
 											_CONST
@@ -499,8 +498,8 @@ Exp const Template::IMAXSUM_NEGSUM = Exp("tp",
 						Exp("+",
 							Exp("args","+",
 								Exp("+",
-									Exp("ite",_bool_constrain(_USED),Exp("prj0","arg"),"0"),
-									Exp("ite",_bool_constrain(_USED),Exp("prj1","arg"),"0")
+									Exp("ite",bool_constrain(USED),Exp("prj0","arg"),"0"),
+									Exp("ite",bool_constrain(USED),Exp("prj1","arg"),"0")
 								)
 							),
 							_CONST
@@ -512,11 +511,29 @@ Exp const Template::IMAXSUM_NEGSUM = Exp("tp",
 		),
 		// coordinate 1
 		Exp("+",
-			Exp("args","+",Exp("ite",_bool_constrain(_USED),Exp("prj1","arg"),"0")),
+			Exp("args","+",Exp("ite",bool_constrain(USED),Exp("prj1","arg"),"0")),
 			Exp("var",":constrain",Exp("<=","_","0"))
 		)
 	)
 );
+Exp const Template::FULL_NEG =
+	Exp{"tp",
+		Exp{"+",
+			Exp{"args","+",
+				Exp{"+",
+					Exp{"ite",bool_constrain(USED),Exp{"prj0","arg"},"0"},
+					Exp{"ite",bool_constrain(USED),Exp{"prj1","arg"},"0"}
+				},
+			},
+			"var"
+		},
+		Exp{"+",
+			Exp{"args","+",
+				Exp{"ite",bool_constrain(USED),Exp{"prj1","arg"},"0"},
+			},
+			Exp{"var",":constrain",Exp{"<=","_","0"}}
+		},
+	};
 
 void Template::test() {
 	cout << "=== Template::test ===" << endl;

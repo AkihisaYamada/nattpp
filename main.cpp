@@ -181,7 +181,9 @@ int main( int argc, char* argv[] ) try {
 						};
 					} else if( proc.fun() == "edge-remover" ) {
 						auto& spec = edge_rem_specs.emplace_back(proc.get_arg(),true);
-						proc.get_end();
+						proc >>= Exp::OnKey("usable")>>[&]( auto const& val ){
+							spec.second = val.as_bool();
+						};
 					} else {
 						throw Error("#strategy","\"malformed strategy\"",proc.exp());
 					}
@@ -234,6 +236,7 @@ int main( int argc, char* argv[] ) try {
 	auto prf = OStream( oprf ? *oprf : cerr );
 	if( default_strategy ) {
 		rulerem_specs.emplace_back("mono-sum");
+		use_dp = true;
 		bool auto_edge = allow_edge & (EdgeMode::AUTO | EdgeMode::FULL);
 		bool full_edge = allow_edge == EdgeMode::FULL;
 		dprem_specs.emplace_back( "sum", true, auto_edge );
@@ -244,35 +247,28 @@ int main( int argc, char* argv[] ) try {
 		dprem_specs.emplace_back( "sum_negsum", true, full_edge );
 		dprem_specs.emplace_back( "mat2b", true, auto_edge );
 		dprem_specs.emplace_back( "imaxsum_negsum", true, full_edge );
-		if( allow_edge & EdgeMode::FALLBACK ) {
-			dprem_specs.emplace_back("sum",true,true);
-			dprem_specs.emplace_back(LPO_SPEC,true,true);
-			dprem_specs.emplace_back("mat2b",true,true);
-		}
+		if( allow_edge & EdgeMode::FALLBACK )
 		edge_rem_specs.emplace_back(
 			Exp{"template",
-				Exp{"full","full"},
+				Exp{"pos","neg"},
 				Exp{"tp",
 					Exp{"+",
 						Exp{"args","+",
 							Exp{"+",
-								Exp{"ite",Exp{"var",":sort","Bool"},Exp{"prj0","arg"},"0"},
-								Exp{"ite",Exp{"var",":sort","Bool"},Exp{"prj1","arg"},"0"}
+								Exp{"ite",Template::bool_constrain(Template::USED),Exp{"prj0","arg"},"0"},
+								Exp{"ite",Template::bool_constrain(Template::USED),Exp{"prj1","arg"},"0"}
 							},
 						},
 						"var"
 					},
 					Exp{"+",
 						Exp{"args","+",
-							Exp{"ite",Exp{"var",":sort","Bool"},Exp{"prj1","arg"},"0"},
+							Exp{"ite",Template::bool_constrain(Template::USED),Exp{"prj1","arg"},"0"},
 						},
-						"var"
+						Exp{"var",":constrain",Exp{"<=","_","0"}}
 					},
-				},
-				":smt",Exp{"cvc5","NRA"}
-			},true
+				},":smt",Exp{"cvc5","LIA"}},true
 		);
-		use_dp = true;
 	}
 	if( mode == UNSET && p.mode == Problem::NONE ) {
 		p.mode = Problem::SN;
@@ -398,8 +394,8 @@ int main( int argc, char* argv[] ) try {
 			unique_ptr<UsableRuleOrder> order;
 		};
 		vector<EdgeRemover> edge_removers;
-		for( auto [x,cond] : edge_rem_specs ) {
-			edge_removers.emplace_back(0,cond,UsableRuleOrder::make(TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log)),p,true));
+		for( auto [x,usable] : edge_rem_specs ) {
+			edge_removers.emplace_back(0,true,UsableRuleOrder::make(TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log)),p,usable));
 		}
 
 		for(;;) {
@@ -437,7 +433,7 @@ int main( int argc, char* argv[] ) try {
 					*prf << "(remove-edge\n  " << remover.order->print(p.sig) << flush;
 					for( auto const& [i,js] : nodes ) {
 						auto& tgts = comp.graph[i];
-						*prf << "\n  (" << i;
+						*prf << "\n  (edge " << i;
 						for( auto j : js ) {
 							tgts.erase(j);
 							*prf << ' ' << j;

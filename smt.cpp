@@ -27,6 +27,7 @@ std::string const
 	Smt::NOT = "not",
 	Smt::ITE = "ite",
 	Smt::ADD = "+",
+	Smt::SUB = "-",
 	Smt::MUL = "*",
 	Smt::EQ = "=",
 	Smt::GE = ">=",

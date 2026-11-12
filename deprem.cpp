@@ -173,12 +173,12 @@ bool bound_by_edge(
 		Smt::PostExp node_cond = false;
 		for( auto const& j : js ) {
 			auto const& [s,t,v] = *ASSERTED(problem.rules.find(j));
-			auto sep = order.bound_edge(i,j,problem);
+			auto sep = order.separate_edge(i,j,problem);
 			if( sep == false ) continue;
 			node_cond = node_cond || sep;
 			edges.emplace_back(j,sep);
 		}
-		rm_some_edge = rm_some_edge || (str && node_cond);
+		rm_some_edge = rm_some_edge || node_cond;
 	}
 	bool ret = solver.push().ass( contain_usables && contain_dps && rm_some_edge ).check_sat().result().is_sat();
 	if( ret ) {

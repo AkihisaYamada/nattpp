@@ -177,7 +177,7 @@ public:
 	};
 	static Logic const QF_LIA, QF_LRA, LIA, LRA, QF_NIA, QF_NRA, NIA, NRA;
 	using Fun = Sum<std::string,Val>;
-	static std::string const TRUE_F, FALSE_F, AND, OR, NOT, IMP, ITE, ADD, MUL, EQ, GE, LE, GT, LT, CONS, CAR, CDR, LIST, NTH, MAX;
+	static std::string const TRUE_F, FALSE_F, AND, OR, NOT, IMP, ITE, ADD, SUB, MUL, EQ, GE, LE, GT, LT, CONS, CAR, CDR, LIST, NTH, MAX;
 	static Set<std::string> const FUNS;
 	class Local {
 		friend Smt;

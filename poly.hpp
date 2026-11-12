@@ -93,6 +93,7 @@ struct Poly {
 private:
 	OrdMap<VarProd,Smt::PreExp> _map;
 	VarSet _vars;
+	Opt<Smt::PreExp> _as_smt;
 public:
 	Poly() {}
 	template<typename T> requires std::is_constructible_v<Smt::PreExp,T>
@@ -132,7 +133,13 @@ public:
 	Smt::Compare co_order( Poly const& y, Smt::Solver& solver ) const {
 		return order(y,solver);
 	}
-	Smt::PreExp as_smt() const;
+	Smt::PreExp as_smt() &;
+	Smt::PreExp ge_exp( Poly& y ) & {
+		return as_smt().ge(y.as_smt());
+	}
+	Smt::PreExp gt_exp( Poly& y ) & {
+		return as_smt().gt(y.as_smt());
+	}
 	VarSet vars() && { return std::move(_vars); }
 	VarSet const& vars() const& { return _vars; }
 	friend Poly ite( Poly const& c, Poly const& p1, Poly const& p2 );
@@ -171,12 +178,9 @@ public:
 			p.memoize(solver);
 		}
 	}
-	Smt::PreExp as_smt() const {
-		if( _set.size() != 1 ) throw Error("#max-poly","\"as_smt unsupported\"");
-		return _set[0].as_smt();
-	}
-	Poly::VarSet const& vars() const& {
-		if( _set.size() != 1 ) throw Error("#max-poly","\"vars unsupported\"");
+	Smt::PreExp ge_exp( MPoly& y ) &;
+	Smt::PreExp gt_exp( MPoly& y ) &;
+	Poly::VarSet const& vars() const& {// TODO
 		return _set[0].vars();
 	}
 };

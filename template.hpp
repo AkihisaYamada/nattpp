@@ -75,7 +75,10 @@ struct Template {
 	static Algebra<Sum<Sym,Arg>,ArgTerm<Sym>> instantiator( Smt::Solver& solver );
 
 	static ::Exp const SUM, MONO_SUM, MONO_POLY2, SIMP_MAX, MAX, MAXSUM, IMAX, IMAXSUM,
-		MAT2B, MAT2N, SUM_NEGSUM, IMAXSUM_NEGSUM;
+		MAT2B, MAT2N, SUM_NEGSUM, IMAXSUM_NEGSUM, FULL_NEG;
+
+	static inline Exp const USED = Exp("=>","_","#used");// non-zero coefficient implies used
+	static Exp bool_constrain( Exp const& c );
 
 	static void test();
 };

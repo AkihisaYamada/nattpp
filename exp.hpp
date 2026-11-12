@@ -163,6 +163,8 @@ Opt<unsigned long> is_nat( std::string_view const& str );
 inline unsigned long as_nat( std::string_view const& str ) {
 	return is_nat(str).value_or_throw(Error("#expected-nat",str));
 }
+Opt<long> is_int( std::string_view const& str );
+
 inline unsigned long as_nat( std::string_view const& str, std::function<bool(unsigned int)> const& test ) {
 	auto ret = as_nat(str);
 	if( !test(ret) ) throw Error("#nat-out-of-range",str);

@@ -39,13 +39,17 @@ Smt::PreExp Poly::VarProd::as_smt() const {
 	}
 	return ret;
 }
-Smt::PreExp Poly::as_smt() const {
-	Smt::PreExp ret = 0;
-	for( auto const& [vars,coeff] : _map ) {
-		ret += vars.as_smt() * coeff;
+Smt::PreExp Poly::as_smt() & {
+	if( !_as_smt ) {
+		Smt::PreExp ret = 0;
+		for( auto const& [vars,coeff] : _map ) {
+			ret += vars.as_smt() * coeff;
+		}
+		_as_smt = {std::move(ret)};
 	}
-	return ret;
+	return *_as_smt;
 }
+
 ostream& operator<<( ostream& os, Poly const& p ) {
 	auto const& map = p.map();
 	auto const& n = map.size();
@@ -283,6 +287,28 @@ Smt::Compare MPoly::order( MPoly const& y, Smt::Solver& solver ) const {
 		gt_all = gt_all && some_gt;
 	}
 	return {ge_all,gt_all};
+}
+Smt::PreExp MPoly::ge_exp( MPoly& y ) & {
+	Smt::PreExp ret = true;
+	for( auto& yp : y._set ) {
+		Smt::PreExp d = false;
+		for( auto& xp : _set ) {
+			d = d || xp.ge_exp(yp);
+		}
+		ret = ret && d;
+	}
+	return ret;
+}
+Smt::PreExp MPoly::gt_exp( MPoly& y ) & {
+	Smt::PreExp ret = true;
+	for( auto& yp : y._set ) {
+		Smt::PreExp d = false;
+		for( auto& xp : _set ) {
+			d = d || xp.gt_exp(yp);
+		}
+		ret = ret && d;
+	}
+	return ret;
 }
 
 Poly::Range Poly::range_of( std::string const& str ) {

@@ -27,6 +27,13 @@ Opt<unsigned long> is_nat( string_view const& str ) {
 		if( pos == str.length() ) return {val};
 	}
 }
+Opt<long> is_int( string_view const& str ) {
+	if( str.empty() ) return {};
+	if( str[0] == '-' ) {
+		return is_nat(str.substr(1)) >>= []( auto n )->Opt<long>{ return {-(long)n}; };
+	}
+	return is_nat(str) >>= []( auto n )->Opt<long>{ return {(long)n}; };
+}
 
 static void skip_line( istream& is ) {
 	for(;;) {

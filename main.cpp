@@ -247,28 +247,7 @@ int main( int argc, char* argv[] ) try {
 		dprem_specs.emplace_back( "sum_negsum", true, full_edge );
 		dprem_specs.emplace_back( "mat2b", true, auto_edge );
 		dprem_specs.emplace_back( "imaxsum_negsum", true, full_edge );
-		if( allow_edge & EdgeMode::FALLBACK )
-		edge_rem_specs.emplace_back(
-			Exp{"template",
-				Exp{"pos","neg"},
-				Exp{"tp",
-					Exp{"+",
-						Exp{"args","+",
-							Exp{"+",
-								Exp{"ite",Template::bool_constrain(Template::USED),Exp{"prj0","arg"},"0"},
-								Exp{"ite",Template::bool_constrain(Template::USED),Exp{"prj1","arg"},"0"}
-							},
-						},
-						"var"
-					},
-					Exp{"+",
-						Exp{"args","+",
-							Exp{"ite",Template::bool_constrain(Template::USED),Exp{"prj1","arg"},"0"},
-						},
-						Exp{"var",":constrain",Exp{"<=","_","0"}}
-					},
-				},":smt",Exp{"cvc5","LIA"}},true
-		);
+		edge_rem_specs.emplace_back( "sum_negsum", true );
 	}
 	if( mode == UNSET && p.mode == Problem::NONE ) {
 		p.mode = Problem::SN;

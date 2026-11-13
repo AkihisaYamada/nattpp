@@ -344,25 +344,24 @@ public:
 		return si.separate(ti);
 	}
 	Smt::PostExp separate_if( Exp const& l, Exp const& r, Exp const& t ) override {
-		Smt::PreExp cond = true;
 		auto const& [f,rs] = *r;
 		auto const& [g,ts] = *t;
-		bool triv = true;
 		if( f != g || rs.size() != ts.size() ) {
 assert(false);
 			return true;// edge is trivially infeasible
 		}
+		Smt::PostExp ret = false;
+		A& la = intp(l);
 		for( uint i = 0; i < rs.size(); i++ ) {
-			A& ri = intp(rs[i]), ti = intp(ts[i]);
+			A& ti = intp(ts[i]);
 			if( ti.vars().empty() ) {// TODO: too strict?
-				cond = cond && arg_used(f,i).imp(ri.ge_exp(ti));
-				triv = false;
+				A& ra = intp(r), ri = intp(rs[i]);
+				ret = ret || arg_used(f,i) && la.gt_cond(ra,ri,ti);
 			}
 		}
-		if( triv ) return false;
-		A& la = intp(l), ra = intp(r);
-		auto sort = solver().logic().base_sort();
-		return solver().expand(la.vars().quantify(sort, cond.imp(la.gt_exp(ra))));
+		return ret;
+//		auto sort = solver().logic().base_sort();
+//		return solver().expand(la.vars().quantify(sort, cond.imp(la.gt_exp(ra))));
 	}
 	std::ostream& print_class( std::ostream& os ) override {
 		return os << "derived-order";

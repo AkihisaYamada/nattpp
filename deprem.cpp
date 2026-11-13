@@ -160,7 +160,6 @@ bool bound_by_edge(
 	Smt::PostExp contain_dps = true;
 	struct OrientInfo {
 		ruleId i;
-		Smt::PostExp str;
 		std::vector<std::pair<ruleId,Smt::PostExp>> edges;
 	};
 	std::vector<OrientInfo> encs;
@@ -169,7 +168,7 @@ bool bound_by_edge(
 		auto const& [l,r,w] = *ASSERTED(problem.rules.find(i));
 		auto const& [ge,str] = order.rule_order(i,l,r);
 		contain_dps = contain_dps && ge && order.term_used(r);// rhs of DP should be marked used
-		auto& edges = encs.emplace_back(i,str).edges;
+		auto& edges = encs.emplace_back(i).edges;
 		Smt::PostExp node_cond = false;
 		for( auto const& j : js ) {
 			auto const& [s,t,v] = *ASSERTED(problem.rules.find(j));
@@ -183,17 +182,15 @@ bool bound_by_edge(
 	bool ret = solver.push().ass( contain_usables && contain_dps && rm_some_edge ).check_sat().result().is_sat();
 	if( ret ) {
 		std::vector<std::pair<ruleId,std::vector<ruleId>>> dp_results;
-		for( auto& [i,str,edge_encs] : encs ) {
-			if( solver.get_value(str) == true ) {
-				std::vector<ruleId> edge_results;
-				for( auto const& [j,sep] : edge_encs ) {
-					if( solver.get_value(sep) == true ) {
-						edge_results.emplace_back(j);
-					}
+		for( auto& [i,edge_encs] : encs ) {
+			std::vector<ruleId> edge_results;
+			for( auto const& [j,sep] : edge_encs ) {
+				if( solver.get_value(sep) == true ) {
+					edge_results.emplace_back(j);
 				}
-				if( !edge_results.empty() ) {// some edges are separated
-					dp_results.emplace_back(i,std::move(edge_results));
-				}
+			}
+			if( !edge_results.empty() ) {// some edges are separated
+				dp_results.emplace_back(i,std::move(edge_results));
 			}
 		}
 		std::vector<ruleId> uses;

@@ -120,6 +120,11 @@ public:
 			coeff = solver.let(coeff);
 		}
 	}
+	VarSet vars() && { return std::move(_vars); }
+	VarSet const& vars() const& { return _vars; }
+	bool is_const() const {
+		return _vars.empty();
+	}
 	friend Poly operator+( Poly const& p1, Poly const& p2 );
 	friend Poly& operator+=( Poly& p1, Poly const& p2 );
 	Poly monom_mult( Smt::PreExp const& c, VarProd const& vs ) const;
@@ -128,6 +133,11 @@ public:
 		return p1 = p1 * p2;
 	}
 	Smt::PostExp ge( Poly const& p2 ) const;
+	Smt::PostExp gt( Poly const& p2 ) const;
+	/** Establishes x > y, assuming x >= y and s >= t.
+	 * Meaningful only if y and t are constant, otherwise false.
+	 */
+	Smt::PostExp gt_cond( Poly const& y, Poly const& s, Poly const& t ) const;
 	Smt::PostExp separate( Poly const& p2 ) const;
 	Smt::Compare order( Poly const& p2, Smt::Solver& solver ) const;
 	Smt::Compare co_order( Poly const& y, Smt::Solver& solver ) const {
@@ -140,8 +150,6 @@ public:
 	Smt::PreExp gt_exp( Poly& y ) & {
 		return as_smt().gt(y.as_smt());
 	}
-	VarSet vars() && { return std::move(_vars); }
-	VarSet const& vars() const& { return _vars; }
 	friend Poly ite( Poly const& c, Poly const& p1, Poly const& p2 );
 	static Algebra<Template::Sym,Poly> algebra_of_range( Range ran );
 	static Algebra<Template::Sym,Poly> const ALGEBRA;
@@ -167,8 +175,9 @@ public:
 	friend MPoly operator+( MPoly const& x, MPoly const& y );
 	friend MPoly operator*( MPoly const& x, MPoly const& y );
 	friend MPoly& max_eq( MPoly& x, MPoly const& y );
-	Smt::PostExp ge( MPoly const& p2 ) const;
-	Smt::PostExp separate( MPoly const& p2 ) const;
+	Smt::PostExp ge( MPoly const& x ) const;
+	Smt::PostExp gt_cond( MPoly const& y, MPoly const& s, MPoly const& t ) const;
+	Smt::PostExp separate( MPoly const& y ) const;
 	Smt::Compare order( MPoly const& y, Smt::Solver& solver ) const;
 	Smt::Compare co_order( MPoly const& y, Smt::Solver& solver ) const {
 		return order(y,solver);

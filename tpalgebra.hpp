@@ -46,6 +46,10 @@ struct TupleVal {
 		if( n != r.vec.size() ) throw Error("#tuple_algebra","\"separating wrong size\"");
 		return Smt::PostExp::disj( 0, n, [&]( size_t i ){ return vec[i].separate(r.vec[i]); });
 	}
+	Smt::PostExp gt_cond( TupleVal const& r, TupleVal const& s, TupleVal const& t ) const {
+		// TODO! very restricted
+		return vec[0].gt_cond(r.vec[0],s.vec[0],t.vec[0]);
+	}
 	Smt::PreExp gt_exp( TupleVal& y ) & {
 		return vec[0].gt_exp(y.vec[0]);
 	}

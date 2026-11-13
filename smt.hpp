@@ -282,6 +282,7 @@ public:
 		PostExp gt( PostExp const& y ) const;
 		PostExp lt( PostExp const& y ) const;
 		PostExp operator!() const;
+		PostExp operator-() const;
 		friend PostExp operator+( PostExp const& x, PostExp const& y );
 		PostExp& mul_eq( PostExp const&, bool linear ) &;
 		PostExp cons( PostExp const& y ) const {
@@ -448,6 +449,9 @@ public:
 		}
 		PreExp imp( PreExp const& y ) const& {
 			return PreExp(IMP,{*this,y});
+		}
+		PreExp operator-() const & {
+			return PreExp(SUB,{*this});
 		}
 		friend PreExp operator+( PreExp const& x, PreExp const& y );
 		friend PreExp operator*( PreExp const& x, PreExp const& y ) {

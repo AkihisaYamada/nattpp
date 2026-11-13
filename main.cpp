@@ -88,12 +88,11 @@ int main( int argc, char* argv[] ) try {
 	Opt<uint8_t> edge_len;
 	bool default_strategy = true;
 	enum class FreezingMode { NONE, FULL, UNCURRY } allow_freezing = FreezingMode::UNCURRY;
-	enum EdgeMode { NONE, AUTO = 1, FULL = AUTO << 1, FALLBACK = FULL << 1 } allow_edge = EdgeMode::NONE;
+	enum EdgeMode { NONE, AUTO = 1, FULL = AUTO << 1 } allow_edge = EdgeMode::AUTO;
 	bool use_dp = true;
 	vector<Exp> rulerem_specs;
 	struct DpRemInfo { Exp exp; bool usable; bool edge; };
 	vector<DpRemInfo> dprem_specs;
-	vector<pair<Exp,bool>> edge_rem_specs;
 	for( int i = 1; i < argc; i++ ) {
 		if( argv[i][0] == '-' ) {
 			string_view opt = argv[i];
@@ -141,7 +140,7 @@ int main( int argc, char* argv[] ) try {
 				{ "-edge", { " (none|auto|full|fallback):\tedge remove mode", [&]{
 					require_arg();
 					static Map<std::string,EdgeMode> map = {
-						{"full",EdgeMode::FULL},{"auto",EdgeMode::AUTO},{"none",EdgeMode::NONE},{"fallback",EdgeMode::FALLBACK}
+						{"full",EdgeMode::FULL},{"auto",EdgeMode::AUTO},{"none",EdgeMode::NONE}
 					};
 					allow_edge = map.find(argv[i]).value_or_throw(Error("#command","\"unknown edge remove mode\"",argv[i]));
 				}}},
@@ -178,11 +177,8 @@ int main( int argc, char* argv[] ) try {
 						auto& spec = dprem_specs.emplace_back(proc.get_arg(),true,false);
 						proc >>= Exp::OnKey("usable")>>[&]( auto const& val ){
 							spec.usable = val.as_bool();
-						};
-					} else if( proc.fun() == "edge-remover" ) {
-						auto& spec = edge_rem_specs.emplace_back(proc.get_arg(),true);
-						proc >>= Exp::OnKey("usable")>>[&]( auto const& val ){
-							spec.second = val.as_bool();
+						} || Exp::OnKey("edge")>>[&]( auto const& val ){
+							spec.edge = val.as_bool();
 						};
 					} else {
 						throw Error("#strategy","\"malformed strategy\"",proc.exp());
@@ -239,15 +235,14 @@ int main( int argc, char* argv[] ) try {
 		use_dp = true;
 		bool auto_edge = allow_edge & (EdgeMode::AUTO | EdgeMode::FULL);
 		bool full_edge = allow_edge == EdgeMode::FULL;
-		dprem_specs.emplace_back( "sum", true, auto_edge );
+		dprem_specs.emplace_back( "sum", true, full_edge );
 		dprem_specs.emplace_back( "max", true, full_edge );
 		dprem_specs.emplace_back( LPO_SPEC, true, full_edge );
 		dprem_specs.emplace_back( "imaxsum", true, full_edge );
 		dprem_specs.emplace_back( Exp{"path-order",":weight","maxsum",":status","map"}, true, full_edge );
-		dprem_specs.emplace_back( "sum_negsum", true, full_edge );
-		dprem_specs.emplace_back( "mat2b", true, auto_edge );
+		dprem_specs.emplace_back( "sum_negsum", true, auto_edge );
+		dprem_specs.emplace_back( "mat2b", true, full_edge );
 		dprem_specs.emplace_back( "imaxsum_negsum", true, full_edge );
-		edge_rem_specs.emplace_back( "sum_negsum", true );
 	}
 	if( mode == UNSET && p.mode == Problem::NONE ) {
 		p.mode = Problem::SN;
@@ -367,16 +362,6 @@ int main( int argc, char* argv[] ) try {
 			dp_removers.emplace_back(0,edge,UsableRuleOrder::make(TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log)),p,usable));
 		}
 
-		struct EdgeRemover {
-			int stage;
-			bool cond;
-			unique_ptr<UsableRuleOrder> order;
-		};
-		vector<EdgeRemover> edge_removers;
-		for( auto [x,usable] : edge_rem_specs ) {
-			edge_removers.emplace_back(0,true,UsableRuleOrder::make(TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log)),p,usable));
-		}
-
 		for(;;) {
 			if( p.components.front().graph.empty() ) {
 				p.components.pop_front();
@@ -394,51 +379,53 @@ int main( int argc, char* argv[] ) try {
 					remover.order->extend_sig(p.sig,heuristic);
 					remover.stage = 1;
 				}
-				return order_some_dp( *remover.order, p, [&]( auto&& rem, auto&& usables ){
-					if( print_proofs ) {
-						*prf << "(remove-dp\n  " << remover.order->print(p.sig) << "\n  " <<
-							print_list(rem) << "\n  :usables (" << print_list(usables) << "))" << endl;
+				auto erase_dps = print_proofs ? function<void(vector<ruleId>&&,vector<ruleId>&&)>(
+					[&]( auto&& remdps, auto&& usables ){
+						*prf << "(remove-dp\n  " << remover.order->print(p.sig) << "\n ";
+						for( auto i : remdps ) {
+							*prf << ' ' << i;
+							comp.graph.erase(i);
+							p.erase_rule(i);
+						}
+						*prf << "\n  :usables (" << print_list(usables) << "))" << endl;
 					}
-					for( auto i : rem ) {
+				) : [&]( auto&& remdps, auto&& usables ){
+					for( auto i : remdps ) {
 						comp.graph.erase(i);
 						p.erase_rule(i);
 					}
-				});
-			};
-
-			auto edge_removes = [&]( EdgeRemover& remover ){
-				auto erase_edges = print_proofs ? function<void(std::vector<std::pair<ruleId,std::vector<ruleId>>>,std::vector<ruleId>)>(
-					[&]( auto&& nodes, auto&& usables ){
-					*prf << "(remove-edge\n  " << remover.order->print(p.sig) << flush;
-					for( auto const& [i,js] : nodes ) {
-						auto& tgts = comp.graph[i];
-						*prf << "\n  (edge " << i;
-						for( auto j : js ) {
-							tgts.erase(j);
-							*prf << ' ' << j;
-						}
-						*prf << ')' << flush;
-					}
-					*prf << "\n  :usables (" << print_list(usables) << "))" << endl;
-				}) : [&]( auto&& nodes, auto&& usables ){
-					for( auto const& [i,js] : nodes ) {
-						auto& tgts = comp.graph[i];
-						for( auto j : js ) {
-							tgts.erase(j);
-						}
-					}
 				};
-				if( print_steps ) cerr << "; trying edge removal..." << endl;
-				if( remover.stage == 0 ) {
-					remover.order->extend_sig(p.sig,heuristic);
-					remover.stage = 1;
+				if( order_some_dp( *remover.order, p, erase_dps ) ) {
+					return true;
 				}
-				return remover.cond ? bound_by_edge(*remover.order,p,erase_edges) :
-					unorder_some_edge(*remover.order,p,erase_edges);
+				if( remover.edge ) {
+					if( print_steps ) cerr << "; trying edge removal..." << endl;
+					auto erase_edges = print_proofs ? function<void(std::vector<std::pair<ruleId,std::vector<ruleId>>>&&,std::vector<ruleId>&&)>(
+						[&]( auto&& nodes, auto&& usables ){
+						*prf << "(remove-edge\n  " << remover.order->print(p.sig) << flush;
+						for( auto const& [i,js] : nodes ) {
+							auto& tgts = comp.graph[i];
+							*prf << "\n  (edge " << i;
+							for( auto j : js ) {
+								tgts.erase(j);
+								*prf << ' ' << j;
+							}
+							*prf << ')' << flush;
+						}
+						*prf << "\n  :usables (" << print_list(usables) << "))" << endl;
+					}) : [&]( auto&& nodes, auto&& usables ){
+						for( auto const& [i,js] : nodes ) {
+							auto& tgts = comp.graph[i];
+							for( auto j : js ) {
+								tgts.erase(j);
+							}
+						}
+					};
+					return bound_by_edge(*remover.order,p,erase_edges);
+				}
+				return false;
 			};
-			if( std::ranges::any_of(dp_removers,dp_removes) ||
-				std::ranges::any_of(edge_removers,edge_removes)
-			) {
+			if( std::ranges::any_of(dp_removers,dp_removes) ) {
 				// SCC decomposition
 				p.decomp_sccs();
 				if( p.components.empty() ) {

@@ -35,8 +35,10 @@ struct Problem : public Trs {
 		SAT,// Satisfiability modulo rewriting
 	} mode;
 	std::set<std::pair<ruleId,std::string>> extra_var;
+	std::set<ruleId> triv_rules;
 private:
 	Problem() = delete;
+	void _triv_test( Trs::Rule const& rule );
 public:
 	Problem( std::istream& is );
 	void insert_rule( Trs::Rule const& rule, ruleId rule_ind ) &;

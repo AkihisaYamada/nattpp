@@ -105,6 +105,9 @@ void Problem::read_rule_decl( ::Reader& eis, Trs::Reader& tis ) & {
 		} else {
 			insert_rule(std::move(rule));
 		}
+		if( l.subterm(r) ) {// trivially nonterminating rule
+			triv_rules.emplace(rule_ind);
+		}
 }
 Problem::Problem( istream& is ) : next_rule(ruleId(0)) {
 	auto eis = ::Reader(is);

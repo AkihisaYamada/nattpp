@@ -123,6 +123,22 @@ public:
 	bool operator==( Term const& other ) const {
 		return _ref == other._ref;
 	}
+	bool subterm( Term const& other ) const {
+		auto const& [f,ss] = **this;
+		auto const& [g,ts] = *other;
+		size_t i = 0;
+		size_t n = ts.size();
+		if( f == g && ss.size() == n ) {
+			for( ;; i++ ) {
+				if( i == n ) return true;
+				if( ss[i] != ts[i] ) break;
+			}
+		}
+		for( ;; i++ ) {
+			if( i == n ) return false;
+			if( subterm(ts[i]) ) return true;
+		}
+	}
 	Opt<F const&> is_unapplied() const& {
 		if( args().empty() ) return {fun()};
 		return {};

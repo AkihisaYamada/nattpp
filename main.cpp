@@ -285,6 +285,10 @@ int main( int argc, char* argv[] ) try {
 				if( print_proofs ) *prf << "(extra-var " << var << " :rule " << no << ')' << endl;
 				throw Answer::NO;
 			}
+			for( ruleId i : p.triv_rules ) {
+				if( print_proofs ) *prf << "(looping-rule " << i << ')' << endl;
+				throw Answer::NO;
+			}
 			if( allow_freezing != FreezingMode::NONE ) {
 				if( print_steps ) cerr << "; trying freezing..." << endl;
 				if( p.freeze( allow_freezing == FreezingMode::UNCURRY ) ) {

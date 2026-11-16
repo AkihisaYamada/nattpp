@@ -251,8 +251,8 @@ int main( int argc, char* argv[] ) try {
 		dprem_specs.emplace_back( "path-order", true, full_edge );
 		dprem_specs.emplace_back( "imaxsum", true, full_edge );
 		dprem_specs.emplace_back( Exp{"path-order",":weight","maxsum"}, true, full_edge );
-		dprem_specs.emplace_back( "mat2b", true, full_edge );
 		dprem_specs.emplace_back( "sum_negsum", true, auto_edge );
+		dprem_specs.emplace_back( "mat2b", true, full_edge );
 		dprem_specs.emplace_back( "imaxsum_negsum", true, full_edge );
 	}
 	if( mode == UNSET && p.mode == Problem::NONE ) {

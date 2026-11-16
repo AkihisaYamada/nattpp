@@ -8,6 +8,7 @@
 using namespace std;
 
 int main( int argc, char const** argv ) try {
+	Exp::test();
 	Proc::test();
 	Smt::test();
 	Problem::test();

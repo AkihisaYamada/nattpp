@@ -30,9 +30,9 @@ Opt<unsigned long> is_nat( string_view const& str ) {
 Opt<long> is_int( string_view const& str ) {
 	if( str.empty() ) return {};
 	if( str[0] == '-' ) {
-		return is_nat(str.substr(1)) >>= []( auto n )->Opt<long>{ return {-(long)n}; };
+		return is_nat(str.substr(1)) >>= []( auto n ){ return Opt{-(long)n}; };
 	}
-	return is_nat(str) >>= []( auto n )->Opt<long>{ return {(long)n}; };
+	return is_nat(str) >>= []( auto n ){ return Opt{(long)n}; };
 }
 
 static void skip_line( istream& is ) {
@@ -159,24 +159,36 @@ Opt<Exp> Reader::reads_exp() {
 	return {};
 }
 
-void Exp::process_keys( uint& i, KeyValProc const& f ) const& {
-	size_t n = args().size();
-	while( i < n ) {
-		auto const& key = is_key(arg(i)).value_or_throw(Error("#unexpected",arg(i)));
-		i++;
-		if( i == n ) throw Error("#missing-value",key);
-		auto const& val = arg(i);
-		if( !f(key,val) ) throw Error("#unprocessed-key",key,val);
-		i++;
+void Exp::Proc::operator,( KeyValProc const& proc ) & {
+	size_t n = _exp.args().size();
+	while( _pos < n ) {
+		auto const& key = is_key(_exp.arg(_pos)) | [&]{ throw Error("#unexpected",_exp.arg(_pos)); };
+		_pos++;
+		auto const& val = gets_arg() | [&]{ throw Error("#missing-value",key); };
+		if( !proc(key,val) ) throw Error("#unprocessed-key",key,val);
 	}
 }
 
 Exp Exp::of( string const& str ) {
-	std::istringstream is(str);
-	Reader reader(is);
+	auto reader = Reader(str);
 	auto ret = reader.read_exp();
 	if( !reader.eof() ) throw reader.error("#unexpected");
 	return ret;
+}
+
+Opt<bool> Reader::reads_bool() {
+	_fetch();
+	if( auto sym = _fetched.ref<Sym>() ) {
+		if( sym->str == "true" ) {
+			_fetched = None();
+			return {true};
+		}
+		if( sym->str == "false" ) {
+			_fetched = None();
+			return {false};
+		}
+	}
+	return {};
 }
 
 void Exp::test() {
@@ -184,5 +196,14 @@ void Exp::test() {
 	cout << Exp("foo","bar") << endl;
 	auto t = Exp("foo",Exp("bar","buz"));
 	cout << t << endl;
-	assert( Exp::of("( foo; comment\n(bar  buz)") == t );
+	assert( Exp::of("( foo; comment\n(bar  buz))") == t );
+	Exp::Proc p = Exp("a", "b", ":c", Exp("d",":e","f"), ":h", "i");
+	p, []( Exp const& b ){ assert( b == "b" ); },
+		OnKey("c")/[]( auto const& v ){
+			v.proc(), OnKey("e")/[]( auto const& f ){ assert( f == "f" ); };
+		} ||
+		OnKey("h")/[]( auto const& i ){
+			assert( i == "i" );
+		};
+
 }

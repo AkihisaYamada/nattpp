@@ -73,7 +73,7 @@ Opt<Trs::Term> Trs::Reader::reads( function<void(string const&)> const& var ) {
 		}
 		vector<::Term<string>> args;
 		for( unsigned char n = 0; n < arity; n++ ) {
-			args.push_back( reads(var).value_or_throw(_reader.error("#trs","\"too-few-args\"",app(*fun,args))) );
+			args.push_back( reads(var) | [&]{ throw _reader.error("#trs","\"too-few-args\"",app(*fun,args)); });
 		}
 		auto ret = app(*fun,args);
 		if( !_reader.closes() ) throw _reader.error("#trs","\"too-many-args\"",ret);

@@ -132,8 +132,8 @@ public:
 
 struct TrsOrder : TermOrder {
 	virtual Smt::Compare rule_order( ruleId i, Trs::Term const& l, Trs::Term const& r ) = 0;
-	virtual Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem const& p ) = 0;
-	virtual Smt::PostExp separate_edge( ruleId i, ruleId j, Problem const& p ) = 0;
+	virtual Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem& p ) = 0;
+	virtual Smt::PostExp separate_edge( ruleId i, ruleId j, Problem& p ) = 0;
 	static std::unique_ptr<TrsOrder> make( std::unique_ptr<TermOrder>&& );
 private:
 	struct _Wrapper;
@@ -142,21 +142,13 @@ struct TrsOrder::_Wrapper final : TrsOrder {
 private:
 	std::unique_ptr<TermOrder> _ref;
 	Map<ruleId,Smt::Compare> _rule_order_cache;
-	Map<ruleId,Exp> _rename_cache;
 	Map<ruleId,Map<ruleId,Smt::PostExp>> _edge_separate_cache;
 	Map<ruleId,Map<ruleId,Smt::PostExp>> _bound_edge_cache;
 public:
 	_Wrapper( std::unique_ptr<TermOrder>&& ref ) : _ref(std::move(ref)) {}
 	Smt::Compare rule_order( ruleId i, Trs::Term const& l, Trs::Term const& r ) override;
-	Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem const& p ) override;
-	Smt::PostExp separate_edge( ruleId i, ruleId j, Problem const& p ) override;
-	Exp get_renamed_lhs( ruleId i, Problem const& p ) {
-		if( auto opt = _rename_cache.find(i) ) return *opt;
-		auto src = ASSERTED(p.rules.find(i))->first.map(// register renamed the rhs of the source DP
-			[&]( auto const& f ){ return p.sig.find(f) ? f : std::string("_")+f; }
-		);
-		return _rename_cache.emplace(i,src).first;
-	}
+	Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem& p ) override;
+	Smt::PostExp separate_edge( ruleId i, ruleId j, Problem& p ) override;
 	int log() override { return _ref->log(); }
 	void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) override {
 		_ref->extend_sig(f,rank,heuristic);
@@ -193,8 +185,8 @@ public:
 	Smt::PostExp term_used( Trs::Term const& t ) & override;
 	Smt::PostExp rule_used( ruleId i ) & override;
 	Smt::Compare rule_order( ruleId i, Trs::Term const& l, Trs::Term const& r ) override { return _ref->rule_order(i,l,r); }
-	Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem const& p ) override { return _ref->edge_co_order(i,j,p); }
-	Smt::PostExp separate_edge( ruleId i, ruleId j, Problem const& p ) override { return _ref->separate_edge(i,j,p); }
+	Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem& p ) override { return _ref->edge_co_order(i,j,p); }
+	Smt::PostExp separate_edge( ruleId i, ruleId j, Problem& p ) override { return _ref->separate_edge(i,j,p); }
 	int log() override { return _ref->log(); }
 	void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) override {
 		_ref->extend_sig(f,rank,heuristic);
@@ -228,10 +220,10 @@ public:
 	Smt::PostExp separate( Exp const& s, Exp const& t ) override {
 		return _ref->separate(s,t);
 	}
-	Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem const& p ) override {
+	Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem& p ) override {
 		return _ref->edge_co_order(i,j,p);
 	}
-	Smt::PostExp separate_edge( ruleId i, ruleId j, Problem const& p ) override { return _ref->separate_edge(i,j,p); }
+	Smt::PostExp separate_edge( ruleId i, ruleId j, Problem& p ) override { return _ref->separate_edge(i,j,p); }
 	int log() override { return _ref->log(); }
 	void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) override {
 		_ref->extend_sig(f,rank,heuristic);
@@ -268,8 +260,8 @@ public:
 	Smt::PostExp arg_infl( std::string const& f, uint16_t i ) override { return true; }
 	Smt::PostExp arg_used( std::string const& f, uint16_t i ) override { return true; }
 	Smt::Compare rule_order( ruleId, Trs::Term const&, Trs::Term const& ) override { return {true,false}; }
-	Smt::PostExp edge_co_order( ruleId, ruleId, Problem const& ) override { return false; }
-	Smt::PostExp separate_edge( ruleId, ruleId, Problem const& ) override { return false; }
+	Smt::PostExp edge_co_order( ruleId, ruleId, Problem& ) override { return false; }
+	Smt::PostExp separate_edge( ruleId, ruleId, Problem& ) override { return false; }
 	Smt::PostExp term_used( Trs::Term const& ) & override { return true; }
 	Smt::PostExp rule_used( ruleId ) & override { return true; }
 };

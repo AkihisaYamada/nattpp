@@ -2,14 +2,18 @@
 #define _EXP_HPP
 
 #include<cassert>
+#include <concepts>
 #include<string>
+#include <type_traits>
 #include<vector>
 #include<functional>
 #include<iostream>
+#include<sstream>
 #include<exception>
 
 #include"ref.hpp"
 #include"sum.hpp"
+#include"util.hpp"
 
 using Pos = std::vector<unsigned char>;
 
@@ -123,7 +127,7 @@ public:
 	bool operator==( Term const& other ) const {
 		return _ref == other._ref;
 	}
-	bool subterm( Term const& other ) const {
+	bool subterm_eq( Term const& other ) const {
 		auto const& [f,ss] = **this;
 		auto const& [g,ts] = *other;
 		size_t i = 0;
@@ -136,8 +140,14 @@ public:
 		}
 		for( ;; i++ ) {
 			if( i == n ) return false;
-			if( subterm(ts[i]) ) return true;
+			if( subterm_eq(ts[i]) ) return true;
 		}
+	}
+	bool subterm( Term const& other ) const {
+		for( auto const& t : other.args() ) {
+			if( subterm_eq(t) ) return true;
+		}
+		return false;
 	}
 	Opt<F const&> is_unapplied() const& {
 		if( args().empty() ) return {fun()};
@@ -168,20 +178,18 @@ struct Error : std::exception, Term<std::string> {
 };
 template<typename F>
 Term<F> const& Term<F>::get_arg( uint& i ) const& {
-	return gets_arg(i).value_or_throw(Error("#too-few-args",*this));
+	return gets_arg(i) | [&]{ throw Error("#too-few-args",*this); };
 }
 template<typename F>
 void Term<F>::get_end( uint i ) const& {
 	if( !gets_end(i) ) throw Error("#expected-rparen",arg(i));
 }
 
-Opt<unsigned long> is_nat( std::string_view const& str );
-inline unsigned long as_nat( std::string_view const& str ) {
-	return is_nat(str).value_or_throw(Error("#expected-nat",str));
+inline ulong as_nat( std::string_view const& str ) {
+	return is_nat(str) | [&]{ throw Error("#expected-nat",str); };
 }
-Opt<long> is_int( std::string_view const& str );
 
-inline unsigned long as_nat( std::string_view const& str, std::function<bool(unsigned int)> const& test ) {
+inline ulong as_nat( std::string_view const& str, std::function<bool(ulong)> const& test ) {
 	auto ret = as_nat(str);
 	if( !test(ret) ) throw Error("#nat-out-of-range",str);
 	return ret;
@@ -189,7 +197,7 @@ inline unsigned long as_nat( std::string_view const& str, std::function<bool(uns
 
 template<typename F>
 F const& Term<F>::as_unapplied() const& {
-	return is_unapplied().value_or_throw(Error("#unexpected-argument"));
+	return is_unapplied() | [&]{ throw Error("#unexpected-argument"); };
 }
 
 /** deleted for inefficiency */
@@ -216,7 +224,7 @@ inline Opt<bool> is_bool( std::string const& str ) {
 	return {};
 }
 inline bool as_bool( std::string const& str ) {
-	return is_bool(str).value_or_throw(Error("#malformed-bool",str));
+	return is_bool(str) | [&]{ throw Error("#malformed-bool",str); };
 }
 
 struct Exp : Term<std::string> {
@@ -228,27 +236,22 @@ struct Exp : Term<std::string> {
 		return is_unapplied() >>= ::is_bool;
 	}
 	bool as_bool() const& {
-		return is_bool().value_or_throw(Error("#expected-bool",*this));
+		return is_bool() | [&]{ throw Error("#expected-bool",*this); };
 	}
-	Opt<unsigned long> is_nat() const& {
+	Opt<ulong> is_nat() const& {
 		return is_unapplied() >>= ::is_nat;
 	}
-	unsigned long as_nat() const& {
-		return is_nat().value_or_throw(Error("#expected-nat",*this));
+	ulong as_nat() const& {
+		return is_nat() | [&]{ throw Error("#expected-nat",*this); };
 	}
-	unsigned long as_nat( std::function<bool(unsigned long)> const& test ) const& {
+	ulong as_nat( std::function<bool(ulong)> const& test ) const& {
 		auto ret = as_nat();
 		if( test(ret) ) return ret;
 		throw Error("#nat-out-of-range",*this);
 	}
 	class Proc;
+	Proc proc() const;
 	using KeyValProc = std::function<bool(std::string_view const&,Exp const&)>;
-	Opt<Exp> gets_arg( uint& pos ) const& {
-		return Term<std::string>::gets_arg(pos);
-	}
-	Exp get_arg( uint& pos ) const& {
-		return Exp(Term<std::string>::get_arg(pos));
-	}
 	static KeyValProc const NO_KEY;
 	static KeyValProc on_key( std::string&& _key, std::function<void(Exp const&)>&& _proc ) {
 		return [key = std::move(_key), proc = std::move(_proc)]( std::string_view const& pkey, Exp const& val ){
@@ -261,44 +264,55 @@ struct Exp : Term<std::string> {
 	}
 	struct OnKey {
 		std::string&& key;
-		KeyValProc operator>>( auto&& proc ) && {
+		KeyValProc operator/( auto&& proc ) && {
 			return on_key(std::move(key),std::move(proc));
 		}
 	};
-	/** Processes key-value pairs from the ith argument. */
-	void process_keys( uint& pos, KeyValProc const& f ) const&;
+	struct Ender {};
+	static inline Ender const END = {};
 	static void test();
 };
 inline Exp::KeyValProc const Exp::NO_KEY = []( std::string_view const&, Exp const& ){ return false; };
 
 class Exp::Proc {
+	friend Exp;
 	Exp _exp;
 	uint _pos;
-public:
 	Proc( Exp const& e ) : _exp(e), _pos(0) {}
+public:
 	Exp exp() && { return _exp; }
 	Exp const& exp() const& { return _exp; }
 	std::string fun() && { return _exp.fun(); }
 	std::string const& fun() const& { return _exp.fun(); }
-	Proc& operator>>=( KeyValProc const& proc ) & {
-		_exp.process_keys(_pos,proc);
+	/** Processes key-value pairs from the ith argument. */
+	void operator,( KeyValProc const& proc ) &;
+	void operator,( Ender const& ) const {
+		if( _exp.args().size() != _pos ) throw Error("#exp-syntax","\"expected ')'\"",":next",_exp.arg(_pos));
+	}
+	Proc& operator,( std::function<void(Exp const&)>&& arg ) & {
+		std::move(arg)(get_arg());
 		return *this;
 	}
+
 	Opt<Exp> gets_arg() & {
-		return _exp.gets_arg(_pos);
+		Opt<Exp> ret;
+		if( _pos < _exp.args().size() ) {
+			ret = {_exp.arg(_pos)};
+			_pos++;
+		}
+		return ret;
 	}
 	Exp get_arg() & {
-		return _exp.get_arg(_pos);
-	}
-	bool gets_end() const {
-		return _exp.gets_end(_pos);
-	}
-	void get_end() const {
-		return _exp.get_end(_pos);
+		return gets_arg() | []{ throw Error("#exp-syntax","\"unexpected ')'\""); };
 	}
 };
 
+inline Exp::Proc Exp::proc() const {
+	return Proc(*this);
+}
+
 class Reader {
+	std::unique_ptr<std::istream> _ptr;
 	std::istream& _is;
 	class LPar {};
 	class RPar {};
@@ -323,6 +337,10 @@ class Reader {
 	std::string _read_bar_rest() &;
 public:
 	Reader( std::istream& is ) : _is(is), _fetched(None()) {}
+	Reader( char const* && ) = delete;
+	Reader( char const* const& str ) : _ptr(std::make_unique<std::istringstream>(str)), _is(*_ptr), _fetched(None()) {}
+	Reader( std::string&& ) = delete;
+	Reader( std::string const& str ) : _ptr(std::make_unique<std::istringstream>(str)), _is(*_ptr), _fetched(None()) {}
 	template<typename... Args>
 	Error error( Args const&... msg ) const& {
 		return Error(msg...,":line",std::to_string(_line),":column",std::to_string(_column),":next",_string_fetched());
@@ -351,27 +369,27 @@ public:
 	}
 	Opt<std::string> reads_key() {
 		_fetch();
-		return _fetched.ref<Key>() >>= [&]( Key key )->Opt<std::string>{
+		return _fetched.ref<Key>() >>= [&]( Key key ){
 			_fetched = None();
-			return {std::move(key.str)};
+			return Opt{std::move(key.str)};
 		};
 	}
 	Opt<std::string> reads_str() {
 		_fetch();
-		return _fetched.ref<Str>() >>= [&]( Str str )->Opt<std::string>{
+		return _fetched.ref<Str>() >>= [&]( Str str ){
 			_fetched = None();
-			return {std::move(str.str)};
+			return Opt{std::move(str.str)};
 		};
 	}
 	Opt<std::string> reads_sym() {
 		_fetch();
-		return _fetched.ref<Sym>() >>= [&]( Sym sym )->Opt<std::string>{
+		return _fetched.ref<Sym>() >>= [&]( Sym sym ){
 			_fetched = None();
-			return sym.str;
+			return Opt{sym.str};
 		};
 	}
 	std::string read_sym() {
-		return reads_sym().value_or_throw(error("#missing-symbol"));
+		return reads_sym() | [&]{ throw error("#missing-symbol"); };
 	}
 	bool reads_sym( char const* str ) {
 		_fetch();
@@ -383,39 +401,48 @@ public:
 		}
 		return false;
 	}
-	Opt<unsigned long> reads_nat() {
-		_fetch();
-		if( auto sym = _fetched.ref<Sym>() )
-			if( auto val = is_nat(sym->str) ) {
-				_fetched = None();
-				return val;
-			}
-		return {};
-	}
-	Opt<unsigned long> reads_nat( std::function<bool(unsigned long)> const& test ) {
-		if( auto n = reads_nat() ) {
-			if( !test(*n) ) throw error("#invalid-value",std::to_string(*n));
-			return n;
-		}
-		return {};
-	}
 	void read_sym( char const* str ) {
 		if( !reads_sym(str) ) throw error("#missing-symbol",str);
 	}
-	unsigned int read_nat() {
-		return reads_nat().value_or_throw(error("#missing-number"));
+	template<typename F> requires std::invocable<F,std::string const&>
+	std::invoke_result_t<F,std::string const&> reads_sym( F&& f ) {
+		_fetch();
+		if( auto sym = _fetched.ref<Sym>() ) {
+			if( auto ret = std::forward<F>(f)(sym->str) ) {
+				_fetched = None();
+				return ret;
+			}
+		}
+		return {};
 	}
-	unsigned int read_nat( std::function<bool(unsigned int)> const& test ) {
+	Opt<ulong> reads_nat() {
+		return reads_sym( is_nat );
+	}
+	ulong read_nat() {
+		return reads_nat() | [&]{ throw error("#missing-number"); };
+	}
+	Opt<ulong> reads_nat( std::function<bool(ulong)> const& test ) {
+		return reads_nat() >>= [&]( auto n ){
+			return test(n) ? Opt{n} : throw error("#invalid-value",std::to_string(n));
+		};
+	}
+	ulong read_nat( std::function<bool(ulong)> const& test ) {
 		auto ret = read_nat();
-		if( !test(ret) ) throw error("#invalid-value",std::to_string(ret));
-		return ret;
+		return test(ret) ? ret : throw error("#invalid-value",std::to_string(ret));
 	}
-	int read_int() {
-		return std::stoi(read_sym());
+	Opt<bool> reads_bool();
+	bool read_bool() {
+		return reads_bool() | [&]{ throw error("#invalid-bool"); };
+	}
+	Opt<long> reads_int() {
+		return reads_sym( is_int );
+	}
+	long read_int() {
+		return reads_int() | [&]{ throw error("#invalid-int"); };
 	}
 	Opt<Exp> reads_exp();
 	Exp read_exp() {
-		return reads_exp().value_or_throw(error("#missing-expression"));
+		return reads_exp() | [&]{ throw error("#missing-expression"); };
 	}
 	bool eof() {
 		_fetch();

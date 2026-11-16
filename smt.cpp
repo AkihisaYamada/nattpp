@@ -105,6 +105,9 @@ ostream& operator<<( ostream& os, Smt::PreExp const& e ) {
 	if( auto lazy = e.is_lazy() ) {
 		return os << "...";
 	}
+	if( auto forall = e.is_forall() ) {
+		return os << "(forall ((" << forall->var.name() << ' ' << forall->var.sort() << ")) " << forall->body << ')';
+	}
 	assert(false);
 }
 
@@ -147,46 +150,46 @@ Exp Smt::PreExp::exp() const {
 	assert(false);
 }
 
-Smt::PostExp Smt::PostExp::conj( Smt::PostExp const& y ) const& {
-	if( *this == TRUE || y == FALSE ) return y;
-	if( *this == FALSE || y == TRUE ) return *this;
-	std::vector<Term<Fun>> cs;
-	if( is_app().contains(AND) ) {
-		for( auto const& c : _term.args() ) {
+Smt::PostExp operator&&( Smt::PostExp const& x, Smt::PostExp const& y ) {
+	if( x == true || y == false ) return y;
+	if( x == false || y == true ) return x;
+	std::vector<Term<Smt::Fun>> cs;
+	if( x.is_app().contains(Smt::AND) ) {
+		for( auto const& c : x._term.args() ) {
 			cs.push_back(c);
 		}
 	} else {
-		cs.push_back(_term);
+		cs.push_back(x._term);
 	}
-	if( y.is_app().contains(AND) ) {
+	if( y.is_app().contains(Smt::AND) ) {
 		for( auto const& c : y._term.args() ) {
 			cs.push_back(c);
 		}
 	} else {
 		cs.push_back(y._term);
 	}
-	return app(AND,std::move(cs));
+	return app(Smt::AND,std::move(cs));
 }
 
-Smt::PostExp Smt::PostExp::disj( Smt::PostExp const& y ) const& {
-	if( *this == TRUE || y == FALSE ) return *this;
-	if( *this == FALSE || y == TRUE ) return y;
-	std::vector<Term<Fun>> ds;
-	if( is_app().contains(OR) ) {
-		for( auto const& d : _term.args() ) {
+Smt::PostExp operator||( Smt::PostExp const& x, Smt::PostExp const& y ) {
+	if( x == true || y == false ) return x;
+	if( x == false || y == true ) return y;
+	std::vector<Term<Smt::Fun>> ds;
+	if( x.is_app().contains(Smt::OR) ) {
+		for( auto const& d : x._term.args() ) {
 			ds.push_back(d);
 		}
 	} else {
-		ds.push_back(_term);
+		ds.push_back(x);
 	}
-	if( y.is_app().contains(OR) ) {
+	if( y.is_app().contains(Smt::OR) ) {
 		for( auto const& d : y._term.args() ) {
 			ds.push_back(d);
 		}
 	} else {
 		ds.push_back(y._term);
 	}
-	return app(OR,std::move(ds));
+	return app(Smt::OR,std::move(ds));
 }
 
 Smt::PostExp Smt::PostExp::imp( Smt::PostExp const& y ) const {
@@ -485,7 +488,7 @@ Smt::PostExp Smt::Solver::define_fun(
 Smt::PostExp Smt::Reader::read_post_exp() {
 	if( auto sym = reads_sym() ) {
 		if( auto num = is_nat(*sym) ) {
-			return Smt::PostExp(*num);
+			return Smt::PostExp((long)*num);
 		}
 		return Smt::PostExp(*sym);
 	}
@@ -534,8 +537,7 @@ Smt::PostExp Smt::Solver::_get_value( PreExp const& e ) & {
 			Val ret = 1;
 			for( auto const& arg : args ) {
 				auto varg = _get_value(arg);
-				Val v = varg.is_val().value_or_throw(Error("#smt:get_value","\"bad value\""));
-				ret *= v;
+				ret *= varg.is_val() | [&]{ throw Error("#smt:get_value","\"bad value\""); };
 			}
 			return ret;
 		}
@@ -646,7 +648,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p, bool temp ) {
 		if( fun == AND ) {
 			PostExp ret = true;
 			for( auto const& arg : args ) {
-				ret = ret.conj(expand(arg,temp));
+				ret = ret && expand(arg,temp);
 				if( ret == false ) break;
 			}
 			return ret;
@@ -654,7 +656,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p, bool temp ) {
 		if( fun == OR ) {
 			PostExp ret = false;
 			for( auto const& arg : args ) {
-				ret = ret.disj(expand(arg,temp));
+				ret = ret || expand(arg,temp);
 				if( ret == true ) break;
 			}
 			return ret;
@@ -835,7 +837,7 @@ Smt::Sort Smt::Sort::of( Exp const& x ) {
 }
 
 Smt::Solver Smt::Solver::of( Exp const& x ) {
-	uint n = 0;
+	auto proc = x.proc();
 	Opt<OStream> tee;
 	Opt<bool> let;
 	Exp::KeyValProc proc_tee_key = [&]( auto key, auto val ){
@@ -845,22 +847,18 @@ Smt::Solver Smt::Solver::of( Exp const& x ) {
 		}
 		return false;
 	};
-	Exp::KeyValProc proc_let_key = [&]( auto key, auto val ){
-		if( key == "let" ) {
-			if( let ) throw Error("#duplicate-key",key);
-			let = {val.as_bool()};
-			return true;
-		}
-		return false;
+	Exp::KeyValProc proc_let_key = Exp::OnKey("let") / [&]( auto const& val ){
+		if( let ) throw Error("#duplicate","let");
+		let = {val.as_bool()};
 	};
 	if( x.fun() == "z3" ) {
-		auto logic = Logic::of(x.get_arg(n));
-		x.process_keys( n, proc_tee_key || proc_let_key );
+		auto logic = Logic::of(proc.get_arg());
+		proc, proc_tee_key || proc_let_key;
 		return Z3(logic,std::move(tee),let.value_or(true));
 	}
 	if( x.fun() == "cvc5" ) {
-		auto logic = Logic::of(x.get_arg(n));
-		x.process_keys( n, proc_tee_key || proc_let_key );
+		auto logic = Logic::of(proc.get_arg());
+		proc, proc_tee_key || proc_let_key;
 		return CVC5(logic,std::move(tee),let.value_or(true));
 	}
 	throw Error("#malformed-smt-solver",x);
@@ -911,7 +909,7 @@ int Smt::test() try {
 	auto xy = PreExp(x) * ite(y,0,1);
 	cout << xy << "  -->  " << z3.expand(xy) << endl;
 
-	cout << (ForAll("x",INT) >>= PostExp(Local("x")).ge(0).disj(PostExp(0).ge(Local("x")))) << endl;
+	cout << (ForAll("x",INT) >>= (PostExp(Local("x")).ge(0) || PostExp(0).ge(Local("x")))) << endl;
 
 	cout << "--- Smt::test done ---" << endl;
 	return 0;

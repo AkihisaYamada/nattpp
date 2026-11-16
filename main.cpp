@@ -90,6 +90,7 @@ int main( int argc, char* argv[] ) try {
 	enum class FreezingMode { NONE, FULL, UNCURRY } allow_freezing = FreezingMode::UNCURRY;
 	enum EdgeMode { NONE, AUTO = 1, FULL = AUTO << 1 } allow_edge = EdgeMode::AUTO;
 	bool use_dp = true;
+	bool use_superterm_criterion = true;
 	vector<Exp> rulerem_specs;
 	struct DpRemInfo { Exp exp; bool usable; bool edge; };
 	vector<DpRemInfo> dprem_specs;
@@ -110,7 +111,7 @@ int main( int argc, char* argv[] ) try {
 					{"fail",print_on_fail},
 					{"maxsum",print_maxsym},
 				};
-				return print_map.find(argv[i]).value_or_throw(Error("#main","\"unknown print option\"",argv[i]));
+				return print_map.find(argv[i]) | [&]{ throw Error("#main","\"unknown print option\"",argv[i]); };
 			};
 			OrdMap<std::string,std::pair<std::string,std::function<void(void)>>> map = {
 				{ "-q", { ":\tquiet mode", [&]{
@@ -135,14 +136,14 @@ int main( int argc, char* argv[] ) try {
 					static Map<std::string,FreezingMode> map = {
 						{"full",FreezingMode::FULL},{"uncurry",FreezingMode::UNCURRY},{"none",FreezingMode::NONE}
 					};
-					allow_freezing = map.find(argv[i]).value_or_throw(Error("#command","\"unknown freezing mode\"",argv[i]));
+					allow_freezing = map.find(argv[i]) | [&]{ throw Error("#command","\"unknown freezing mode\"",argv[i]); };
 				}}},
-				{ "-edge", { " (none|auto|full|fallback):\tedge remove mode", [&]{
+				{ "-edge", { " (none|auto|full):\tedge remove mode", [&]{
 					require_arg();
 					static Map<std::string,EdgeMode> map = {
 						{"full",EdgeMode::FULL},{"auto",EdgeMode::AUTO},{"none",EdgeMode::NONE}
 					};
-					allow_edge = map.find(argv[i]).value_or_throw(Error("#command","\"unknown edge remove mode\"",argv[i]));
+					allow_edge = map.find(argv[i]) | [&]{ throw Error("#command","\"unknown edge remove mode\"",argv[i]); };
 				}}},
 				{ "-edge-len", { " <nat>:\tedge length", [&]{
 					if( edge_len ) throw Error("#duplicate-option",argv[i]);
@@ -169,24 +170,34 @@ int main( int argc, char* argv[] ) try {
 				{ "-s", { "<exp>:\t strategy", [&]{
 					default_strategy = false;
 					require_arg();
-					Exp::Proc proc = Exp::of(argv[i]);
-					if( proc.fun() == "rule-remover" ) {
-						rulerem_specs.emplace_back(proc.get_arg());
-						proc.get_end();
-					} else if( proc.fun() == "dp-remover" ) {
-						auto& spec = dprem_specs.emplace_back(proc.get_arg(),true,false);
-						proc >>= Exp::OnKey("usable")>>[&]( auto const& val ){
-							spec.usable = val.as_bool();
-						} || Exp::OnKey("edge")>>[&]( auto const& val ){
-							spec.edge = val.as_bool();
-						};
-					} else {
-						throw Error("#strategy","\"malformed strategy\"",proc.exp());
+					auto reader = Reader(argv[i]);
+					while( reader.opens() ) {
+						if( reader.reads_sym("rule-remover") ) {
+							rulerem_specs.emplace_back(reader.read_exp());
+							reader.close();
+						} else if( reader.reads_sym("dp-remover") ) {
+							auto& spec = dprem_specs.emplace_back(reader.read_exp());
+							while( !reader.closes() ) {
+								if( reader.reads_sym(":usable") ) {
+									spec.usable = reader.read_bool();
+								} else if( reader.reads_sym(":edge") ) {
+									spec.edge = reader.read_bool();
+								} else {
+									throw reader.error("#syntax");
+								}
+							};
+						} else {
+							throw reader.error("#syntax","\"malformed strategy\"");
+						}
 					}
+					reader.eof();
 				}}},
 				{ "-dp", { ":\tcompute dependency pairs", [&]{
 					use_dp = true;
 					default_strategy = false;
+				}}},
+				{ "-super", { ":\tsuperterm criterion", [&]{
+					use_superterm_criterion = true;
 				}}},
 				{ "-subst", { " <subst>\tapply substitution", [&]{
 					require_arg();
@@ -237,11 +248,11 @@ int main( int argc, char* argv[] ) try {
 		bool full_edge = allow_edge == EdgeMode::FULL;
 		dprem_specs.emplace_back( "sum", true, full_edge );
 		dprem_specs.emplace_back( "max", true, full_edge );
-		dprem_specs.emplace_back( LPO_SPEC, true, full_edge );
+		dprem_specs.emplace_back( "path-order", true, full_edge );
 		dprem_specs.emplace_back( "imaxsum", true, full_edge );
-		dprem_specs.emplace_back( Exp{"path-order",":weight","maxsum",":status","map"}, true, full_edge );
-		dprem_specs.emplace_back( "sum_negsum", true, auto_edge );
+		dprem_specs.emplace_back( Exp{"path-order",":weight","maxsum"}, true, full_edge );
 		dprem_specs.emplace_back( "mat2b", true, full_edge );
+		dprem_specs.emplace_back( "sum_negsum", true, auto_edge );
 		dprem_specs.emplace_back( "imaxsum_negsum", true, full_edge );
 	}
 	if( mode == UNSET && p.mode == Problem::NONE ) {
@@ -271,6 +282,16 @@ int main( int argc, char* argv[] ) try {
 		}
 		*prf << ')' << endl;
 	}) : []{};
+
+	auto decomp_sccs = [&]{
+		p.decomp_sccs();
+		if( p.components.empty() ) {
+			if( print_steps ) cerr << "; no SCC" << endl;
+			throw Answer::YES;
+		}
+		print_scc_count();
+		print_component();
+	};
 
 	Set<std::string> heuristic;// TODO: improve
 	try {
@@ -330,10 +351,11 @@ int main( int argc, char* argv[] ) try {
 
 			if( print_steps ) cerr << "; taking dependency pairs" << endl;
 			p.make_dps(edge_len.value_or(8));// compute DPs
+			auto& dg = p.components.front().graph;
 			if( print_proofs ) {
 				*prf << "(dps" << endl;
-				for( auto [i,js] : p.components.front().graph ) {
-					auto [l,r,w] = *ASSERTED(p.rules.find(i));
+				for( auto const& [i,js] : dg ) {
+					auto const& [l,r,w] = *ASSERTED(p.rules.find(i));
 					*prf << " (dp " << l << ' ' << r << " :number " << i;
 					if( print_dg ) *prf << "\n  :edges (" << print_list(js) << ')';
 					*prf << ')' << endl;
@@ -344,14 +366,47 @@ int main( int argc, char* argv[] ) try {
 				cerr << "(uses_graph" << ConstGraph(p.uses_map).print_nodes("\n  ") << ')' << endl;
 				cerr << "(usables" << ConstGraph(p.dp_use_map).print_nodes("\n  ") << ')' << endl;
 			}
-			// SCC decomposition
-			p.decomp_sccs();
-			if( p.components.empty() ) {
-				if( print_steps ) cerr << "; no SCC" << endl;
-				throw Answer::YES;
+			// superterm criterion
+			if( use_superterm_criterion ) {
+				if( print_steps ) *prf << "; trying superterm criterion..." << endl;
+				vector<pair<ruleId,Set<ruleId>>> rem_edges;
+				for( auto& [i,js] : dg ) {
+					auto const& [l,r,w] = *ASSERTED(p.rules.find(i));
+					auto const& [f,rs] = *r;
+					auto n = rs.size();
+					Set<ruleId> node;
+					for( auto j = js.begin(); j != js.end(); ) {
+						auto const& [g,ts] = *p.get_renamed_lhs(*j);
+						if( f == g && ts.size() == n &&
+							exists( 0, n, [&]( auto k ){ return rs[k].subterm(ts[k]); } )
+						) {
+							node.emplace(*j);
+							j = js.erase(j);
+						} else {
+							j++;
+						}
+					}
+					if( !node.empty() ) {
+						rem_edges.emplace_back(i,std::move(node));
+					}
+				}
+				if( !rem_edges.empty() ) {
+					if( print_proofs ) {
+						*prf << "(superterm-criterion\n ";
+						for( auto const& [i,js] : rem_edges ) {
+							*prf << " (edge " << i;
+							for( auto j : js ) {
+								*prf << ' ' << j;
+							}
+							*prf << ')' << endl;
+						}
+						*prf << ")\n";
+					}
+					decomp_sccs();
+				}
 			}
-			print_scc_count();
-			print_component();
+			// SCC decomposition
+			decomp_sccs();
 		}
 		// compute max-sum heuristic of dps. TODO: improve
 		_max_sum_heuristic(heuristic,p.sig,p.rules);
@@ -430,14 +485,7 @@ int main( int argc, char* argv[] ) try {
 				return false;
 			};
 			if( std::ranges::any_of(dp_removers,dp_removes) ) {
-				// SCC decomposition
-				p.decomp_sccs();
-				if( p.components.empty() ) {
-					if( print_steps ) cerr << "; no more SCC" << endl;
-					throw Answer::YES;
-				}
-				print_scc_count();
-				print_component();
+				decomp_sccs();
 				continue;
 			}
 			throw Answer::MAYBE;

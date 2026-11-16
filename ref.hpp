@@ -13,7 +13,7 @@
 template<typename T, bool _nullable = false>
 class Ref {
 	std::shared_ptr<T> _ptr;
-	T& operator*() && = delete;
+	T operator*() && = delete;
 	T* operator->() && = delete;
 	Ref( std::shared_ptr<T>const& ptr ) : _ptr(ptr) {}
 	Ref( std::shared_ptr<T>&& ptr ) : _ptr(std::move(ptr)) {}

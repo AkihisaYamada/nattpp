@@ -98,7 +98,7 @@ Poly& operator+=( Poly& p1, Poly const& p2 ) {
 
 Poly ite( Poly const& i, Poly const& p1, Poly const& p2 ) {
 	assert( i._map.size() == 1 );
-	Smt::PreExp ie = i._map.find({}).value_or_throw(Error("#poly:ite"));
+	Smt::PreExp ie = i._map.find({}) | [&]{ throw Error("#poly:ite"); };
 	Poly ret;
 	iter2(p1._map,p2._map,[&]( auto const& it1, auto const& it2 ){
 		ret.set_coeff( it1->first, Smt::ite(ie,it1->second,it2->second) );
@@ -169,12 +169,23 @@ Smt::Compare Poly::order( Poly const& y, Smt::Solver& solver ) const {
 	auto const& yc = y[{}].as_post();
 	return { order_sub(*this,y) && xc.ge(yc), xc.gt(yc) };
 }
-Smt::PostExp Poly::gt_cond( Poly const& y, Poly const& s, Poly const& t ) const {
-	if( y.is_const() && t.is_const() ) {
-		auto const& xc = (*this)[{}].as_post(), yc = y[{}].as_post(), sc = s[{}].as_post(), tc = t[{}].as_post();
-		return (xc + tc).gt(yc + sc);
+Smt::PostExp Poly::const_exp() const {
+	Smt::PostExp ret = true;
+	for( auto const& [v,c] : _map ) {
+		if( v.range() != NONE ) {
+			ret = ret && c.as_post().eq(0);
+		}
 	}
-	return false;
+	return ret;
+}
+
+Smt::PostExp Poly::gt_cond( Poly const& y, Poly const& s, Poly const& t ) const {
+	return y.const_exp() && [&]{
+		return t.const_exp() && [&]{
+			auto const& yc = y[{}].as_post(), tc = t[{}].as_post();
+			return (*this + tc).gt(yc + s);
+		};
+	};
 }
 
 ostream& operator<<( ostream& os, Poly::Sig const& f ) {
@@ -299,13 +310,12 @@ Smt::Compare MPoly::order( MPoly const& y, Smt::Solver& solver ) const {
 	return {ge_all,gt_all};
 }
 Smt::PostExp MPoly::gt_cond( MPoly const& y, MPoly const& s, MPoly const& t ) const {
-	// ∀yp. (∀tp. ∃sp. sp ≥ tp) ⟹ ∃xp. xp > yp
-	// we demand t to be a constant.
-	if( t._set.size() != 1 ) return false;
-	auto const& tp = t._set[0];
-	if( !tp.is_const() ) return false;
-	auto const& tc = tp[{}].as_post();
-	// Now:
+	// (∀tp. ∃sp. sp ≥ tp) ⟹ ∀yp. ∃xp. xp > yp
+	// ∃tp. (∃sp. sp ≥ tp) ⟹ ∀yp. ∃xp. xp > yp
+	// ∃tp. ∀yp sp. sp ≥ tp ⟹ ∃xp. xp > yp
+	// we require t is a constant.
+	if( t._set.size() != 1 || !t._set[0].is_const() ) return false;
+	auto const& tc = t._set[0][{}].as_post();
 	// ∀yp sp. sp ≥ tc ⟹ ∃xp. xp > yp
 	return Smt::PostExp::conj( y._set, [&]( auto const& yp ){
 		if( yp.is_const() ) {// if yp is constant yc
@@ -313,11 +323,11 @@ Smt::PostExp MPoly::gt_cond( MPoly const& y, MPoly const& s, MPoly const& t ) co
 			// ∀sp. ∃xp. xp + tc > sp + yc
 			return Smt::PostExp::conj( s._set, [&]( auto const& sp ){
 				auto const& sc = sp[{}].as_post();
-				return Smt::PostExp::disj(_set, [&]( auto const& xp ){
+				return Smt::PostExp::disj( _set, [&]( auto const& xp ){
 					return order_sub(xp,sp) && (xp[{}].as_post() + tc).gt(yc + sc);
-				});
-			});
-		} else { // and otherwise ignore the condition:
+				} );
+			} );
+		} else { // otherwise, ignore the condition:
 			return Smt::PostExp::disj( _set, [&]( auto const& xp ){ return xp.gt(yp); } );
 		}
 	} );

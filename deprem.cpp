@@ -95,7 +95,7 @@ bool order_some_dp(
 
 bool unorder_some_edge(
 	UsableRuleOrder& order,
-	Problem const& p,
+	Problem& p,
 	std::function<void(std::vector<std::pair<ruleId,std::vector<ruleId>>>&&,std::vector<ruleId>&&)> const& callback
 ) {
 	auto& solver = order.solver();
@@ -150,7 +150,7 @@ bool unorder_some_edge(
 
 bool bound_by_edge(
 	UsableRuleOrder& order,
-	Problem const& problem,
+	Problem& problem,
 	std::function<void(std::vector<std::pair<ruleId,std::vector<ruleId>>>&&,std::vector<ruleId>&&)> const& callback
 ) {
 	auto& solver = order.solver();

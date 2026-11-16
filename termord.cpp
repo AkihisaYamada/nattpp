@@ -295,35 +295,33 @@ PathOrder::Collapse collapse_mode_of( Exp const& x ) {
 }
 
 PathOrder::Status _status_of( Exp const& x, std::string const& name, Trs::Rank const& rank ) {
-	uint i = 0;
+	auto proc = x.proc();
 	if( x.fun() == "straight" ) {
-		x.get_end(i);
+		proc, Exp::END;
 		return PathOrder::Status::Straight();
 	}
 	if( x.fun() == "map" ) {
 		int postarity = -1;
 		Opt<PathOrder::Collapse> ocollapse;
-		x.process_keys(i,
-			Exp::OnKey("post-arity") >> [&]( auto const& val ){
-				postarity = val.as_nat([](auto n){ return n < 32; });
-			} || Exp::OnKey("collapse") >> [&]( auto const& val ){
-				ocollapse = {collapse_mode_of(val)};
-			}
-		);
+		proc, Exp::OnKey("post-arity") / [&]( auto const& val ){
+			postarity = val.as_nat([](auto n){ return n < 32; });
+		} || Exp::OnKey("collapse") / [&]( auto const& val ){
+			ocollapse = {collapse_mode_of(val)};
+		};
 		return PathOrder::Status::Mapped(
 			postarity == -1 ? rank.arity : rank.arity ? postarity : 0,
 			ocollapse.value_or(PathOrder::Collapse::AUTO)
 		);
 	}
 	if( x.fun() == "cond" ) {
-		while( auto const& xi = x.gets_arg(i) ) {
-			uint j = 0;
-			if( xi->fun() == "name" ? xi->get_arg(j).as_unapplied() == name :
-				xi->fun() == "arity" ? Exp(xi->get_arg(j)).as_nat([](auto n){ return n < 255; }) :
+		while( auto const& xi = proc.gets_arg() ) {
+			auto pi = xi->proc();
+			if( xi->fun() == "name" ? pi.get_arg().as_unapplied() == name :
+				xi->fun() == "arity" ? pi.get_arg().as_nat([](auto n){ return n < 255; }) :
 				xi->fun() == "otherwise" || (throw Error("#path-order:status","\"unknown cond\"",*xi), false)
 			) {
-				auto xj = xi->get_arg(j);
-				xi->get_end(j);
+				auto xj = pi.get_arg();
+				pi, Exp::END;
 				return _status_of(xj,name,rank);
 			}
 		}
@@ -333,21 +331,19 @@ PathOrder::Status _status_of( Exp const& x, std::string const& name, Trs::Rank c
 }
 
 PathOrder::StatusFun PathOrder::status_fun_of( Exp const& x ) {
-	uint i = 0;
+	auto proc = x.proc();
 	if( x.fun() == "straight" ) {
-		x.get_end(i);
+		proc, Exp::END;
 		return [](auto,auto){ return Status::Straight(); };
 	}
 	if( x.fun() == "map" ) {
 		int postarity = -1;
 		Opt<Collapse> ocollapse;
-		x.process_keys(i,
-			Exp::OnKey("post-arity") >> [&]( auto const& val ){
-				postarity = val.as_nat([](auto n){ return n < 32; });
-			} || Exp::OnKey("collapse") >> [&]( auto const& val ){
-				ocollapse = {collapse_mode_of(val)};
-			}
-		);
+		proc, Exp::OnKey("post-arity") / [&]( auto const& val ){
+			postarity = val.as_nat([](auto n){ return n < 32; });
+		} || Exp::OnKey("collapse") / [&]( auto const& val ){
+			ocollapse = {collapse_mode_of(val)};
+		};
 		return [postarity,collapse=ocollapse.value_or(Collapse::AUTO)]( std::string const&, Trs::Rank const& rank ){
 			return Status::Mapped( postarity == -1 ? rank.arity : rank.arity ? postarity : 0, collapse );
 		};
@@ -381,8 +377,8 @@ Smt::Compare TrsOrder::_Wrapper::rule_order( ruleId i, Trs::Term const& l, Trs::
 	_rule_order_cache.emplace(i,ret);
 	return ret;
 }
-Smt::PostExp TrsOrder::_Wrapper::edge_co_order( ruleId i, ruleId j, Problem const& p ) {
-	auto& cache = _edge_separate_cache.find(i) || [&]()->Map<ruleId,Smt::PostExp>&{
+Smt::PostExp TrsOrder::_Wrapper::edge_co_order( ruleId i, ruleId j, Problem& p ) {
+	auto& cache = _edge_separate_cache.find(i) | [&]->auto&{
 		return _edge_separate_cache.emplace(i,Map<ruleId,Smt::PostExp>{}).first;
 	};
 	if( auto const& o = cache.find(j) ) {
@@ -390,7 +386,7 @@ Smt::PostExp TrsOrder::_Wrapper::edge_co_order( ruleId i, ruleId j, Problem cons
 	}
 	auto src = ASSERTED(p.rules.find(i))->second;
 	auto [f,ss] = *src;
-	auto tgt = get_renamed_lhs(j,p);
+	auto tgt = p.get_renamed_lhs(j);
 	auto [g,ts] = *tgt;
 	assert( f == g && ss.size() == ts.size() );
 	Smt::PostExp sep = false;
@@ -404,15 +400,15 @@ Smt::PostExp TrsOrder::_Wrapper::edge_co_order( ruleId i, ruleId j, Problem cons
 	cache.emplace(j,ret);
 	return ret;
 }
-Smt::PostExp TrsOrder::_Wrapper::separate_edge( ruleId i, ruleId j, Problem const& p ) {
-	auto& cache = _bound_edge_cache.find(i) || [&]()->Map<ruleId,Smt::PostExp>&{
+Smt::PostExp TrsOrder::_Wrapper::separate_edge( ruleId i, ruleId j, Problem& p ) {
+	auto& cache = _bound_edge_cache.find(i) | [&]->auto&{
 		return _bound_edge_cache.emplace(i,Map<ruleId,Smt::PostExp>{}).first;
 	};
 	if( auto const& o = cache.find(j) ) {
 		return *o;
 	}
 	auto [l,r,w] = *ASSERTED(p.rules.find(i));
-	auto tgt = get_renamed_lhs(j,p);
+	auto tgt = p.get_renamed_lhs(j);
 
 	auto sep = _ref->separate_if(l,r,tgt);
 	// Declare a boolean variable that implies orientation, but not necessarily vise versa.
@@ -462,7 +458,7 @@ Smt::PostExp UsableRuleOrder::_Wrapper::rule_used( ruleId i ) & {
 }
 
 static Exp::KeyValProc log_key( int& log ) {
-	return Exp::OnKey("log") >> [&]( auto const& val ){
+	return Exp::OnKey("log") / [&]( auto const& val ){
 		if( log != -1 ) throw Error("#duplicate-log");
 		log = TermOrder::log_of(val);
 	};
@@ -475,90 +471,90 @@ std::unique_ptr<TermOrder> TermOrder::make(
 	int default_log
 ) {
 	auto const& f = x.fun();
-	Exp::Proc proc = x;
+	auto proc = x.proc();
 	Opt<Exp> smt;
 	auto mk_smt = [&]{ return smt ? Smt::Solver::of(*smt) : default_smt(); };
 	int log = -1;
 	auto set_log = [&]{ if( log == -1 ) log = default_log; };
-	auto solver_key = Exp::OnKey("smt") >> [&]( Exp const& val ){ smt = {val}; };
+	auto solver_key = Exp::OnKey("smt") / [&]( Exp const& val ){ smt = {val}; };
 	bool mono;
-	auto mono_key = Exp::OnKey("mono") >> [&]( Exp const& val ){ mono = val.as_bool(); };
+	auto mono_key = Exp::OnKey("mono") / [&]( Exp const& val ){ mono = val.as_bool(); };
 	if( f == "trivial" ) {
-		proc >>= solver_key;
+		proc, solver_key;
 		return std::make_unique<TrivOrder>(mk_smt());
 	} else if( f == "mono-sum" ) {
-		proc >>= solver_key || log_key(log);
+		proc, solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<Poly>>("mono-sum",Poly::POS_ALGEBRA,Template::MONO_SUM,mk_smt(),true,log);
 	} else if( f == "sum" ) {
-		proc >>= solver_key || log_key(log);
+		proc, solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<Poly>>("sum",Poly::POS_ALGEBRA,Template::SUM,mk_smt(),false,log);
 	} else if( f == "mat2b" ) {
-		proc >>= solver_key || log_key(log);
+		proc, solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<Poly>>>(
 			"mat2b", tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::POS}), Template::MAT2B, mk_smt(), false, log
 		);
 	} else if( f == "mat2n" ) {
-		proc >>= solver_key || log_key(log);
+		proc, solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<Poly>>>(
 			"mat2n", tuple_algebra<Poly::Range,Poly>({Poly::POS,Poly::POS}), Template::MAT2N, mk_smt(), false, log
 		);
 	} else if( f == "max" ) {
-		proc >>= solver_key || log_key(log);
+		proc, solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>("max",MPoly::POS_ALGEBRA,Template::MAX,mk_smt(),false,log);
 	} else if( f == "maxsum" ) {
-		proc >>= solver_key || log_key(log);
+		proc, solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>("maxsum",MPoly::POS_ALGEBRA,Template::MAXSUM,mk_smt(),false,log);
 	} else if( f == "imax" ) {
-		proc >>= solver_key || log_key(log);
+		proc, solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>("imax",MPoly::POS_ALGEBRA,Template::IMAX,mk_smt(),false,log);
 	} else if( f == "imaxsum" ) {
-		proc >>= solver_key || log_key(log);
+		proc, solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<MPoly>>("imaxsum",MPoly::POS_ALGEBRA,Template::IMAXSUM,mk_smt(),false,log);
 	} else if( f == "sum_negsum" ) {
-		proc >>= solver_key || log_key(log);
+		proc, solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<MPoly>>>(
 			"sum_negsum",tuple_algebra<Poly::Range,MPoly>({Poly::POS,Poly::NEG}), Template::SUM_NEGSUM, mk_smt(), false, log
 		);
 	} else if( f == "imaxsum_negsum" ) {
-		proc >>= solver_key || log_key(log);
+		proc, solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<MPoly>>>(
 			"imaxsum_negsum", tuple_algebra<Poly::Range,MPoly>({Poly::POS,Poly::NEG}), Template::IMAXSUM_NEGSUM, mk_smt(), false, log
 		);
 	} else if( f == "full_neg" ) {
-		proc >>= solver_key || log_key(log);
+		proc, solver_key || log_key(log);
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<Poly>>>(
 			"full_neg", tuple_algebra<Poly::Range,Poly>({Poly::FULL,Poly::NEG}), Template::FULL_NEG, mk_smt(), false, log
 		);
 	} else if( f == "template" ) {
 		std::vector<Poly::Range> rans;
-		{	Exp::Proc ranexp = proc.get_arg();
+		{	Exp::Proc ranexp = proc.get_arg().proc();
 			rans.emplace_back(Poly::range_of(ranexp.fun()));
 			while( auto ranarg = ranexp.gets_arg() ) {
 				rans.emplace_back(Poly::range_of(ranarg->as_unapplied()));
 			}
 		}
 		Exp exp = proc.get_arg();
-		proc >>= solver_key || log_key(log) || mono_key;
+		proc, solver_key || log_key(log) || mono_key;
 		set_log();
 		return std::make_unique<DerivedTermOrder<TupleVal<MPoly>>>(
 			"custom-template", tuple_algebra<Poly::Range,MPoly>(std::move(rans)), exp, mk_smt(), mono, log );
 	} else if( f == "path-order" ) {
 		Opt<Exp> w;
 		Opt<PathOrder::StatusFun> status;
-		proc >>=
-			Exp::OnKey("weight") >> [&]( auto const& val ){ w = {val}; } ||
-			Exp::OnKey("status") >> [&]( auto const& val ){ status = {PathOrder::status_fun_of(val)}; } ||
+		proc,
+			Exp::OnKey("weight") / [&]( auto const& val ){ w = {val}; } ||
+			Exp::OnKey("status") / [&]( auto const& val ){ status = {PathOrder::status_fun_of(val)}; } ||
 			log_key(log) || (w ? Exp::NO_KEY : solver_key);
 		set_log();
 		return std::make_unique<PathOrder>(
@@ -567,7 +563,9 @@ std::unique_ptr<TermOrder> TermOrder::make(
 				std::make_unique<TrivOrder>(mk_smt()),
 			status ?
 				*status :
-				PathOrder::StatusFun( [](auto,auto){ return PathOrder::Status::Straight(); } ),
+				PathOrder::StatusFun( [](std::string const& f, Trs::Rank const& rank ){
+					return PathOrder::Status::Mapped(rank.arity,PathOrder::Collapse::AUTO);
+				} ),
 			log
 		);
 	} else {

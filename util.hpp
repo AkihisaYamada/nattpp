@@ -24,13 +24,25 @@ std::string escape( std::string const& str );
 template<typename I, typename E, typename F>
 bool for_all( I it, E const& end, F const& f ) {
 	for( ; it != end; it++ ) {
-		if( !f(*it) ) return false;
+		if( !f(it) ) return false;
 	}
 	return true;
 }
 template<typename C, typename F>
 bool for_all( C const& c, F const& f ){
-	return chain(c.begin(),c.end(),f);
+	return for_all(c.begin(),c.end(),[&](auto const& it){ return f(*it); });
+}
+
+template<typename I, typename E, typename F>
+bool exists( I it, E const& end, F const& f ) {
+	for( ; it != end; it++ ) {
+		if( f(it) ) return true;
+	}
+	return false;
+}
+template<typename C, typename F>
+bool exists( C const& c, F const& f ){
+	return exists(c.begin(),c.end(),[&](auto const& it){ return f(*it); });
 }
 
 template<typename F, typename T, typename I, typename E>
@@ -54,11 +66,8 @@ T prod( std::vector<T> const& args ) {
 	return chain(T(1),BINARY(operator*=),args);
 }
 
-static Opt<int> is_int( std::string const& str ) try {
-	return std::stoi(str);
-} catch( std::exception const& err ) {
-	return {};
-}
+Opt<unsigned long> is_nat( std::string_view const& str );
+Opt<long> is_int( std::string_view const& str );
 
 template<typename T>
 auto operator<=>( std::multiset<T> const& l, std::multiset<T> const& r ) {

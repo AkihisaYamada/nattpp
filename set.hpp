@@ -31,6 +31,9 @@ public:
 	bool erase( T const& x ) & {
 		return _set.erase(x);
 	}
+	auto erase( _Base::iterator it ) & {
+		return _set.erase(it);
+	}
 	size_t erase_if( std::function<bool(T const&)> const& test ) {
 		return std::erase_if(_set,test);
 	}

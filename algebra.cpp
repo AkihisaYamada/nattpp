@@ -2,9 +2,9 @@
 
 ArgTerm<std::string> argterm_of( Exp const& exp ) {
 	if( exp.fun() == "#arg" ) {
-		uint n = 0;
-		ArgTerm<std::string> ret = Arg(exp.get_arg(n).as_nat());
-		exp.get_end(n);
+		auto proc = exp.proc();
+		ArgTerm<std::string> ret = Arg(proc.get_arg().as_nat());
+		proc, Exp::END;
 		return ret;
 	}
 	std::vector<ArgTerm<std::string>> args;

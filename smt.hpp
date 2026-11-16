@@ -219,10 +219,20 @@ public:
 		PostExp( PostExp && ) = default;
 		template<class T> requires std::same_as<T,bool>// trick to disallow match after cast to bool
 		PostExp( T b ) : _term( b ? TRUE : FALSE ) {}
-		PostExp( uint64_t i ) : _term(Val(i)) {}
 		PostExp( int i ) : _term(Val(i)) {}
+		PostExp( long i ) : _term(Val(i)) {}
 		PostExp( Val v ) : _term(v) {}
 		PostExp( Local&& x ) : _term(x.name()) {}
+		friend Smt::PostExp operator&&( Smt::PostExp const& x, Smt::PostExp const& y );
+		friend Smt::PostExp operator&&( Smt::PostExp const& x, std::function<Smt::PostExp()> const& y ) {
+			if( x == false ) return x;
+			return x && y();
+		}
+		friend Smt::PostExp operator||( Smt::PostExp const& x, Smt::PostExp const& y );
+		friend Smt::PostExp operator||( Smt::PostExp const& x, std::function<Smt::PostExp()> const& y ) {
+			if( x == true ) return x;
+			return x || y();
+		}
 		friend PostExp operator>>=( ForAll&& x, PostExp const& body ) {
 			return Term<Fun>("forall",Term<Fun>{"",Term<Fun>{std::move(x._name),std::move(x._sort).name()}},body);
 		}
@@ -258,7 +268,7 @@ public:
 			return {};
 		}
 		bool as_bool() const & {
-			return is_bool().value_or_throw(Error("#exp:expected-bool",exp()));
+			return is_bool() | [&]->bool{ throw Error("#exp:expected-bool",exp()); };
 		}
 		bool operator==( bool b ) const {
 			return is_bool() && [b]( auto const& x ){ return x == b; };
@@ -272,8 +282,6 @@ public:
 			return *opt;
 		}
 		Opt<std::tuple<PostExp,PostExp,PostExp>> is_ite() const &;
-		PostExp conj( PostExp const& y ) const &;
-		PostExp disj( PostExp const& y ) const &;
 		PostExp imp( PostExp const& y ) const;
 		PreExp imp( PreExp const& y ) const;
 		PostExp eq( PostExp const& y ) const;
@@ -644,13 +652,6 @@ struct Smt::PreExp::_PreExists {
 
 inline Smt::Sort operator,( Smt::Sort const& x, Smt::Sort const& y ) {
 	return Smt::Sort(x,y);
-}
-
-inline Smt::PostExp operator&&( Smt::PostExp const& x, Smt::PostExp const& y ) {
-	return x.conj(y);
-}
-inline Smt::PostExp operator||( Smt::PostExp const& x, Smt::PostExp const& y ) {
-	return x.disj(y);
 }
 inline Smt::PostExp& operator+=( Smt::PostExp& x, Smt::PostExp const& y ) {
 	return x = x + y;

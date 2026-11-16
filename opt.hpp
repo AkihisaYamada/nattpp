@@ -1,6 +1,7 @@
 #ifndef _OPT_HPP
 #define _OPT_HPP
 
+#include <concepts>
 #include<optional>
 #include<functional>
 #include<cassert>
@@ -56,33 +57,53 @@ public:
 		assert(_opt);
 		return *std::move(_opt);
 	}
-	/** @brief Returns a copy of the value or given default. */
+	/** @brief Returns a copy of the contained value or given default. */
 	T value_or( T&& def ) && {
 		if(_opt) return std::move(*_opt);
-		return std::move(def);
+		return std::forward<T>(def);
 	}
 	/** @brief Refers to the value or the default. */
 	T const& value_or( T const& def ) const& {
 		if(_opt) return *_opt;
 		return def;
 	}
-	/** @brief Copies the value or computes default. */
-	T operator||( std::function<T()> const& def ) const& {
+	/** @brief Copies the contained or computed value. */
+	template<typename F>
+	T operator|( F&& def ) && requires (
+		std::invocable<F> && std::convertible_to<std::invoke_result_t<F>,T>
+	) {
 		if(_opt) return *_opt;
-		return def();
+		return std::forward<F>(def)();
+	}
+	/** @brief Refers to the contained or computed data. */
+	template<typename F>
+	T& operator|( F&& def ) const& requires (
+		std::invocable<F> && std::same_as<std::invoke_result_t<F>,T&>
+	) {
+		if(_opt) return *_opt;
+		return std::forward<F>(def)();
+	}
+	/** @brief Copies the contained value or execute failure process. */
+	template<typename F>
+	T operator|( F&& def ) && requires (
+		std::invocable<F> && std::same_as<std::invoke_result_t<F>,void>
+	) {
+		if(_opt) return *_opt;
+		std::forward<F>(def)();
+		std::terminate();
+	}
+	/** @brief Modifies the contained value or execute failure process. */
+	template<typename F>
+	T& operator|( F&& def ) const& requires (
+		!std::is_const_v<T> &&
+		std::invocable<F> && std::same_as<std::invoke_result_t<F>,void>
+	) {
+		if(_opt) return *_opt;
+		std::forward<F>(def)();
+		std::terminate();
 	}
 	bool operator&&( std::function<bool(T const&)> const& f ) const& {
 		return _opt && f(*_opt);
-	}
-	template<typename E>
-	T value_or_throw( E const& err ) {
-		if(_opt) return *_opt;
-		throw err;
-	}
-	template<typename E>
-	T const& value_or_throw( E const& err ) const& {
-		if(_opt) return *_opt;
-		throw err;
 	}
 	T const* operator->() const & {
 		assert(_opt);
@@ -173,39 +194,36 @@ public:
 		return *this && **this == other;
 	}
 	/** @brief Returns the const reference to the value or given default. */
-	T const& value_or( T const& def ) {
+	T const& value_or( T const& def ) const {
 		if(_ptr) return *_ptr;
 		return def;
 	}
 	/** @brief Returns the reference to the value or given default. */
-	T& value_or( T& def ) requires( !std::is_const_v<T> ) {
+	T& value_or( T& def ) const requires( !std::is_const_v<T> ) {
 		if(_ptr) return *_ptr;
 		return def;
 	}
 	/** @brief Returns a copy of the value or moves the given default. */
-	T value_or( T&& def ) {
+	T value_or( T&& def ) const {
 		if(_ptr) return *_ptr;
 		return std::move(def);
 	}
-	/** @brief Returns the reference to the value or computes the default. */
-	T& operator||( std::function<T&()> const& def ) {
+	/** @brief Modifies the contained or computed reference. */
+	template<typename F>
+	T& operator|( F&& def ) const requires (
+		std::invocable<F> && std::convertible_to<std::invoke_result_t<F>,T&>
+	) {
 		if(_ptr) return *_ptr;
-		return def();
+		return std::forward<F>(def)();
 	}
-	/** @brief Copies the value or computes default. */
-	T const& operator||( std::function<T()> const& def ) const& requires( !std::is_const_v<T> ) {
+	/** @brief Modifies the contained data or executes (failure) process. */
+	template<typename F>
+	T& operator|( F&& def ) const& requires (
+		std::same_as<std::invoke_result_t<F>,void>
+	) {
 		if(_ptr) return *_ptr;
-		return def();
-	}
-	template<typename E>
-	T& value_or_throw( E const& err ) {
-		if(_ptr) return *_ptr;
-		throw err;
-	}
-	template<typename E>
-	T const& value_or_throw( E const& err ) const& requires( !std::is_const_v<T> ) {
-		if(_ptr) return *_ptr;
-		throw err;
+		std::forward<F>(def)();
+		std::terminate();
 	}
 	template<typename F>
 	auto operator>>=( F const& f ) & {

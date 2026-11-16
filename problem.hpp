@@ -38,7 +38,7 @@ struct Problem : public Trs {
 	std::set<ruleId> triv_rules;
 private:
 	Problem() = delete;
-	void _triv_test( Trs::Rule const& rule );
+	Map<ruleId,Exp> _rename_cache;// renamed variant of lhss
 public:
 	Problem( std::istream& is );
 	void insert_rule( Trs::Rule const& rule, ruleId rule_ind ) &;
@@ -50,6 +50,13 @@ public:
 	bool reads_sym_decl( ::Reader& eis ) &;
 	void read_rule_decl( ::Reader& eis, Trs::Reader& tis ) &;
 	bool freeze( bool leftmost ) &;
+	Exp get_renamed_lhs( ruleId i ) & {
+		if( auto opt = _rename_cache.find(i) ) return *opt;
+		auto src = ASSERTED(rules.find(i))->first.map(// register renamed the rhs of the source DP
+			[&]( auto const& f ){ return sig.find(f) ? f : std::string("_")+f; }
+		);
+		return _rename_cache.emplace(i,src).first;
+	}
 	static bool test();
 };
 

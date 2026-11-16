@@ -105,7 +105,7 @@ void Problem::read_rule_decl( ::Reader& eis, Trs::Reader& tis ) & {
 		} else {
 			insert_rule(std::move(rule));
 		}
-		if( l.subterm(r) ) {// trivially nonterminating rule
+		if( l.subterm_eq(r) ) {// trivially nonterminating rule
 			triv_rules.emplace(rule_ind);
 		}
 }
@@ -116,7 +116,7 @@ Problem::Problem( istream& is ) : next_rule(ruleId(0)) {
 	if( eis.reads_sym("format") ) {
 		if( eis.reads_sym("TRS") ) {
 			format = TRS;
-			Opt<unsigned int> number;
+			Opt<ulong> number;
 			while( auto key = eis.reads_key() ) {
 				if( *key == ":number" ) {
 					if( number ) throw eis.error("#duplicate-number");

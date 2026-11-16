@@ -125,6 +125,7 @@ public:
 	bool is_const() const {
 		return _vars.empty();
 	}
+	Smt::PostExp const_exp() const;
 	friend Poly operator+( Poly const& p1, Poly const& p2 );
 	friend Poly& operator+=( Poly& p1, Poly const& p2 );
 	Poly monom_mult( Smt::PreExp const& c, VarProd const& vs ) const;

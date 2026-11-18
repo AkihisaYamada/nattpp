@@ -192,10 +192,10 @@ Term<Sum<Template::Sym,Arg>> Template::Deriver::_deriver_of(
 	auto const& fun = exp.fun();
 	auto proc = exp.proc();
 	if( fun == "nullable" ) {
-		uint16_t pos = poso.value_or(0);
+		uint16_t pos = poso | [&]{ return proc.get_arg().as_nat([](auto n){ return n < 255; }); };
 		auto inner = _deriver_of( proc.get_arg(), f, rank, {pos}, finfo, heuristic );
 		auto const& flag = _solver.declare_fresh(Smt::BOOL);
-		_solver.ass(flag.imp(finfo.args[pos].used));
+		_solver.ass(flag >>= finfo.args[pos].used);
 		return {Template::Fun("ite"),flag,inner,Smt::PostExp(0)};
 	}
 	if( fun == "var" ) {
@@ -294,8 +294,8 @@ void Template::Deriver::extend_sig( std::string const& f, Trs::Rank const& rank,
 	);
 	if( log & INIT ) cerr << "; intp triv[" << f << "] := " << finfo.triv << endl;
 	for( size_t i = 0; i < rank.arity; i++ ) {
-		auto const& infl = _solver.declare_const("i_"+fesc+"_"+to_string(i), Smt::BOOL);
-		auto const& used = _solver.declare_const("u_"+fesc+"_"+to_string(i),Smt::BOOL);
+		auto infl = _solver.declare_const("i_"+fesc+"_"+to_string(i),Smt::BOOL);
+		auto used = _solver.declare_const("u_"+fesc+"_"+to_string(i),Smt::BOOL);
 		auto const& arg = finfo.args.emplace_back(ArgInfo{
 			.infl = infl,
 			.used = used,
@@ -372,7 +372,7 @@ Exp const Template::MAXSUM = Exp("cond",
 );
 Exp const Template::IMAX = Exp("cond",
 	Exp("arity","0",_POSCONST),
-	Exp("arity","1",Exp("max",Exp("+",Exp("nullable","arg"),_CONST),"0")),
+	Exp("arity","1",Exp("max",Exp("+",Exp("nullable","0","arg"),_CONST),"0")),
 	Exp("otherwise",
 		Exp("max",
 			Exp("args","max",

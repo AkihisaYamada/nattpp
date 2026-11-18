@@ -11,6 +11,8 @@ else
 	export nproc=$(nproc)
 fi
 
+benchmark=$1
+shift
 export jobpath=$(realpath $1)
 shift
 export config=$1
@@ -31,8 +33,9 @@ mkdir $jobpath/proofs
 
 echo benchmark,solver,configuration,status,result,wallclock time > $csv
 
-(	cd ~/TPDB-ARI/TRS_Standard
-	printf '%q\n' */*.ari | xargs -P $nproc -L 1 -I {} bash -c '
+(	cd $benchmark
+	shopt -s globstar
+	printf '%q\n' **/*.ari | xargs -P $nproc -L 1 -I {} bash -c '
 		start=$EPOCHREALTIME
 		result=$(timeout $TIMEOUT $binpath/$solver "$@" 2> $proofdir/${1////_}_$participant.txt)
 		if [ $? -eq 124 ]

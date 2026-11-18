@@ -292,13 +292,21 @@ void Problem::init_uses() & {
 	dp_use_map = ConstGraph(uses_map).trancl();
 };
 
-void Problem::decomp_sccs() & {
+bool Problem::decomp_sccs() & {
 	assert( mode == DP );
-	if( components.empty() ) return;// nothing to decompose
+	if( components.empty() ) return false;// nothing to decompose
 	auto component = std::move(components.front());
 	components.pop_front();
 	auto dg = Graph(component.graph);
 	auto sccs = dg.sccs();
+	if( sccs.size() == 1 ) {// no decomposition was possible
+		if( auto triv = sccs[0].ref<ruleId>() ) {
+			erase_rule(*triv);
+			return true;
+		}
+		components.push_front(std::move(component));
+		return false;
+	}
 	for( uint32_t i = 0; i < sccs.size(); i++ ) {
 		if( auto triv = sccs[i].ref<ruleId>() ) {// trivial SCC
 			component.graph.erase(*triv);
@@ -317,6 +325,7 @@ void Problem::decomp_sccs() & {
 			assert(false);
 		}
 	}
+	return true;
 }
 
 ostream& Problem::print( ostream& os ) const& {

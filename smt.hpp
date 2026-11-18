@@ -282,8 +282,8 @@ public:
 			return *opt;
 		}
 		Opt<std::tuple<PostExp,PostExp,PostExp>> is_ite() const &;
-		PostExp imp( PostExp const& y ) const;
-		PreExp imp( PreExp const& y ) const;
+		PostExp operator>>=( PostExp const& y ) const;
+		PreExp operator>>=( PreExp const& y ) const;
 		PostExp eq( PostExp const& y ) const;
 		PostExp le( PostExp const& y ) const;
 		PostExp ge( PostExp const& y ) const;
@@ -303,14 +303,14 @@ public:
 			std::vector<Term<Fun>> ds;
 			for( ; i != end; i++ ) {
 				PostExp const& fx = f(i);
-				if( fx == TRUE ) return TRUE;
-				if( fx != FALSE ) ds.push_back(fx._term);
+				if( fx == true ) return true;
+				if( fx != false ) ds.push_back(fx._term);
 			}
 			switch( ds.size() ) {
-			case 0: return FALSE;
-			case 1: return PostExp(ds[0]);
+			case 0: return false;
+			case 1: return ds[0];
 			}
-			return PostExp(app(OR,std::move(ds)));
+			return app(OR,std::move(ds));
 		}
 		static PostExp disj( auto const& xs, auto const& f ) {
 			return disj( xs.begin(), xs.end(), [&]( auto const& i )->PostExp{ return f(*i); } );
@@ -323,17 +323,17 @@ public:
 			std::vector<Term<Fun>> cs;
 			for( ; i != end; i++ ) {
 				PostExp const& fx = f(i);
-				if( fx == FALSE ) return FALSE;
-				if( fx != TRUE ) cs.push_back(fx._term);
+				if( fx == false ) return false;
+				if( fx != true ) cs.push_back(fx._term);
 			}
 			switch( cs.size() ) {
-			case 0: return TRUE;
+			case 0: return true;
 			case 1: return cs[0];
 			}
 			return app(AND,std::move(cs));
 		}
 		static PostExp conj( auto const& xs, auto const& f ) {
-			return conj( xs.begin(), xs.end(), [&]( auto const& i ){ return f(*i); } );
+			return conj( xs.begin(), xs.end(), [&]( auto const& i )->PostExp{ return f(*i); } );
 		}
 	};
 	static PostExp car( PostExp const& arg );
@@ -455,7 +455,7 @@ public:
 		PreExp lt( PreExp const& y ) const& {
 			return PreExp(LT,{*this,y});
 		}
-		PreExp imp( PreExp const& y ) const& {
+		PreExp operator>>=( PreExp const& y ) const& {
 			return PreExp(IMP,{*this,y});
 		}
 		PreExp operator-() const & {
@@ -675,8 +675,8 @@ inline Smt::PreExp operator*( Smt::PostExp const& x, Smt::PreExp const& y ) {
 inline Smt::PreExp operator,( Smt::PreExp const& x, Smt::PreExp const& y ) {
 	return x.cons(y);
 }
-inline Smt::PreExp Smt::PostExp::imp( Smt::PreExp const& y ) const {
-	return PreExp(*this).imp(y);
+inline Smt::PreExp Smt::PostExp::operator>>=( Smt::PreExp const& y ) const {
+	return PreExp(*this >>= y);
 }
 
 inline std::ostream& operator<<( std::ostream& os, Smt::BaseSort const& x ) {

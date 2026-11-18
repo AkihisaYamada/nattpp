@@ -44,7 +44,7 @@ public:
 	void insert_rule( Trs::Rule const& rule, ruleId rule_ind ) &;
 	void insert_rule( Trs::Rule const& rule ) &;
 	void make_dps( uint8_t edge_len ) &;
-	void decomp_sccs() &;
+	bool decomp_sccs() &;
 	void init_uses() &;
 	std::ostream& print( std::ostream& os ) const &;
 	bool reads_sym_decl( ::Reader& eis ) &;

@@ -56,7 +56,6 @@ ostream& operator<<( ostream& os, Smt::Rat const& r ) {
 }
 ostream& operator<<( ostream& os, Smt::Val const& v ) {
 	if( auto const& i = v.is_int() ) {
-		if( *i < 0 ) return os << "(- " << *i << ')';
 		return os << *i;
 	} else if( auto const& r = v.is_rat() ) {
 		return os << *r;
@@ -192,7 +191,7 @@ Smt::PostExp operator||( Smt::PostExp const& x, Smt::PostExp const& y ) {
 	return app(Smt::OR,std::move(ds));
 }
 
-Smt::PostExp Smt::PostExp::imp( Smt::PostExp const& y ) const {
+Smt::PostExp Smt::PostExp::operator>>=( Smt::PostExp const& y ) const {
 	if( *this == false ) return true;
 	if( *this == true ) return y;
 	if( y == true ) return true;
@@ -338,7 +337,7 @@ Smt::PostExp Smt::ite( PostExp const& i, PostExp const& t, PostExp const& e ) {
 		return !i && e;
 	}
 	if( e == true ) {
-		return i.imp(t);
+		return i >>= t;
 	}
 	if( e == false ) {
 		return i && t;
@@ -670,7 +669,7 @@ Smt::PostExp Smt::Solver::expand( PreExp const& p, bool temp ) {
 			auto const& x = expand(args[0],temp);
 			if( x == false ) return true;
 			auto const& y = expand(args[1],temp);
-			return x.imp(y);
+			return x >>= y;
 		}
 		if( fun == ITE ) {
 			assert( args.size() == 3 );

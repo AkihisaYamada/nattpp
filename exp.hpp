@@ -374,6 +374,16 @@ public:
 			return Opt{std::move(key.str)};
 		};
 	}
+	bool reads_key( char const* str ) {
+		_fetch();
+		if( auto sym = _fetched.ref<Key>() ) {
+			if( str == sym->str ) {
+				_fetched = None();
+				return true;
+			}
+		}
+		return false;
+	}
 	Opt<std::string> reads_str() {
 		_fetch();
 		return _fetched.ref<Str>() >>= [&]( Str str ){

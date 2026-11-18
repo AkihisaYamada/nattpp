@@ -63,7 +63,6 @@ struct TermOrder {
 	static std::unique_ptr<TermOrder> make(
 		Exp const& x,
 		std::function<Smt::Solver()> const& default_smt,
-		Smt::Sort const& default_sort,
 		int default_log
 	);
 };
@@ -133,7 +132,7 @@ public:
 struct TrsOrder : TermOrder {
 	virtual Smt::Compare rule_order( ruleId i, Trs::Term const& l, Trs::Term const& r ) = 0;
 	virtual Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem& p ) = 0;
-	virtual Smt::PostExp separate_edge( ruleId i, ruleId j, Problem& p ) = 0;
+	virtual Smt::PostExp orient_by_edge( ruleId i, ruleId j, Problem& p ) = 0;
 	static std::unique_ptr<TrsOrder> make( std::unique_ptr<TermOrder>&& );
 private:
 	struct _Wrapper;
@@ -148,7 +147,7 @@ public:
 	_Wrapper( std::unique_ptr<TermOrder>&& ref ) : _ref(std::move(ref)) {}
 	Smt::Compare rule_order( ruleId i, Trs::Term const& l, Trs::Term const& r ) override;
 	Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem& p ) override;
-	Smt::PostExp separate_edge( ruleId i, ruleId j, Problem& p ) override;
+	Smt::PostExp orient_by_edge( ruleId i, ruleId j, Problem& p ) override;
 	int log() override { return _ref->log(); }
 	void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) override {
 		_ref->extend_sig(f,rank,heuristic);
@@ -186,7 +185,7 @@ public:
 	Smt::PostExp rule_used( ruleId i ) & override;
 	Smt::Compare rule_order( ruleId i, Trs::Term const& l, Trs::Term const& r ) override { return _ref->rule_order(i,l,r); }
 	Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem& p ) override { return _ref->edge_co_order(i,j,p); }
-	Smt::PostExp separate_edge( ruleId i, ruleId j, Problem& p ) override { return _ref->separate_edge(i,j,p); }
+	Smt::PostExp orient_by_edge( ruleId i, ruleId j, Problem& p ) override { return _ref->orient_by_edge(i,j,p); }
 	int log() override { return _ref->log(); }
 	void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) override {
 		_ref->extend_sig(f,rank,heuristic);
@@ -223,7 +222,7 @@ public:
 	Smt::PostExp edge_co_order( ruleId i, ruleId j, Problem& p ) override {
 		return _ref->edge_co_order(i,j,p);
 	}
-	Smt::PostExp separate_edge( ruleId i, ruleId j, Problem& p ) override { return _ref->separate_edge(i,j,p); }
+	Smt::PostExp orient_by_edge( ruleId i, ruleId j, Problem& p ) override { return _ref->orient_by_edge(i,j,p); }
 	int log() override { return _ref->log(); }
 	void extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) override {
 		_ref->extend_sig(f,rank,heuristic);
@@ -261,7 +260,7 @@ public:
 	Smt::PostExp arg_used( std::string const& f, uint16_t i ) override { return true; }
 	Smt::Compare rule_order( ruleId, Trs::Term const&, Trs::Term const& ) override { return {true,false}; }
 	Smt::PostExp edge_co_order( ruleId, ruleId, Problem& ) override { return false; }
-	Smt::PostExp separate_edge( ruleId, ruleId, Problem& ) override { return false; }
+	Smt::PostExp orient_by_edge( ruleId, ruleId, Problem& ) override { return false; }
 	Smt::PostExp term_used( Trs::Term const& ) & override { return true; }
 	Smt::PostExp rule_used( ruleId ) & override { return true; }
 };
@@ -343,13 +342,14 @@ assert(false);
 			return true;// edge is trivially infeasible
 		}
 		Smt::PostExp ret = false;
-		A& la = intp(l);
+		A& la = intp(l), ra = intp(r);
 		for( uint i = 0; i < rs.size(); i++ ) {
-			A& ti = intp(ts[i]);
-			if( ti.vars().empty() ) {// TODO: too strict?
-				A& ra = intp(r), ri = intp(rs[i]);
-				ret = ret || arg_used(f,i) && la.gt_cond(ra,ri,ti);
+			if( log() & SEP ) {
+				std::cerr << "; (orient_by_edge_arg " << i << " (=> (>= "
+					<< rs[i] << ' ' << ts[i] << ") (> " << l << ' ' << r << ")))" << std::endl;
 			}
+			A& ti = intp(ts[i]), ri = intp(rs[i]);
+			ret = ret || arg_used(f,i) && la.gt_cond(ra,ri,ti);
 		}
 		return ret;
 //		auto sort = solver().logic().base_sort();
@@ -516,16 +516,15 @@ Smt::Compare mapped_lex_order(
 	}
 	auto k_ge =// if rhs survives, lhs must cover it
 		Smt::PostExp::conj( 0, rin, [&]( uint16_t const& j ){
-			return rmap(j,k).imp(
+			return rmap(j,k) >>=
 				Smt::PostExp::disj( 0, lin, [&]( uint16_t const& i ){// [l] >= [r]
 					return lmap(i,k) && comp(ls[i],rs[j]).ge;
-				} )
-			);
+				} );
 		} );
 	auto k_str = solver.let( Smt::BOOL,
 		Smt::PostExp::disj( 0, lin, [&]( uint16_t const& i ){
 			return lmap(i,k) && Smt::PostExp::conj( 0, rin, [&]( uint16_t const& j ){// notice: [l] > []
-				return rmap(j,k).imp(comp(ls[i],rs[j]).str);
+				return rmap(j,k) >>= comp(ls[i],rs[j]).str;
 			} );
 		} )
 	);
@@ -561,7 +560,7 @@ Smt::PostExp mapped_lex_separate(
 	auto k_sep = solver.let( Smt::BOOL,
 		Smt::PostExp::disj( 0, lin, [&]( uint16_t const& i ){
 			return lmap(i,k) && Smt::PostExp::conj( 0, rin, [&]( uint16_t const& j ){// notice: [l] > []
-				return rmap(j,k).imp(sep(ls[i],rs[j]));
+				return rmap(j,k) >>= sep(ls[i],rs[j]);
 			} );
 		} )
 	);

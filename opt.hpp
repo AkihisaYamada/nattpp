@@ -75,7 +75,15 @@ public:
 		if(_opt) return *_opt;
 		return std::forward<F>(def)();
 	}
-	/** @brief Refers to the contained or computed data. */
+	/** @brief Copies the contained or computed value. */
+	template<typename F>
+	T operator|( F&& def ) const& requires (
+		std::invocable<F> && std::convertible_to<std::invoke_result_t<F>,T>
+	) {
+		if(_opt) return *_opt;
+		return std::forward<F>(def)();
+	}
+	/** @brief Modifies the contained or computed reference. */
 	template<typename F>
 	T& operator|( F&& def ) const& requires (
 		std::invocable<F> && std::same_as<std::invoke_result_t<F>,T&>

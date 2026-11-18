@@ -82,7 +82,7 @@ int main( int argc, char* argv[] ) try {
 	bool print_on_fail = false;
 	enum { UNSET, SN, SOME } mode = UNSET;
 	Opt<StrDeriver> osubst;
-	Opt<Exp> default_smt_spec;
+	Exp default_smt_spec = Exp{"z3","QF_LRA"};
 	Opt<Smt::BaseSort> default_sort;
 	int default_log = -1;
 	Opt<uint8_t> edge_len;
@@ -91,8 +91,9 @@ int main( int argc, char* argv[] ) try {
 	enum EdgeMode { NONE, AUTO = 1, FULL = AUTO << 1 } allow_edge = EdgeMode::AUTO;
 	bool use_dp = true;
 	bool use_superterm_criterion = true;
-	vector<Exp> rulerem_specs;
-	struct DpRemInfo { Exp exp; bool usable; bool edge; };
+	struct RuleRemInfo { Exp exp; Opt<Exp> smt; };
+	vector<RuleRemInfo> rulerem_specs;
+	struct DpRemInfo { Exp exp; Opt<Exp> smt; bool usable = true; bool edge = false; };
 	vector<DpRemInfo> dprem_specs;
 	for( int i = 1; i < argc; i++ ) {
 		if( argv[i][0] == '-' ) {
@@ -152,18 +153,18 @@ int main( int argc, char* argv[] ) try {
 				}}},
 				{ "-smt", { " <exp>:\tspecify SMT", [&]{
 					require_arg();
-					default_smt_spec = {Exp::of(argv[i])};
+					default_smt_spec = Exp::of(argv[i]);
 				}}},
 				{ "-log", { " <lvl>:\tlog level", [&]{
 					if( default_log != -1 ) throw Error("#duplicate-log");
 					require_arg();
 					default_log = TermOrder::log_of(argv[i]);
 				}}},
-				{ "-print", { " (problem|proof|step|dg|dp|usable|failure|maxsum):\tprint dependency graph", [&]{
+				{ "-print", { " (problem|proof|step|dg|dp|usable|fail|maxsum):\tprint dependency graph", [&]{
 					require_arg();
 					print_ref(argv[i]) = true;
 				}}},
-				{ "-no-print", { " (problem|proof|step|dg|dp|usable|failure|maxsum):\tprint dependency graph", [&]{
+				{ "-no-print", { " (problem|proof|step|dg|dp|usable|fail|maxsum):\tprint dependency graph", [&]{
 					require_arg();
 					print_ref(argv[i]) = false;
 				}}},
@@ -174,21 +175,23 @@ int main( int argc, char* argv[] ) try {
 					while( reader.opens() ) {
 						if( reader.reads_sym("rule-remover") ) {
 							rulerem_specs.emplace_back(reader.read_exp());
-							reader.close();
 						} else if( reader.reads_sym("dp-remover") ) {
 							auto& spec = dprem_specs.emplace_back(reader.read_exp());
-							while( !reader.closes() ) {
-								if( reader.reads_sym(":usable") ) {
+							for(;;) {
+								if( reader.reads_key(":usable") ) {
 									spec.usable = reader.read_bool();
-								} else if( reader.reads_sym(":edge") ) {
+								} else if( reader.reads_key(":edge") ) {
 									spec.edge = reader.read_bool();
+								} else if( reader.reads_key(":smt") ) {
+									spec.smt.emplace(reader.read_exp());
 								} else {
-									throw reader.error("#syntax");
+									break;
 								}
 							};
 						} else {
 							throw reader.error("#syntax","\"malformed strategy\"");
 						}
+						reader.close();
 					}
 					reader.eof();
 				}}},
@@ -229,13 +232,6 @@ int main( int argc, char* argv[] ) try {
 	if( !default_sort ) {
 		default_sort = {Smt::REAL};
 	}
-	auto default_smt = [&]()->Smt::Solver{
-		if( default_smt_spec ) {
-			return Smt::Solver::of(*default_smt_spec);
-		} else {
-			return Smt::Z3( *default_sort == Smt::REAL ? Smt::QF_LRA : Smt::QF_LIA );
-		}
-	};
 	if( default_log == -1 ) {
 		default_log = NONE;
 	}
@@ -246,14 +242,14 @@ int main( int argc, char* argv[] ) try {
 		use_dp = true;
 		bool auto_edge = allow_edge & (EdgeMode::AUTO | EdgeMode::FULL);
 		bool full_edge = allow_edge == EdgeMode::FULL;
-		dprem_specs.emplace_back( "sum", true, full_edge );
-		dprem_specs.emplace_back( "max", true, full_edge );
-		dprem_specs.emplace_back( "path-order", true, full_edge );
-		dprem_specs.emplace_back( "imaxsum", true, full_edge );
-		dprem_specs.emplace_back( Exp{"path-order",":weight","maxsum"}, true, full_edge );
-		dprem_specs.emplace_back( "sum_negsum", true, auto_edge );
-		dprem_specs.emplace_back( "mat2b", true, full_edge );
-		dprem_specs.emplace_back( "imaxsum_negsum", true, full_edge );
+		dprem_specs.push_back({ .exp="sum", .edge=auto_edge });
+		dprem_specs.push_back({ .exp="max", .edge=full_edge });
+		dprem_specs.push_back({ .exp="path-order", .edge=full_edge });
+		dprem_specs.push_back({ .exp="imaxsum", .edge=auto_edge });
+		dprem_specs.push_back({ .exp=Exp{"path-order",":weight","maxsum"}, .edge=full_edge });
+		dprem_specs.push_back({ .exp="sum_negsum", .edge=auto_edge });
+		dprem_specs.push_back({ .exp="mat2b", .edge=full_edge });
+		dprem_specs.push_back({ .exp="imaxsum_negsum", .edge=full_edge });
 	}
 	if( mode == UNSET && p.mode == Problem::NONE ) {
 		p.mode = Problem::SN;
@@ -284,13 +280,16 @@ int main( int argc, char* argv[] ) try {
 	}) : []{};
 
 	auto decomp_sccs = [&]{
-		p.decomp_sccs();
-		if( p.components.empty() ) {
-			if( print_steps ) cerr << "; no SCC" << endl;
-			throw Answer::YES;
+		if( p.decomp_sccs() ) {
+			if( p.components.empty() ) {
+				if( print_steps ) cerr << "; no SCC" << endl;
+				throw Answer::YES;
+			}
+			print_scc_count();
+			print_component();
+			return true;
 		}
-		print_scc_count();
-		print_component();
+		return false;
 	};
 
 	Set<std::string> heuristic;// TODO: improve
@@ -323,8 +322,12 @@ int main( int argc, char* argv[] ) try {
 //			_max_sum_heuristic(heuristic,p.sig,p.rules);
 			// rule removal loop
 			vector<pair<int,unique_ptr<TrsOrder>>> rule_removers;
-			for( auto x : rulerem_specs ) {
-				rule_removers.emplace_back(0,TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log)));
+			for( auto const& [x,smt] : rulerem_specs ) {
+				rule_removers.emplace_back(0,
+					TrsOrder::make(
+						TermOrder::make(x,[&]{ return Smt::Solver::of(smt.value_or(default_smt_spec)); },default_log)
+					)
+				);
 			}
 			auto rule_removes = [&]( auto& remover ) {
 				auto& [stage,ord] = remover;
@@ -402,7 +405,6 @@ int main( int argc, char* argv[] ) try {
 						}
 						*prf << ")\n";
 					}
-					decomp_sccs();
 				}
 			}
 			// SCC decomposition
@@ -417,8 +419,16 @@ int main( int argc, char* argv[] ) try {
 			unique_ptr<UsableRuleOrder> order;
 		};
 		vector<DpRemover> dp_removers;
-		for( auto [x,usable,edge] : dprem_specs ) {
-			dp_removers.emplace_back(0,edge,UsableRuleOrder::make(TrsOrder::make(TermOrder::make(x,default_smt,Smt::INT,default_log)),p,usable));
+		for( auto spec : dprem_specs ) {
+			dp_removers.emplace_back(0,spec.edge,
+				UsableRuleOrder::make(
+					TrsOrder::make(
+						TermOrder::make(spec.exp,[&]{
+							return Smt::Solver::of(spec.smt.value_or(default_smt_spec));
+						},default_log)
+					),p,spec.usable
+				)
+			);
 		}
 
 		for(;;) {
@@ -432,34 +442,39 @@ int main( int argc, char* argv[] ) try {
 				continue;
 			}
 			auto& comp = p.components.front();
-			auto dp_removes = [&]( DpRemover& remover ){
+			if( std::ranges::any_of( dp_removers, [&]( DpRemover& remover ){
 				if( print_steps ) cerr << "; trying " << remover.order->print_name() << "... " << endl;
 				if( remover.stage == 0 ) {
 					remover.order->extend_sig(p.sig,heuristic);
 					remover.stage = 1;
 				}
-				auto erase_dps = print_proofs ? function<void(vector<ruleId>&&,vector<ruleId>&&)>(
-					[&]( auto&& remdps, auto&& usables ){
-						*prf << "(remove-dp\n  " << remover.order->print(p.sig) << "\n ";
+				return order_some_dp( *remover.order, p,
+					print_proofs ? function<void(vector<ruleId>&&,vector<ruleId>&&)>(
+						[&]( auto&& remdps, auto&& usables ){
+							*prf << "(remove-dp\n  " << remover.order->print(p.sig) << "\n ";
+							for( auto i : remdps ) {
+								*prf << ' ' << i;
+								comp.graph.erase(i);
+								p.erase_rule(i);
+							}
+							*prf << "\n  :usables (" << print_list(usables) << "))" << endl;
+						}
+					) : [&]( auto&& remdps, auto&& usables ){
 						for( auto i : remdps ) {
-							*prf << ' ' << i;
 							comp.graph.erase(i);
 							p.erase_rule(i);
 						}
-						*prf << "\n  :usables (" << print_list(usables) << "))" << endl;
 					}
-				) : [&]( auto&& remdps, auto&& usables ){
-					for( auto i : remdps ) {
-						comp.graph.erase(i);
-						p.erase_rule(i);
-					}
-				};
-				if( order_some_dp( *remover.order, p, erase_dps ) ) {
-					return true;
-				}
-				if( remover.edge ) {
-					if( print_steps ) cerr << "; trying edge removal..." << endl;
-					auto erase_edges = print_proofs ? function<void(std::vector<std::pair<ruleId,std::vector<ruleId>>>&&,std::vector<ruleId>&&)>(
+				);
+			} ) ) {
+				decomp_sccs();
+				continue;
+			}
+			for(;;){// edge removal loop
+				if( std::ranges::any_of( dp_removers, [&]( DpRemover& remover ){
+					if( !remover.edge ) return false;
+					if( print_steps ) cerr << "; trying edge removal by " << remover.order->print_name() << "... " << endl;
+					return bound_by_edge( *remover.order, p, print_proofs ? function<void(std::vector<std::pair<ruleId,std::vector<ruleId>>>&&,std::vector<ruleId>&&)>(
 						[&]( auto&& nodes, auto&& usables ){
 						*prf << "(remove-edge\n  " << remover.order->print(p.sig) << flush;
 						for( auto const& [i,js] : nodes ) {
@@ -479,16 +494,13 @@ int main( int argc, char* argv[] ) try {
 								tgts.erase(j);
 							}
 						}
-					};
-					return bound_by_edge(*remover.order,p,erase_edges);
+					});
+				} ) ) {
+					if( decomp_sccs() ) break;
+				} else {
+					throw Answer::MAYBE;
 				}
-				return false;
-			};
-			if( std::ranges::any_of(dp_removers,dp_removes) ) {
-				decomp_sccs();
-				continue;
 			}
-			throw Answer::MAYBE;
 		}
 	} catch( Answer a ) {
 		if( a == Answer::YES ) {

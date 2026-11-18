@@ -58,7 +58,7 @@ struct Poly {
 						case NEG: return Smt::PostExp(Smt::Local(var)).le(0);
 						default: return Smt::PostExp(true);
 					}
-				}().imp(ret);
+				}() >>= ret;
 			}
 			return ret;
 		}
@@ -125,7 +125,8 @@ public:
 	bool is_const() const {
 		return _vars.empty();
 	}
-	Smt::PostExp const_exp() const;
+	Smt::PostExp bounded_below() const;
+	Smt::PostExp bounded_above() const;
 	friend Poly operator+( Poly const& p1, Poly const& p2 );
 	friend Poly& operator+=( Poly& p1, Poly const& p2 );
 	Poly monom_mult( Smt::PreExp const& c, VarProd const& vs ) const;

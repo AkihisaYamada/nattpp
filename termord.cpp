@@ -73,7 +73,7 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 				map_opt->collapse == Collapse::AUTO ? sol.declare_const("c_"+fesc,Smt::BOOL) :
 				map_opt->collapse == Collapse::FORCE ? true :
 				false;
-			auto col_imp_triv = collapse.imp(_weight->fun_triv(f));
+			auto col_imp_triv = collapse >>= _weight->fun_triv(f);
 			if( _log & INIT ) cerr << "; collapse[" << f << "] => trivial weight: " << col_imp_triv << endl;
 			sol.ass(col_imp_triv);
 			std::vector<Smt::PostExp> mapped_tbl;
@@ -94,12 +94,12 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 					sol.define_fun( "s_"+fesc+"_"+to_string(i), {}, Smt::BOOL, Smt::PostExp::disj(mapi))
 				);
 				if( _log & INIT ) cerr << "; monotonicity => mapped[" << f << ',' << i << "]" << endl;
-				sol.ass( _mono.imp(mappedi) );
-				auto map_imp_infl = mappedi.imp(_weight->arg_infl(f,i));
+				sol.ass( _mono >>= mappedi );
+				auto map_imp_infl = mappedi >>= _weight->arg_infl(f,i);
 				if( _log & INIT ) cerr << "; mapped[" << f << ',' << i << "] => weight weak simple: " << map_imp_infl << endl;
 				sol.ass( map_imp_infl );
 				used_tbl.emplace_back(_weight->arg_used(f,i));
-				auto col_imp_used_imp_mapped = collapse.imp( _weight->arg_used(f,i).imp(mappedi) );
+				auto col_imp_used_imp_mapped = collapse >>= _weight->arg_used(f,i) >>= mappedi;
 				if( _log & INIT ) cerr << "; collapse[" << f << "] => weight used => mapped: " << col_imp_used_imp_mapped << endl;
 				sol.ass( col_imp_used_imp_mapped ); 
 			}
@@ -115,10 +115,10 @@ void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool he
 			add_occupied(0);
 			for( uint16_t k = 1; k < post_arity; k++ ) {
 				auto& next = add_occupied(k);
-				sol.ass(next.imp(occupied[k-1]));
+				sol.ass(next >>= occupied[k-1]);
 			}
 			auto collapse_imp_ex1 =
-				collapse.imp( occupied[0] && (post_arity > 1 ? !occupied[1] : Smt::PostExp(true) ) );
+				collapse >>= occupied[0] && (post_arity > 1 ? !occupied[1] : Smt::PostExp(true) );
 			if( _log & INIT ) {
 				cerr << "; post-position occupancy: {" << print_list(occupied) << "}" << endl;
 				cerr << "; collapse => exactly one post argument is occupied: " << collapse_imp_ex1 << endl;
@@ -179,8 +179,8 @@ Smt::Compare PathOrder::_compare_sub( _TermComp const& comp_sub, _TermComp const
 		Smt::PostExp ge_all_arg = true, str_all_arg = true;
 		for( uint16_t j = 0; j < rinfo->arity; j++ ) {
 			auto const& [j_ge,j_str] = comp_sub(l,rargs[j]);
-			ge_all_arg = ge_all_arg && rinfo->mapped(j).imp(j_ge);
-			str_all_arg = str_all_arg && rinfo->mapped(j).imp(j_str);
+			ge_all_arg = ge_all_arg && (rinfo->mapped(j) >>= j_ge);
+			str_all_arg = str_all_arg && (rinfo->mapped(j) >>= j_str);
 		}
 		auto ge = w_ge && (
 			rinfo->collapse && ge_all_arg ||// g is collapsed
@@ -205,7 +205,7 @@ Smt::Compare PathOrder::_compare_sub( _TermComp const& comp_sub, _TermComp const
 	if( !rinfo ) {// f(s..) >=? y
 		w_str = sol.let(Smt::BOOL,w_str);
 		return { w_str || some_arg_ge,
-			w_str || linfo->collapse.imp(some_arg_str)// if f is collapsed, s = y is weak
+			w_str || (linfo->collapse >>= some_arg_str)// if f is collapsed, s = y is weak
 		};
 	}
 	// f(s...) >=? g(t...)
@@ -215,8 +215,8 @@ Smt::Compare PathOrder::_compare_sub( _TermComp const& comp_sub, _TermComp const
 		auto const& j_mapped = rinfo->mapped(j);
 //				if( j_mapped == false ) break;
 		auto const& [ge_j,str_j] = comp_sub(l,rargs[j]);
-		ge_all_arg = ge_all_arg && j_mapped.imp(ge_j);
-		str_all_arg = str_all_arg && j_mapped.imp(str_j); // if t_j survives, then s > t_j is prerequisite
+		ge_all_arg = ge_all_arg && (j_mapped >>= ge_j);
+		str_all_arg = str_all_arg && (j_mapped >>= str_j); // if t_j survives, then s > t_j is prerequisite
 	}
 //	if( ge_all_arg == false ) return { false, false };
 	auto const& [p_ge,p_str] = p_comp(*linfo,*rinfo);
@@ -248,7 +248,7 @@ Smt::Compare PathOrder::_compare_sub( _TermComp const& comp_sub, _TermComp const
 	if( ge == false ) return {false,false};
 	auto const& str =
 		w_str ||// w(s) > w(t)
-		some_arg_ge && linfo->collapse.imp(some_arg_str) ||// s_i > t
+		some_arg_ge && (linfo->collapse >>= some_arg_str) ||// s_i > t
 		rinfo->collapse && str_all_arg ||
 		!linfo->collapse && !rinfo->collapse && (p_str || args_str);
 	return {ge,str};
@@ -400,7 +400,7 @@ Smt::PostExp TrsOrder::_Wrapper::edge_co_order( ruleId i, ruleId j, Problem& p )
 	cache.emplace(j,ret);
 	return ret;
 }
-Smt::PostExp TrsOrder::_Wrapper::separate_edge( ruleId i, ruleId j, Problem& p ) {
+Smt::PostExp TrsOrder::_Wrapper::orient_by_edge( ruleId i, ruleId j, Problem& p ) {
 	auto& cache = _bound_edge_cache.find(i) | [&]->auto&{
 		return _bound_edge_cache.emplace(i,Map<ruleId,Smt::PostExp>{}).first;
 	};
@@ -410,24 +410,23 @@ Smt::PostExp TrsOrder::_Wrapper::separate_edge( ruleId i, ruleId j, Problem& p )
 	auto [l,r,w] = *ASSERTED(p.rules.find(i));
 	auto tgt = p.get_renamed_lhs(j);
 
+	if( log() & PAIR ) {
+		cerr << "; (orient_by_edge (" << i << ' ' << j << ") " << l << ' ' << r << ' ' << tgt << endl;
+	}
 	auto sep = _ref->separate_if(l,r,tgt);
 	// Declare a boolean variable that implies orientation, but not necessarily vise versa.
 	// This is necessary for when the exact value does not contribute to satisfiability.
-	auto ret = sep.is_bool() ? sep : [&]{
-		auto var = solver().declare_fresh(Smt::BOOL);
-		if( log() & PAIR ) {
-			cerr << "; (separate_edge " << l << ' ' << r << ' ' << tgt << ") = " << sep << endl;
-		}
-		solver().ass(var.imp(sep));
-		return var;
-	}();
+	auto ret = solver().let(Smt::BOOL,sep);
+	if( log() & PAIR ) {
+		cerr << "; (orient_by_edge (" << i << ' ' << j << ")) := " << ret << " := " << sep << endl;
+	};
 	cache.emplace(j,ret);
 	return ret;
 }
 
 Smt::PostExp UsableRuleOrder::_Wrapper::term_used( Trs::Term const& r ) & {
 	auto const& [g,rs] = *r;
-	auto ret = Smt::PostExp::conj(0,rs.size(),[&]( uint16_t p ){ return arg_used(g,p).imp(term_used(rs[p])); } );
+	auto ret = Smt::PostExp::conj(0,rs.size(),[&]( uint16_t p ){ return arg_used(g,p) >>= term_used(rs[p]); } );
 	if( auto const& ginfo = _trs.sig.find(g); ginfo && !ginfo->dp ) {// non-dp symbol
 		return ret && Smt::PostExp::conj( ginfo->defined_by, [&]( ruleId i )->Smt::PostExp{
 			if( auto const& rule = _trs.rules.find(i) )
@@ -453,7 +452,7 @@ Smt::PostExp UsableRuleOrder::_Wrapper::rule_used( ruleId i ) & {
 	auto& sol = _ref->solver();
 	if( log() & DEBUG ) cerr << "; rule used i => term used " << r << endl;
 	auto const& ret = _usable_table.emplace(i,sol.declare_const("used_"+to_string(i),Smt::BOOL)).first;
-	sol.ass(ret.imp(term_used(r)));
+	sol.ass(ret >>= term_used(r));
 	return ret;
 }
 
@@ -467,7 +466,6 @@ static Exp::KeyValProc log_key( int& log ) {
 std::unique_ptr<TermOrder> TermOrder::make(
 	Exp const& x,
 	std::function<Smt::Solver()> const& default_smt,
-	Smt::Sort const& default_sort,
 	int default_log
 ) {
 	auto const& f = x.fun();
@@ -559,7 +557,7 @@ std::unique_ptr<TermOrder> TermOrder::make(
 		set_log();
 		return std::make_unique<PathOrder>(
 			w ?
-				std::unique_ptr<TermOrder>(MemoizedTermOrder::make(make(*w,default_smt,default_sort,log))) :
+				std::unique_ptr<TermOrder>(MemoizedTermOrder::make(make(*w,default_smt,log))) :
 				std::make_unique<TrivOrder>(mk_smt()),
 			status ?
 				*status :

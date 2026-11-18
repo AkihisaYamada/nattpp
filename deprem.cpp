@@ -50,7 +50,7 @@ static std::pair<Set<ruleId>,Smt::PostExp> _contain_usables( UsableRuleOrder& or
 		if( auto const& rule = p.rules.find(i) ) {
 			auto const& [l,r,w] = *rule;
 			auto const& [ge,str] = order.rule_order(i,l,r);
-			ret = ret && order.rule_used(i).imp(ge);// if the rule is used, then it should be weakly oriented
+			ret = ret && ( order.rule_used(i) >>= ge );// if the rule is used, then it should be weakly oriented
 		}
 	}
 	return {usables,ret};
@@ -172,14 +172,14 @@ bool bound_by_edge(
 		Smt::PostExp node_cond = false;
 		for( auto const& j : js ) {
 			auto const& [s,t,v] = *ASSERTED(problem.rules.find(j));
-			auto sep = order.separate_edge(i,j,problem);
+			auto sep = order.orient_by_edge(i,j,problem);
 			if( sep == false ) continue;
 			node_cond = node_cond || sep;
 			edges.emplace_back(j,sep);
 		}
 		rm_some_edge = rm_some_edge || node_cond;
 	}
-	bool ret = solver.push().ass( contain_usables && contain_dps && rm_some_edge ).check_sat().result().is_sat();
+	bool ret = solver.push().ass(contain_usables).ass(contain_dps).ass(rm_some_edge).check_sat().result().is_sat();
 	if( ret ) {
 		std::vector<std::pair<ruleId,std::vector<ruleId>>> dp_results;
 		for( auto& [i,edge_encs] : encs ) {

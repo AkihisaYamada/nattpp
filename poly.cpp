@@ -169,21 +169,38 @@ Smt::Compare Poly::order( Poly const& y, Smt::Solver& solver ) const {
 	auto const& yc = y[{}].as_post();
 	return { order_sub(*this,y) && xc.ge(yc), xc.gt(yc) };
 }
-Smt::PostExp Poly::const_exp() const {
+Smt::PostExp Poly::bounded_below() const {
 	Smt::PostExp ret = true;
 	for( auto const& [v,c] : _map ) {
-		if( v.range() != NONE ) {
-			ret = ret && c.as_post().eq(0);
+		auto const& ce = c.as_post();
+		switch( v.range() ) {
+			case POS: ret = ret && ce.ge(0); break;
+			case NEG: ret = ret && ce.le(0); break;
+			case FULL: ret = ret && ce.eq(0); break;
+			case NONE: break;
+		}
+	}
+	return ret;
+}
+Smt::PostExp Poly::bounded_above() const {
+	Smt::PostExp ret = true;
+	for( auto const& [v,c] : _map ) {
+		auto const& ce = c.as_post();
+		switch( v.range() ) {
+			case POS: ret = ret && ce.le(0); break;
+			case NEG: ret = ret && ce.ge(0); break;
+			case FULL: ret = ret && ce.eq(0); break;
+			case NONE: break;
 		}
 	}
 	return ret;
 }
 
 Smt::PostExp Poly::gt_cond( Poly const& y, Poly const& s, Poly const& t ) const {
-	return y.const_exp() && [&]{
-		return t.const_exp() && [&]{
+	return y.bounded_above() && [&]{
+		return t.bounded_below() && [&]{
 			auto const& yc = y[{}].as_post(), tc = t[{}].as_post();
-			return (*this + tc).gt(yc + s);
+			return order_sub(*this,s) && (operator[]({}).as_post() + tc).gt(yc + s[{}].as_post());
 		};
 	};
 }
@@ -310,26 +327,37 @@ Smt::Compare MPoly::order( MPoly const& y, Smt::Solver& solver ) const {
 	return {ge_all,gt_all};
 }
 Smt::PostExp MPoly::gt_cond( MPoly const& y, MPoly const& s, MPoly const& t ) const {
+	// max s ≥ max t ⟹ max x > max y
 	// (∀tp. ∃sp. sp ≥ tp) ⟹ ∀yp. ∃xp. xp > yp
-	// ∃tp. (∃sp. sp ≥ tp) ⟹ ∀yp. ∃xp. xp > yp
-	// ∃tp. ∀yp sp. sp ≥ tp ⟹ ∃xp. xp > yp
-	// we require t is a constant.
-	if( t._set.size() != 1 || !t._set[0].is_const() ) return false;
-	auto const& tc = t._set[0][{}].as_post();
-	// ∀yp sp. sp ≥ tc ⟹ ∃xp. xp > yp
+	// ∀yp. ∃xp. (∀tp. ∃sp. sp ≥ tp) ⟹ xp > yp
+	// ∀yp. ∃xp. ∃tp. (∃sp. sp ≥ tp) ⟹ xp > yp
+	// ∀yp. ∃xp. ∃tp. ∀sp. sp ≥ tp ⟹ xp > yp
+	// ∀yp. ∃xp. ∃tp. ∀sp. xp + tp > sp + yp (sufficient)
 	return Smt::PostExp::conj( y._set, [&]( auto const& yp ){
-		if( yp.is_const() ) {// if yp is constant yc
+		return Smt::PostExp::disj( _set, [&]( auto const& xp ){
+			Smt::PostExp ret = xp.gt(yp);// unconditional
+			if( ret == true || !yp.is_const() ) { // give up using the condition
+				return ret;
+			}
+			// if yp is constant yc, try to use the conditions
 			auto const& yc = yp[{}].as_post();
-			// ∀sp. ∃xp. xp + tc > sp + yc
-			return Smt::PostExp::conj( s._set, [&]( auto const& sp ){
-				auto const& sc = sp[{}].as_post();
-				return Smt::PostExp::disj( _set, [&]( auto const& xp ){
-					return order_sub(xp,sp) && (xp[{}].as_post() + tc).gt(yc + sc);
-				} );
-			} );
-		} else { // otherwise, ignore the condition:
-			return Smt::PostExp::disj( _set, [&]( auto const& xp ){ return xp.gt(yp); } );
-		}
+			for( auto const& tp : t._set ) {
+				// ∀sp. sp ≥ tp ⟹ xp > yp
+				// if tp is bounded from below by tc, utilize it by
+				// ∀sp. xp + tc > sp + yc
+				ret = ret || tp.bounded_below() && [&]{
+					auto const& tc = tp[{}].as_post();
+					return Smt::PostExp::conj( s._set, [&]( auto const& sp ){
+						auto const& sc = sp[{}].as_post();
+						if( sp.is_const() ) {// constant >= constant is useful only when it is false
+							return !sc.ge(tc);
+						}
+						return order_sub(xp,sp) && (xp[{}].as_post() + tc).gt(yc + sc);
+					} );
+				};
+			};
+			return ret;
+		} );
 	} );
 }
 

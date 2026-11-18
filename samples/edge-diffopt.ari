@@ -1,0 +1,16 @@
+(format TRS)
+(fun None 0)
+(fun Some 1)
+(fun 0 0)
+(fun S 1)
+(fun -? 2)
+(fun m 2)
+(fun u 3)
+
+(rule (-? x 0) (Some x))
+(rule (-? 0 (S y)) None)
+(rule (-? (S x) (S y)) (-? x y))
+
+(rule (m x y) (u (-? x y) x y))
+(rule (u (Some d) x y) (m x (S y)))
+(rule (u None x y) 0)

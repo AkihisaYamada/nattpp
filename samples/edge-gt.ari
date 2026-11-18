@@ -1,0 +1,16 @@
+(format TRS)
+(fun T 0)
+(fun F 0)
+(fun 0 0)
+(fun S 1)
+(fun > 2)
+(fun m 2)
+(fun u 3)
+
+(rule (> (S x) 0) T)
+(rule (> 0 y) F)
+(rule (> (S x) (S y)) (> x y))
+
+(rule (m x y) (u (> x y) x y))
+(rule (u T x y) (m x (S y)))
+(rule (u F x y) 0)

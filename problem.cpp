@@ -174,26 +174,22 @@ string mark_sym( string const& sym ) {
 }
 
 static void collect_dps(
-	Trs::Sig& sig, Set<ruleId>& dps,
-	Trs::Term const& L, Trs::Rank& Finfo, Trs::Term const& r,
+	Set<ruleId>& dps,
+	Trs::Term const& l, Trs::Term const& L, Trs::Rank& Finfo, Trs::Term const& r,
 	Problem& p, Set<ruleId>& org_uses,
 	Map<ruleId,Set<ruleId>>& dp_uses
 ) {
 	auto const& [g,rs] = *r;
-	auto ginfo = sig.find(g);
+	auto ginfo = p.sig.find(g);
 	if( !ginfo || ginfo->defined_by.empty() ) {// rhs is a variable or constructor
 		for( auto const& a : rs ) {// just look into arguments
-			collect_dps(sig,dps,L,Finfo,a,p,org_uses,dp_uses);
+			collect_dps(dps,l,L,Finfo,a,p,org_uses,dp_uses);
 		}
 	} else {// rhs is defined
-		auto G = mark_sym(g);
 		// record here rules this dp will use
 		auto& this_uses = dp_uses.emplace(p.next_rule,Set<ruleId>{}).first;
-		Finfo.defined_by.emplace(p.next_rule);// assign this dp to f
-		dps.emplace(p.next_rule);
-		p.insert_rule(Trs::Rule(L,app(G,rs)));
 		for( auto const& a : rs ) {// look into arguments
-			collect_dps(sig,dps,L,Finfo,a,p,this_uses,dp_uses);
+			collect_dps(dps,l,L,Finfo,a,p,this_uses,dp_uses);
 		}
 		for( auto const& used : this_uses ) {
 			org_uses.emplace(used);// origin uses those rules which this dp uses
@@ -205,6 +201,11 @@ static void collect_dps(
 					org_uses.emplace(i);
 				}
 			}
+		}
+		if( !r.subterm(l) ) {// Dershowitz criterion
+			Finfo.defined_by.emplace(p.next_rule);// assign this dp to f
+			dps.emplace(p.next_rule);
+			p.insert_rule(Trs::Rule(L,app(mark_sym(g),rs)));
 		}
 	}
 }
@@ -235,7 +236,7 @@ void Problem::make_dps( uint8_t edge_len ) & {
 		}
 		auto F = mark_sym(f);
 		Set<ruleId> uses;// collect here rules that the original uses
-		collect_dps(sig,dps,app(F,ls),*ASSERTED(sig.find(F)),r,*this,uses,uses_map);
+		collect_dps(dps,l,app(F,ls),*ASSERTED(sig.find(F)),r,*this,uses,uses_map);
 		uses_map.emplace(org,std::move(uses));
 	}
 	dp_use_map = ConstGraph(uses_map).trancl();

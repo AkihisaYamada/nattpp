@@ -330,7 +330,7 @@ Exp const Template::MONO_POLY2 =
 	Exp("+",Exp("args","+",Exp("*",_1_OR_2,"arg")),_POSCONST);
 
 static Exp const _SUMCOEFF = _0_or_1_constrain(Exp("and",_MONO,_INFL,Template::USED));
-Exp const Template::SUM = Exp("+",Exp("args","+",Exp("*",_SUMCOEFF,"arg")),_POSCONST);
+Exp const Template::SUM = Exp("+",Exp("args","+",Exp("ite",bool_constrain(Exp("and",USED,_INFL)),"arg","0")),_POSCONST);
 Exp const Template::SIMP_MAX = Exp("cond",
 	Exp("arity","0",_POSCONST),
 	Exp("otherwise",Exp("args","max",Exp("+","arg",_POSCONST)))

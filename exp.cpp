@@ -1,5 +1,4 @@
 #include <cassert>
-#include <sstream>
 #include "util.hpp"
 #include "exp.hpp"
 

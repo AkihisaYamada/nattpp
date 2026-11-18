@@ -244,9 +244,9 @@ int main( int argc, char* argv[] ) try {
 		bool full_edge = allow_edge == EdgeMode::FULL;
 		dprem_specs.push_back({ .exp="sum", .edge=auto_edge });
 		dprem_specs.push_back({ .exp="max", .edge=full_edge });
-		dprem_specs.push_back({ .exp="path-order", .edge=full_edge });
+		dprem_specs.push_back({ .exp="path-order", .edge=false });
 		dprem_specs.push_back({ .exp="imaxsum", .edge=auto_edge });
-		dprem_specs.push_back({ .exp=Exp{"path-order",":weight","maxsum"}, .edge=full_edge });
+		dprem_specs.push_back({ .exp=Exp{"path-order",":weight","maxsum"}, .edge=false });
 		dprem_specs.push_back({ .exp="sum_negsum", .edge=auto_edge });
 		dprem_specs.push_back({ .exp="mat2b", .edge=full_edge });
 		dprem_specs.push_back({ .exp="imaxsum_negsum", .edge=full_edge });

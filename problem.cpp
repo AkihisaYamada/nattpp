@@ -187,7 +187,7 @@ static void collect_dps(
 		}
 	} else {// rhs is defined
 		// record here rules this dp will use
-		auto& this_uses = dp_uses.emplace(p.next_rule,Set<ruleId>{}).first;
+		Set<ruleId> this_uses;
 		for( auto const& a : rs ) {// look into arguments
 			collect_dps(dps,l,L,Finfo,a,p,this_uses,dp_uses);
 		}
@@ -203,6 +203,7 @@ static void collect_dps(
 			}
 		}
 		if( !r.subterm(l) ) {// Dershowitz criterion
+			dp_uses.emplace(p.next_rule,std::move(this_uses));
 			Finfo.defined_by.emplace(p.next_rule);// assign this dp to f
 			dps.emplace(p.next_rule);
 			p.insert_rule(Trs::Rule(L,app(mark_sym(g),rs)));

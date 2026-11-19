@@ -14,16 +14,20 @@ natt++ [<option>...] [<input.ari>]
 ```
 ### `<option>`:
 * `-smt '<smt>'`: specifies default SMT solver
-* `-r/-d/-a '<order>'`: specifies rule removal / DP removal / both
+* `-s '<processor>...'`: specifies strategy
 
 ### `<smt>`:
 * `(` (`z3`|`cvc5`)  `<smt-logic>` [`:tee <file>`] [`:let <bool>`] `)`
 
 ### `<smt-logic>`:
-* e.g. `QF-LIA`, see [https://smt-lib.org/logics.shtml]().
+* e.g. `QF_LIA`, see [https://smt-lib.org/logics.shtml]().
+
+### `<processor>`
+* `(rule-remover` `<mono-order>` [`:smt <smt>`] `)`
+* `(dp-remover` `<order>` [`:smt <smt>`] [`:usable` (`true`|`false`)] [`:edge` (`true`|`false`)] `)`
 
 ### `<order>`:
-* `(` (`mono-sum`|`sum`|`max`|`template...`) [`:log` (`debug`| ...)] [`:smt <smt>`] `)`
+* `(` (`mono-sum`|`sum`|`max`|`maxsum`|`imaxsum`|`mat2b`|`sum_negsum`|`imaxsum_negsum`|`template...`) [`:log` (`debug`| ...)] `)`
 * `(path-order `[`:weight <order>`] [`:status` (`straight`|`(map [<num>])`)] `)`
 
 

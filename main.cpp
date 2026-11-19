@@ -331,7 +331,7 @@ int main( int argc, char* argv[] ) try {
 			}
 			auto rule_removes = [&]( auto& remover ) {
 				auto& [stage,ord] = remover;
-				if( print_steps ) cerr << "; trying " << ord->print_name() << "... " << endl;
+				if( print_steps ) cerr << "; trying " << ord->print_name() << "..." << endl;
 				if( stage < 1 ) {// initialize for signature
 					ord->extend_sig(p.sig,heuristic);
 					stage = 1;
@@ -443,7 +443,7 @@ int main( int argc, char* argv[] ) try {
 			}
 			auto& comp = p.components.front();
 			if( std::ranges::any_of( dp_removers, [&]( DpRemover& remover ){
-				if( print_steps ) cerr << "; trying " << remover.order->print_name() << "... " << endl;
+				if( print_steps ) cerr << "; trying " << remover.order->print_name() << "..." << endl;
 				if( remover.stage == 0 ) {
 					remover.order->extend_sig(p.sig,heuristic);
 					remover.stage = 1;
@@ -478,7 +478,7 @@ int main( int argc, char* argv[] ) try {
 			for(;;){// edge removal loop
 				if( std::ranges::any_of( dp_removers, [&]( DpRemover& remover ){
 					if( !remover.edge ) return false;
-					if( print_steps ) cerr << "; trying edge removal by " << remover.order->print_name() << "... " << endl;
+					if( print_steps ) cerr << "; trying edge removal by " << remover.order->print_name() << "..." << endl;
 					auto pre = print_proofs ? function([&]{
 						*prf << "(remove-edge\n  " << remover.order->print(p.sig) << flush;
 					}) : print_steps ? function([&]{

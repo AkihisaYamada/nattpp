@@ -186,13 +186,23 @@ static void collect_dps(
 			collect_dps(dps,l,L,Finfo,a,p,org_uses,dp_uses);
 		}
 	} else {// rhs is defined
-		// record here rules this dp will use
-		Set<ruleId> this_uses;
-		for( auto const& a : rs ) {// look into arguments
-			collect_dps(dps,l,L,Finfo,a,p,this_uses,dp_uses);
-		}
-		for( auto const& used : this_uses ) {
-			org_uses.emplace(used);// origin uses those rules which this dp uses
+		if( r.subterm(l) ) {// Dershowitz criterion
+			for( auto const& a : rs ) {// look into arguments
+				collect_dps(dps,l,L,Finfo,a,p,org_uses,dp_uses);
+			}
+		} else {// make dp
+			// record here rules this dp will use
+			Set<ruleId>& this_uses = dp_uses.emplace(p.next_rule,Set<ruleId>{}).first;
+			Finfo.defined_by.emplace(p.next_rule);// assign this dp to f
+			dps.emplace(p.next_rule);
+			p.insert_rule(Trs::Rule(L,app(mark_sym(g),rs)));
+
+			for( auto const& a : rs ) {// look into arguments
+				collect_dps(dps,l,L,Finfo,a,p,this_uses,dp_uses);
+			}
+			for( auto const& used : this_uses ) {
+				org_uses.emplace(used);// origin uses those rules which this dp uses
+			}
 		}
 		for( ruleId i : ginfo->defined_by ) {// the origin also uses the rules that define g
 			if( auto const& rule = p.rules.find(i) ) {
@@ -201,12 +211,6 @@ static void collect_dps(
 					org_uses.emplace(i);
 				}
 			}
-		}
-		if( !r.subterm(l) ) {// Dershowitz criterion
-			dp_uses.emplace(p.next_rule,std::move(this_uses));
-			Finfo.defined_by.emplace(p.next_rule);// assign this dp to f
-			dps.emplace(p.next_rule);
-			p.insert_rule(Trs::Rule(L,app(mark_sym(g),rs)));
 		}
 	}
 }

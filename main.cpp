@@ -448,24 +448,29 @@ int main( int argc, char* argv[] ) try {
 					remover.order->extend_sig(p.sig,heuristic);
 					remover.stage = 1;
 				}
-				return order_some_dp( *remover.order, p,
-					print_proofs ? function<void(vector<ruleId>&&,vector<ruleId>&&)>(
-						[&]( auto&& remdps, auto&& usables ){
-							*prf << "(remove-dp\n  " << remover.order->print(p.sig) << "\n ";
-							for( auto i : remdps ) {
-								*prf << ' ' << i;
-								comp.graph.erase(i);
-								p.erase_rule(i);
-							}
-							*prf << "\n  :usables (" << print_list(usables) << "))" << endl;
-						}
-					) : [&]( auto&& remdps, auto&& usables ){
-						for( auto i : remdps ) {
-							comp.graph.erase(i);
-							p.erase_rule(i);
-						}
+				auto pre = print_proofs ? function([&]{
+					*prf << "(remove-dp\n  " << remover.order->print(p.sig) << "\n ";
+				}) : print_steps ? function([&]{
+					*prf << "(remove-dp " << remover.order->print_name() << "\n ";
+				}) : [&]{};
+				auto mid = print_proofs || print_steps ? function([&]( ruleId i ){
+					*prf << ' ' << i;
+				}) : [&]( auto const& ){
+				};
+				auto post = print_proofs ? function([&]( vector<ruleId> const& usables ){
+					*prf << "\n  :usables (" << print_list(usables) << "))" << endl;
+				}) : print_steps ? function([&]( vector<ruleId> const& ){
+					*prf << ')' << endl;
+				}) : [&]( auto const& ){};
+				return order_some_dp( *remover.order, p, [&]( auto&& remdps, auto&& usables ){
+					pre();
+					for( auto i : remdps ) {
+						mid(i);
+						comp.graph.erase(i);
+						p.erase_rule(i);
 					}
-				);
+					post(usables);
+				} );
 			} ) ) {
 				decomp_sccs();
 				continue;
@@ -474,26 +479,36 @@ int main( int argc, char* argv[] ) try {
 				if( std::ranges::any_of( dp_removers, [&]( DpRemover& remover ){
 					if( !remover.edge ) return false;
 					if( print_steps ) cerr << "; trying edge removal by " << remover.order->print_name() << "... " << endl;
-					return bound_by_edge( *remover.order, p, print_proofs ? function<void(std::vector<std::pair<ruleId,std::vector<ruleId>>>&&,std::vector<ruleId>&&)>(
-						[&]( auto&& nodes, auto&& usables ){
+					auto pre = print_proofs ? function([&]{
 						*prf << "(remove-edge\n  " << remover.order->print(p.sig) << flush;
-						for( auto const& [i,js] : nodes ) {
-							auto& tgts = comp.graph[i];
-							*prf << "\n  (edge " << i;
-							for( auto j : js ) {
-								tgts.erase(j);
-								*prf << ' ' << j;
-							}
-							*prf << ')' << flush;
+					}) : print_steps ? function([&]{
+						*prf << "(remove-edge " << remover.order->print_name() << flush;
+					}) : []{};
+					auto mid = print_proofs || print_steps ? function([&]( ruleId i, vector<ruleId> const& js ){
+						auto& tgts = comp.graph[i];
+						*prf << "\n  (edge " << i;
+						for( auto j : js ) {
+							tgts.erase(j);
+							*prf << ' ' << j;
 						}
+						*prf << ')' << flush;
+					}) : [&]( ruleId i, vector<ruleId> const& js ){
+						auto& tgts = comp.graph[i];
+						for( auto j : js ) {
+							tgts.erase(j);
+						}
+					};
+					auto post = print_proofs ? function([&]( vector<ruleId> const& usables ){
 						*prf << "\n  :usables (" << print_list(usables) << "))" << endl;
-					}) : [&]( auto&& nodes, auto&& usables ){
+					}) : print_steps ? function([&]( vector<ruleId> const& ){
+						*prf << ')' << endl;
+					}) : [&]( auto const& ){};
+					return bound_by_edge( *remover.order, p, [&](std::vector<std::pair<ruleId,std::vector<ruleId>>>&& nodes, std::vector<ruleId>&& usables ){
+						pre();
 						for( auto const& [i,js] : nodes ) {
-							auto& tgts = comp.graph[i];
-							for( auto j : js ) {
-								tgts.erase(j);
-							}
+							mid(i,js);
 						}
+						post(usables);
 					});
 				} ) ) {
 					if( decomp_sccs() ) break;

@@ -51,7 +51,7 @@ public:
 	}
 	Algebra extend( Map<F,std::function<T(std::vector<T>&&)>>&& extra ) const& {
 		return [&,extra=std::move(extra)]( F const& f, std::vector<T>&& args ){
-			if( auto const& fun = extra.find(f) ) {
+			if( auto const& fun = extra.gets(f) ) {
 				return (*fun)(std::move(args));
 			}
 			return _intp(f,std::move(args));
@@ -112,7 +112,7 @@ public:
 	Deriver( Args&&... args ) : _map(std::forward<Args>(args)...) {}
 	Deriver( std::initializer_list<typename _Map::value_type> list ) : _map(list) {}
 	Opt<ArgTerm<G> const&> find( F const& f ) const& {
-		return _map.find(f);
+		return _map.gets(f);
 	}
 	_Map const& map() const& { return _map; }
 	Deriver& assign( F const& f, ArgTerm<G> const& t ) {
@@ -125,7 +125,7 @@ public:
 	template<typename T>
 	Algebra<F,T> derive( Algebra<G,T>&& org ) const & {
 		return [org=std::move(org),this]( F const& f, std::vector<T>&& args ){
-			if( auto const& df = _map.find(f) ) {
+			if( auto const& df = _map.gets(f) ) {
 				return _intp_inner(org,*df,std::move(args));
 			}
 			return org(f,std::move(args));
@@ -134,7 +134,7 @@ public:
 	template<typename T>
 	Algebra<F,T> derive( Algebra<G,T> const& org ) const & {
 		return [&]( F const& f, std::vector<T>&& args ){
-			if( auto const& df = _map.find(f) ) {
+			if( auto const& df = _map.gets(f) ) {
 				return _intp_inner(org,*df,std::move(args));
 			}
 			return org(f,std::move(args));
@@ -148,7 +148,7 @@ struct Subst {
 private:
 	Map<F,Term<F>> _map;
 	Algebra<F,Term<F>> _alg = [&]( F const& f, std::vector<Term<F>>&& args ){
-		if( auto const& t = _map.find(f) ) {
+		if( auto const& t = _map.gets(f) ) {
 			return *t;
 		}
 		return app(f,std::move(args));

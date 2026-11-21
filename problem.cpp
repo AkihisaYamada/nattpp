@@ -94,7 +94,7 @@ void Problem::read_rule_decl( ::Reader& eis, Trs::Reader& tis ) & {
 		}
 		auto const& rule = Trs::Rule(l,r,weight.value_or(1));
 		ruleId rule_ind = rule_indo ? *rule_indo : next_rule;
-		if( auto rank = sig.find(l.fun()) ) {
+		if( auto rank = sig.gets(l.fun()) ) {
 			rank->defined_by.emplace(rule_ind);
 		}
 		if( set_index && *set_index != 1 ) {// main rule
@@ -137,7 +137,7 @@ Problem::Problem( istream& is ) : next_rule(ruleId(0)) {
 				}
 			}
 			eis.close();// of format
-			Trs::SigFun sig_fun = [&](string const& sym ){ return sig.find(sym); };
+			Trs::SigFun sig_fun = [&](string const& sym ){ return sig.gets(sym); };
 			if( number && *number > 1 ) {
 				components = std::deque<Component>(*number-1);
 			}
@@ -180,7 +180,7 @@ static void collect_dps(
 	Map<ruleId,Set<ruleId>>& dp_uses
 ) {
 	auto const& [g,rs] = *r;
-	auto ginfo = p.sig.find(g);
+	auto ginfo = p.sig.gets(g);
 	if( !ginfo || ginfo->defined_by.empty() ) {// rhs is a variable or constructor
 		for( auto const& a : rs ) {// just look into arguments
 			collect_dps(dps,l,L,Finfo,a,p,org_uses,dp_uses);
@@ -205,7 +205,7 @@ static void collect_dps(
 			}
 		}
 		for( ruleId i : ginfo->defined_by ) {// the origin also uses the rules that define g
-			if( auto const& rule = p.rules.find(i) ) {
+			if( auto const& rule = p.rules.gets(i) ) {
 				auto const& [l2,r2,w] = *rule;
 				if( may_reach(p,r,l2,8,false) ) {
 					org_uses.emplace(i);
@@ -232,26 +232,26 @@ void Problem::make_dps( uint8_t edge_len ) & {
 	// compute DPs
 	Set<ruleId> dps;
 	for( auto const& org : rule_ids ) {
-		auto const& [l,r,w] = *ASSERTED(rules.find(org));
+		auto const& [l,r,w] = *ASSERTED(rules.gets(org));
 		auto const& [f,ls] = *l;
-		auto finfo = sig.find(f);
+		auto finfo = sig.gets(f);
 		if( !finfo ) {
 			cerr << "(var-lhs " << org << ')' << endl;
 			throw Answer::NO;
 		}
 		auto F = mark_sym(f);
 		Set<ruleId> uses;// collect here rules that the original uses
-		collect_dps(dps,l,app(F,ls),*ASSERTED(sig.find(F)),r,*this,uses,uses_map);
+		collect_dps(dps,l,app(F,ls),*ASSERTED(sig.gets(F)),r,*this,uses,uses_map);
 		uses_map.emplace(org,std::move(uses));
 	}
 	dp_use_map = ConstGraph(uses_map).trancl();
 	// creating dependency graph
 	auto& component = components.emplace_back();
 	for( auto i : dps ) {
-		auto const& [L1,R1,W1] = *ASSERTED(rules.find(i));
+		auto const& [L1,R1,W1] = *ASSERTED(rules.gets(i));
 		auto [nexts,fl] = component.graph.emplace(i,Set<ruleId>{});
-		for( auto const& j : ASSERTED(sig.find(R1.fun()))->defined_by ) {
-			auto const& [L2,R2,W2] = *ASSERTED(rules.find(j));
+		for( auto const& j : ASSERTED(sig.gets(R1.fun()))->defined_by ) {
+			auto const& [L2,R2,W2] = *ASSERTED(rules.gets(j));
 			if( may_reach(*this,R1,L2,edge_len,false) ) {
 				nexts.emplace(j);
 			}
@@ -268,9 +268,9 @@ static void term_use(
 	for( auto const& a : ss ) {// use subterms
 		term_use(trs,a,uses);
 	}
-	if( auto rrank = trs.sig.find(f) ) {
+	if( auto rrank = trs.sig.gets(f) ) {
 		for( ruleId i : rrank->defined_by ) {// uses the rules that define the root
-			if( auto const& rule = trs.rules.find(i) ) {
+			if( auto const& rule = trs.rules.gets(i) ) {
 				auto const& [l,r,w] = *rule;
 				if( may_reach(trs,s,l,8,false) ) {
 					uses.emplace(i);
@@ -289,7 +289,7 @@ void Problem::init_uses() & {
 	}
 	for( auto const& comp : components ) {
 		for( auto const& [i,js] : comp.graph ) {
-			auto const& [l,r,w] = *ASSERTED(rules.find(i));
+			auto const& [l,r,w] = *ASSERTED(rules.gets(i));
 			auto uses = Set<ruleId>{};
 			term_use(*this,r,uses);
 			uses_map.emplace(i,std::move(uses));

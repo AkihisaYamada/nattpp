@@ -42,7 +42,7 @@ PathOrder::PathOrder(
 	if( log & INIT ) cerr << "; monotonicity flag: " << _mono << endl;
 }
 void PathOrder::extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) {
-	if( _info.find(f) ) return;
+	if( _info.gets(f) ) return;
 	auto& sol = solver();
 	auto const& sort = sol.logic().base_sort();
 	if( _log & INIT ) cerr << "; fun " << f << ' ' << rank.print_content() << endl;
@@ -168,10 +168,10 @@ Smt::Compare PathOrder::_compare_sub( _TermComp const& comp_sub, _TermComp const
 		return {false,false};
 	}
 	auto const& [lf,largs] = *l;
-	auto const& linfo = _info.find(lf);
+	auto const& linfo = _info.gets(lf);
 	if( !linfo ) {// x >=? t
 		auto const& [rf,rargs] = *r;
-		auto const& rinfo = _info.find(rf);
+		auto const& rinfo = _info.gets(rf);
 		if( !rinfo ) {// x >=? y
 			return { l == r, false };// variables must be identical, gl cannot be ensured
 		}
@@ -201,7 +201,7 @@ Smt::Compare PathOrder::_compare_sub( _TermComp const& comp_sub, _TermComp const
 		some_arg_ge = some_arg_ge || i_mapped && i_ge;// s_i survives and s_i ≥ t
 		some_arg_str = some_arg_str || i_mapped && i_str;
 	}
-	auto const& rinfo = _info.find(rf);
+	auto const& rinfo = _info.gets(rf);
 	if( !rinfo ) {// f(s..) >=? y
 		w_str = sol.let(Smt::BOOL,w_str);
 		return { w_str || some_arg_ge,
@@ -255,7 +255,7 @@ Smt::Compare PathOrder::_compare_sub( _TermComp const& comp_sub, _TermComp const
 }
 
 std::ostream& PathOrder::print_sym_info( std::ostream& os, std::string const& sym ) {
-	auto info = _info.find(sym);
+	auto info = _info.gets(sym);
 	assert(info);
 	auto& sol = solver();
 	os << " :prec " << sol.get_value(info->prec);
@@ -369,7 +369,7 @@ int TermOrder::log_of( Exp const& x ) {
 }
 
 Smt::Compare TrsOrder::_Wrapper::rule_order( ruleId i, Trs::Term const& l, Trs::Term const& r ) {
-	if( auto const& opt = _rule_order_cache.find(i) ) return *opt;
+	if( auto const& opt = _rule_order_cache.gets(i) ) return *opt;
 	Smt::Solver& sol = _ref->solver();
 	if( log() & RULE ) cerr << "; " << _ref->print_name() << ": (rule-n " << i << ' ' << l << ' ' << r << ')' << endl;
 	auto [ge,gt] = _ref->order(l,r);
@@ -378,13 +378,13 @@ Smt::Compare TrsOrder::_Wrapper::rule_order( ruleId i, Trs::Term const& l, Trs::
 	return ret;
 }
 Smt::PostExp TrsOrder::_Wrapper::edge_co_order( ruleId i, ruleId j, Problem& p ) {
-	auto& cache = _edge_separate_cache.find(i) | [&]->auto&{
+	auto& cache = _edge_separate_cache.gets(i) | [&]->auto&{
 		return _edge_separate_cache.emplace(i,Map<ruleId,Smt::PostExp>{}).first;
 	};
-	if( auto const& o = cache.find(j) ) {
+	if( auto const& o = cache.gets(j) ) {
 		return *o;
 	}
-	auto src = ASSERTED(p.rules.find(i))->second;
+	auto src = ASSERTED(p.rules.gets(i))->second;
 	auto [f,ss] = *src;
 	auto tgt = p.get_renamed_lhs(j);
 	auto [g,ts] = *tgt;
@@ -401,13 +401,13 @@ Smt::PostExp TrsOrder::_Wrapper::edge_co_order( ruleId i, ruleId j, Problem& p )
 	return ret;
 }
 Smt::PostExp TrsOrder::_Wrapper::orient_by_edge( ruleId i, ruleId j, Problem& p ) {
-	auto& cache = _bound_edge_cache.find(i) | [&]->auto&{
+	auto& cache = _bound_edge_cache.gets(i) | [&]->auto&{
 		return _bound_edge_cache.emplace(i,Map<ruleId,Smt::PostExp>{}).first;
 	};
-	if( auto const& o = cache.find(j) ) {
+	if( auto const& o = cache.gets(j) ) {
 		return *o;
 	}
-	auto [l,r,w] = *ASSERTED(p.rules.find(i));
+	auto [l,r,w] = *ASSERTED(p.rules.gets(i));
 	auto tgt = p.get_renamed_lhs(j);
 
 	if( log() & PAIR ) {
@@ -427,9 +427,9 @@ Smt::PostExp TrsOrder::_Wrapper::orient_by_edge( ruleId i, ruleId j, Problem& p 
 Smt::PostExp UsableRuleOrder::_Wrapper::term_used( Trs::Term const& r ) & {
 	auto const& [g,rs] = *r;
 	auto ret = Smt::PostExp::conj(0,rs.size(),[&]( uint16_t p ){ return arg_used(g,p) >>= term_used(rs[p]); } );
-	if( auto const& ginfo = _trs.sig.find(g); ginfo && !ginfo->dp ) {// non-dp symbol
+	if( auto const& ginfo = _trs.sig.gets(g); ginfo && !ginfo->dp ) {// non-dp symbol
 		return ret && Smt::PostExp::conj( ginfo->defined_by, [&]( ruleId i )->Smt::PostExp{
-			if( auto const& rule = _trs.rules.find(i) )
+			if( auto const& rule = _trs.rules.gets(i) )
 				if( may_reach(_trs,r,rule->first,8,false) ) {//TODO
 					if( log() & USE ) cerr << "; " << r << " uses " << i << endl;
 					return rule_used(i);
@@ -441,10 +441,10 @@ Smt::PostExp UsableRuleOrder::_Wrapper::term_used( Trs::Term const& r ) & {
 	}
 }
 Smt::PostExp UsableRuleOrder::_Wrapper::rule_used( ruleId i ) & {
-	if( auto const& ret = _usable_table.find(i) ) {
+	if( auto const& ret = _usable_table.gets(i) ) {
 		return *ret;
 	}
-	auto rule = _trs.rules.find(i);
+	auto rule = _trs.rules.gets(i);
 	if( !rule ) {// already removed
 		return _usable_table.emplace(i,true).first;
 	}

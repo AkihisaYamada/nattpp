@@ -285,7 +285,7 @@ Term<Sum<Template::Sym,Arg>> Template::Deriver::_deriver_of(
 	return app(Template::Fun(fun),std::move(args));
 }
 void Template::Deriver::extend_sig( std::string const& f, Trs::Rank const& rank, bool heuristic ) & {
-	if( sig.find(f) ) return;
+	if( sig.gets(f) ) return;
 	auto fesc = escape(f);
 	auto [finfo,fl] = sig.emplace(
 		f, FunInfo{

@@ -98,7 +98,7 @@ Poly& operator+=( Poly& p1, Poly const& p2 ) {
 
 Poly ite( Poly const& i, Poly const& p1, Poly const& p2 ) {
 	assert( i._map.size() == 1 );
-	Smt::PreExp ie = i._map.find({}) | [&]{ throw Error("#poly:ite"); };
+	Smt::PreExp ie = i._map.gets({}) | [&]{ throw Error("#poly:ite"); };
 	Poly ret;
 	iter2(p1._map,p2._map,[&]( auto const& it1, auto const& it2 ){
 		ret.set_coeff( it1->first, Smt::ite(ie,it1->second,it2->second) );

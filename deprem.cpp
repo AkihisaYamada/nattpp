@@ -40,14 +40,14 @@ static std::pair<Set<ruleId>,Smt::PostExp> _contain_usables( UsableRuleOrder& or
 	Set<ruleId> usables;// collect potential usable rules
 	Smt::PostExp ret = true;
 	for( auto const& [i,js] : p.components.front().graph ) {
-		if( auto const& us = p.dp_use_map.find(i) ) {
+		if( auto const& us = p.dp_use_map.gets(i) ) {
 			for( auto const& u : **us ) {
 				usables.emplace(u);
 			}
 		}
 	}
 	for( auto const& i : usables ) {
-		if( auto const& rule = p.rules.find(i) ) {
+		if( auto const& rule = p.rules.gets(i) ) {
 			auto const& [l,r,w] = *rule;
 			auto const& [ge,str] = order.rule_order(i,l,r);
 			ret = ret && ( order.rule_used(i) >>= ge );// if the rule is used, then it should be weakly oriented
@@ -67,7 +67,7 @@ bool order_some_dp(
 	Smt::PostExp orient_some_dp = false, contain_dps = true;
 	std::vector<std::pair<ruleId,Smt::PostExp>> encs;
 	for( auto const& [i,js] : component.graph ) {
-		auto const& [l,r,w] = *ASSERTED(p.rules.find(i));
+		auto const& [l,r,w] = *ASSERTED(p.rules.gets(i));
 		auto const& [ge,str] = order.rule_order(i,l,r);
 		contain_dps = contain_dps && ge && order.term_used(r);// rhs of DP should be marked used
 		orient_some_dp = orient_some_dp || str;
@@ -110,7 +110,7 @@ bool unorder_some_edge(
 	std::vector<OrientInfo> encs;
 
 	for( auto const& [i,js] : component.graph ) {
-		auto const& [l,r,w] = *ASSERTED(p.rules.find(i));
+		auto const& [l,r,w] = *ASSERTED(p.rules.gets(i));
 		for( auto const& t : r.args() ) {
 			mark_usables = mark_usables && order.term_used(t);// args of DP should be marked used
 		}
@@ -165,13 +165,13 @@ bool bound_by_edge(
 	std::vector<OrientInfo> encs;
 
 	for( auto const& [i,js] : component.graph ) {
-		auto const& [l,r,w] = *ASSERTED(problem.rules.find(i));
+		auto const& [l,r,w] = *ASSERTED(problem.rules.gets(i));
 		auto const& [ge,str] = order.rule_order(i,l,r);
 		contain_dps = contain_dps && ge && order.term_used(r);// rhs of DP should be marked used
 		auto& edges = encs.emplace_back(i).edges;
 		Smt::PostExp node_cond = false;
 		for( auto const& j : js ) {
-			auto const& [s,t,v] = *ASSERTED(problem.rules.find(j));
+			auto const& [s,t,v] = *ASSERTED(problem.rules.gets(j));
 			auto sep = order.orient_by_edge(i,j,problem);
 			if( sep == false ) continue;
 			node_cond = node_cond || sep;

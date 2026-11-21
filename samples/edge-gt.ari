@@ -1,3 +1,4 @@
+; renaming of GTSSK07
 (format TRS)
 (fun T 0)
 (fun F 0)

@@ -51,9 +51,9 @@ public:
 	void read_rule_decl( ::Reader& eis, Trs::Reader& tis ) &;
 	bool freeze( bool leftmost ) &;
 	Exp get_renamed_lhs( ruleId i ) & {
-		if( auto opt = _rename_cache.find(i) ) return *opt;
-		auto src = ASSERTED(rules.find(i))->first.map(// register renamed the rhs of the source DP
-			[&]( auto const& f ){ return sig.find(f) ? f : std::string("_")+f; }
+		if( auto opt = _rename_cache.gets(i) ) return *opt;
+		auto src = ASSERTED(rules.gets(i))->first.map(// register renamed the rhs of the source DP
+			[&]( auto const& f ){ return sig.gets(f) ? f : std::string("_")+f; }
 		);
 		return _rename_cache.emplace(i,src).first;
 	}

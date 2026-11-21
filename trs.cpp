@@ -6,17 +6,15 @@ void Trs::insert_rule( ruleId i, Rule const& rule ) & {
 	auto const& [l,r,w] = rule;
 	auto [ref,fl] = rules.emplace(i,rule);
 	assert(fl);
-	ASSERTED(sig.find(l.fun()))->defined_by.emplace(i);
+	ASSERTED(sig.gets(l.fun()))->defined_by.emplace(i);
 }
 
 bool Trs::erase_rule( ruleId i ) & {
-	if( auto const& o = rules.find(i) ) {
-		auto const& [l,r,w] = *o;
-		ASSERTED(sig.find(l.fun()))->defined_by.erase(i);
+	return rules.gets(i) && [&]( auto const& rule ){
+		ASSERTED(sig.gets(rule.first.fun()))->defined_by.erase(i);
 		rules.erase(i);
 		return true;
-	}
-	return false;
+	};
 }
 
 std::ostream& Trs::Rank::print_content( std::ostream& os, bool definers ) const& {

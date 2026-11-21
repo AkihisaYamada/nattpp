@@ -75,7 +75,7 @@ protected:
 	virtual Smt::Compare co_order_inner( Exp const& s, Exp const& t ) = 0;
 public:
 	Smt::Compare order( Exp const& l, Exp const& r ) override {
-		if( auto const& cache = _order_cache.find({l,r}) ) {
+		if( auto const& cache = _order_cache.gets({l,r}) ) {
 			return *cache;
 		}
 		auto ret = solver().let(order_inner(l,r));
@@ -86,7 +86,7 @@ public:
 		return ret;
 	}
 	Smt::Compare co_order( Exp const& s, Exp const& t ) override {
-		if( auto const& cache = _co_order_cache.find({s,t}) ) {
+		if( auto const& cache = _co_order_cache.gets({s,t}) ) {
 			return *cache;
 		}
 		auto ret = solver().let(co_order_inner(s,t));
@@ -306,12 +306,11 @@ public:
 		if( _log & DEBUG ) std::cerr << "; template " << f << ": " << *deriver.find(f) << std::endl;
 	}
 	A& intp( Trs::Term const& s ) & {
-		if( auto const& ret = _evals.find(s) ) {
-			return *ret;
-		}
-		auto [ret,fl] = _evals.emplace(s,_intp(s));
-		ret.memoize(_solver);
-		return ret;
+		return _evals.gets(s) | [&]->A&{
+			auto [ret,fl] = _evals.emplace(s,_intp(s));
+			ret.memoize(_solver);
+			return ret;
+		};
 	}
 	Smt::Compare order_inner( Exp const& l, Exp const& r ) override {
 		A const& li = intp(l), ri = intp(r);
@@ -368,13 +367,13 @@ assert(false);
 	int log() override { return _log; }
 	Smt::PostExp mono() override { return deriver.mono; }
 	Smt::PostExp fun_triv( std::string const& f ) override {
-		return ASSERTED(deriver.sig.find(f))->triv;
+		return ASSERTED(deriver.sig.gets(f))->triv;
 	}
 	Smt::PostExp arg_infl( std::string const& f, uint16_t i ) override {
-		return ASSERTED(deriver.sig.find(f))->args[i].infl;
+		return ASSERTED(deriver.sig.gets(f))->args[i].infl;
 	}
 	Smt::PostExp arg_used( std::string const& f, uint16_t i ) override {
-		return ASSERTED(deriver.sig.find(f))->args[i].used;
+		return ASSERTED(deriver.sig.gets(f))->args[i].used;
 	}
 };
 
@@ -464,13 +463,13 @@ public:
 	int log() override { return _log; }
 	Smt::PostExp mono() override { return _mono; }
 	Smt::PostExp fun_triv( std::string const& f ) override {
-		return ASSERTED(_info.find(f))->collapse;
+		return ASSERTED(_info.gets(f))->collapse;
 	}
 	Smt::PostExp arg_infl( std::string const& f, uint16_t i ) override {
-		return ASSERTED(_info.find(f))->mapped(i);
+		return ASSERTED(_info.gets(f))->mapped(i);
 	}
 	Smt::PostExp arg_used( std::string const& f, uint16_t i ) override {
-		return ASSERTED(_info.find(f))->used(i);
+		return ASSERTED(_info.gets(f))->used(i);
 	}
 };
 

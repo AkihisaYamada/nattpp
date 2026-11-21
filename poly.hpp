@@ -103,7 +103,7 @@ public:
 		return _map;
 	}
 	Smt::PreExp operator[]( VarProd const& vars ) const& {
-		if( auto const& c = _map.find(vars) ) {
+		if( auto const& c = _map.gets(vars) ) {
 			return *c;
 		}
 		return Smt::PreExp(0);

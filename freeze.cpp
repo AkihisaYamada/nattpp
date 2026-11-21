@@ -38,7 +38,7 @@ bool Problem::freeze( bool uncurry ) & {
 	// step 1: enumerate freezable positions
 	// TODO!! probably, a fixed point is necessary!
 	Algebra<std::string,bool> prel = [&]( std::string const& f, std::vector<bool>&& args ){
-		if( auto finfo = freeze_info.find(f) ) {
+		if( auto finfo = freeze_info.gets(f) ) {
 			auto& [freezer,freezee,visited,fargs] = *finfo;
 			size_t n = fargs.size();
 			assert( args.size() == n );
@@ -61,9 +61,8 @@ bool Problem::freeze( bool uncurry ) & {
 		return false;// variable cannot be frozen
 	};
 	Algebra<std::string,bool> prer = [&]( std::string const& f, std::vector<bool>&& args ){
-		Set<std::string> ret;
-		if( auto finfo = freeze_info.find(f) ) {
-			auto& [freezer,freezee,visited,fargs] = *finfo;
+		return freeze_info.gets(f) && [&]( auto& finfo ) {
+			auto& [freezer,freezee,visited,fargs] = finfo;
 			size_t n = fargs.size();
 			assert( args.size() == n );
 			if( freezer ) {
@@ -76,8 +75,7 @@ bool Problem::freeze( bool uncurry ) & {
 				return pot;
 			}
 			return freezee;
-		}
-		return false;
+		};
 	};
 	for( auto const& [i,rule] : rules ) {
 		auto const& [l,r,w] = rule;
@@ -97,7 +95,7 @@ bool Problem::freeze( bool uncurry ) & {
 				if( freeze ) {
 					freeze_any = true;
 					finfo.freezee = false;// raw freezer cannot be frozen
-					ASSERTED(sig.find(f))->defined_by.clear();// forget raw symbols were defined
+					ASSERTED(sig.gets(f))->defined_by.clear();// forget raw symbols were defined
 				} else {// do not freeze this
 					finfo.freezer = false;
 				}
@@ -109,7 +107,7 @@ bool Problem::freeze( bool uncurry ) & {
 	std::vector<Trs::Rule> freezing_rules;// freezer rules
 	Algebra<std::string,::Term<std::string>> lalg =
 	[&]( std::string const& f, std::vector<::Term<std::string>> const& args ){
-		if( auto finfo = freeze_info.find(f) ) {
+		if( auto finfo = freeze_info.gets(f) ) {
 			auto& [freezer,freezee,visited,fargs] = *finfo;
 			if( visited && freezer ) {
 				std::string ff = "[" + f;
@@ -157,13 +155,13 @@ bool Problem::freeze( bool uncurry ) & {
 	for( auto& [i,rule] : rules ) {
 		auto& [l,r,w] = rule;
 		l = lalg(l);
-		ASSERTED(sig.find(l.fun()))->defined_by.emplace(i);
-		ASSERTED(freeze_info.find(l.fun()))->freezee=false;// do not freeze defined symbols
+		ASSERTED(sig.gets(l.fun()))->defined_by.emplace(i);
+		ASSERTED(freeze_info.gets(l.fun()))->freezee=false;// do not freeze defined symbols
 	}
 
 	// step 3: freeze rhss
 	Algebra<std::string,::Term<std::string>> ralg = [&]( std::string const& f, std::vector<::Term<std::string>> const& args ){
-		if( auto finfo = freeze_info.find(f) ) {
+		if( auto finfo = freeze_info.gets(f) ) {
 			auto& [freezer,freezee,fvisited,fargs] = *finfo;
 			if( freezer ) {
 				std::string ff = "[" + f;
@@ -173,7 +171,7 @@ bool Problem::freeze( bool uncurry ) & {
 					if( fargs[i].second ) {
 						auto const& g = args[i].fun();
 						// freeze if the argument is freezable
-						if( freeze_info.find(g) && []( auto const& ginfo ){ return ginfo.freezee; } ) {
+						if( freeze_info.gets(g) && []( auto const& ginfo ){ return ginfo.freezee; } ) {
 							ff.append(1,' ') += g;
 							ret_args.append_range(args[i].args());
 							continue;
@@ -201,7 +199,7 @@ bool Problem::freeze( bool uncurry ) & {
 	}
 	// move freezer rules into main rules
 	for( auto& rule : freezing_rules ) {
-		ASSERTED(sig.find(rule.first.fun()))->defined_by.emplace(next_rule);
+		ASSERTED(sig.gets(rule.first.fun()))->defined_by.emplace(next_rule);
 		insert_rule(std::move(rule));
 	}
 	return true;

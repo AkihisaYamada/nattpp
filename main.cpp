@@ -15,7 +15,7 @@ void _max_sum_heuristic( Set<std::string>& maxsyms, Trs::Sig const& sig, Trs::Ru
 	Algebra<std::string,MSets<std::string>> lalg =
 	[&]( std::string const& f, std::vector<MSets<std::string>>&& args ){
 		MSets<std::string> ret;
-		if( sig.find(f) ) {
+		if( sig.gets(f) ) {
 			if( maxsyms.contains(f) ) {
 				for( auto&& arg : args ) ret.append_range(std::move(arg));
 			} else {
@@ -35,7 +35,7 @@ void _max_sum_heuristic( Set<std::string>& maxsyms, Trs::Sig const& sig, Trs::Ru
 				Algebra<std::string,MSets<std::string>> ralg =
 				[&]( std::string const& g, std::vector<MSets<std::string>>&& args ){
 					MSets<std::string> ret;
-					if( sig.find(g) ) {
+					if( sig.gets(g) ) {
 						if( maxsyms.contains(g) ) {
 							for( auto&& arg : args ) ret.append_range(std::move(arg));
 						} else {
@@ -112,7 +112,7 @@ int main( int argc, char* argv[] ) try {
 					{"fail",print_on_fail},
 					{"maxsum",print_maxsym},
 				};
-				return print_map.find(argv[i]) | [&]{ throw Error("#main","\"unknown print option\"",argv[i]); };
+				return print_map.gets(argv[i]) | [&]{ throw Error("#main","\"unknown print option\"",argv[i]); };
 			};
 			OrdMap<std::string,std::pair<std::string,std::function<void(void)>>> map = {
 				{ "-q", { ":\tquiet mode", [&]{
@@ -137,14 +137,14 @@ int main( int argc, char* argv[] ) try {
 					static Map<std::string,FreezingMode> map = {
 						{"full",FreezingMode::FULL},{"uncurry",FreezingMode::UNCURRY},{"none",FreezingMode::NONE}
 					};
-					allow_freezing = map.find(argv[i]) | [&]{ throw Error("#command","\"unknown freezing mode\"",argv[i]); };
+					allow_freezing = map.gets(argv[i]) | [&]{ throw Error("#command","\"unknown freezing mode\"",argv[i]); };
 				}}},
 				{ "-edge", { " (none|auto|full):\tedge remove mode", [&]{
 					require_arg();
 					static Map<std::string,EdgeMode> map = {
 						{"full",EdgeMode::FULL},{"auto",EdgeMode::AUTO},{"none",EdgeMode::NONE}
 					};
-					allow_edge = map.find(argv[i]) | [&]{ throw Error("#command","\"unknown edge remove mode\"",argv[i]); };
+					allow_edge = map.gets(argv[i]) | [&]{ throw Error("#command","\"unknown edge remove mode\"",argv[i]); };
 				}}},
 				{ "-edge-len", { " <nat>:\tedge length", [&]{
 					if( edge_len ) throw Error("#duplicate-option",argv[i]);
@@ -215,7 +215,7 @@ int main( int argc, char* argv[] ) try {
 					exit(0);
 				}}}
 			};
-			auto const& body = map.find(opt);
+			auto const& body = map.gets(opt);
 			if( !body ) {
 				throw Error("#unknown-option",argv[i]);
 			}
@@ -358,7 +358,7 @@ int main( int argc, char* argv[] ) try {
 			if( print_proofs ) {
 				*prf << "(dps" << endl;
 				for( auto const& [i,js] : dg ) {
-					auto const& [l,r,w] = *ASSERTED(p.rules.find(i));
+					auto const& [l,r,w] = *ASSERTED(p.rules.gets(i));
 					*prf << " (dp " << l << ' ' << r << " :number " << i;
 					if( print_dg ) *prf << "\n  :edges (" << print_list(js) << ')';
 					*prf << ')' << endl;
@@ -374,7 +374,7 @@ int main( int argc, char* argv[] ) try {
 				if( print_steps ) *prf << "; trying superterm criterion..." << endl;
 				vector<pair<ruleId,Set<ruleId>>> rem_edges;
 				for( auto& [i,js] : dg ) {
-					auto const& [l,r,w] = *ASSERTED(p.rules.find(i));
+					auto const& [l,r,w] = *ASSERTED(p.rules.gets(i));
 					auto const& [f,rs] = *r;
 					auto n = rs.size();
 					Set<ruleId> node;

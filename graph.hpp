@@ -42,7 +42,7 @@ public:
 		return scc_info().sccs;
 	}
 	uint32_t scc_ind( N node ) const& {
-		return *ASSERTED(scc_info().scc_inds.find(node));
+		return *ASSERTED(scc_info().scc_inds.gets(node));
 	}
 	struct Acyclic;
 	Printable print_nodes( std::string_view const& pref, std::string_view const& _sep ) const& {
@@ -224,7 +224,7 @@ public:
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
 	void iter_nexts( N src, std::function<void(N)> const& f ) const& override {
-		_body.find(src) >>= [&]( auto const& nexts ){
+		_body.gets(src) >>= [&]( auto const& nexts ){
 			for( auto const& next : nexts ) f(next);
 		};
 	}
@@ -244,7 +244,7 @@ public:
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
 	void iter_nexts( N src, std::function<void(N)> const& f ) const& override {
-		_body.find(src) >>= [&]( auto const& nexts ){
+		_body.gets(src) >>= [&]( auto const& nexts ){
 			for( auto const& next : *nexts ) f(next);
 		};
 	}
@@ -264,7 +264,7 @@ public:
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
 	void iter_nexts( N src, std::function<void(N)> const& f ) const& override {
-		_body.find(src) >>= [&]( auto const& nexts ){
+		_body.gets(src) >>= [&]( auto const& nexts ){
 			for( auto const& next : *nexts ) f(next);
 		};
 	}
@@ -284,7 +284,7 @@ public:
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
 	void iter_nexts( N src, std::function<void(N)> const& f ) const& override {
-		_body.find(src) >>= [&]( auto const& nexts ){
+		_body.gets(src) >>= [&]( auto const& nexts ){
 			for( auto const& next : nexts ) f(next);
 		};
 	}
@@ -304,7 +304,7 @@ public:
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
 	void iter_nexts( N src, std::function<void(N)> const& f ) const& override {
-		_body.find(src) >>= [&]( auto const& nexts ){
+		_body.gets(src) >>= [&]( auto const& nexts ){
 			for( auto const& next : nexts ) f(next);
 		};
 	}
@@ -365,7 +365,7 @@ public:
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
 	void iter_nexts( N src, std::function<void(N)> const& f ) const& override {
-		_body.find(src) >>= [&]( auto const& nexts ){
+		_body.gets(src) >>= [&]( auto const& nexts ){
 			for( auto const& next : nexts ) f(next);
 		};
 	}
@@ -373,7 +373,7 @@ public:
 		return _body.erase(node);
 	}
 	bool erase_edges( N src, std::function<bool(N)> const& test ) & override {
-		return _body.find(src) && [&]( Set<N>& nexts ){ return nexts.erase_if(test); };
+		return _body.gets(src) && [&]( Set<N>& nexts ){ return nexts.erase_if(test); };
 	}
 };
 template<typename N>
@@ -396,7 +396,7 @@ public:
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
 	void iter_nexts( N src, std::function<void(N)> const& f ) const& override {
-		_body.find(src) >>= [&]( auto const& nexts ){
+		_body.gets(src) >>= [&]( auto const& nexts ){
 			for( auto const& next : nexts ) f(next);
 		};
 	}
@@ -404,7 +404,7 @@ public:
 		return _body.erase(node);
 	}
 	bool erase_edges( N src, std::function<bool(N)> const& test ) & override {
-		return _body.find(src) && [&]( Set<N>& nexts ){ return nexts.erase_if(test); };
+		return _body.gets(src) && [&]( Set<N>& nexts ){ return nexts.erase_if(test); };
 	}
 };
 template<typename N>
@@ -502,7 +502,7 @@ ConstGraph<N>::Acyclic ConstGraphInterface<N>::Acyclic::acyc_trancl() const {
 		auto [nexts,fl] = map.emplace(src,Set<N>());
 		assert(fl);
 		iter_nexts(src,[&]( auto const& tgt ){
-			for( auto const& next : *ASSERTED(map.find(tgt)) ) {
+			for( auto const& next : *ASSERTED(map.gets(tgt)) ) {
 				nexts.emplace(next);
 			}
 			nexts.emplace(tgt);

@@ -21,21 +21,21 @@ public:
 		return {it->second,f};
 	}
 	template<typename L>
-	Opt<T&> find( L&& k ) & {
+	Opt<T&> gets( L&& k ) & {
 		if( auto it = M::find(std::forward<L>(k)); it != end() ) {
 			return it->second;
 		}
 		return {};
 	}
 	template<typename L>
-	Opt<T const&> find( L&& k ) const & {
+	Opt<T const&> gets( L&& k ) const & {
 		if( auto it = M::find(std::forward<L>(k)); it != end() ) {
 			return it->second;
 		}
 		return {};
 	}
-	Opt<T&> find( K const& k ) & { return find<K const&>(k); }
-	Opt<T const&> find( K const& k ) const & { return find<K const&>(k); }
+	Opt<T&> gets( K const& k ) & { return gets<K const&>(k); }
+	Opt<T const&> gets( K const& k ) const & { return gets<K const&>(k); }
 	T& operator[]( K const& k ) & { return M::operator[](k); }
 	T const& operator[]( K const& k ) const & { return M::operator[](k); }
 	void merge(Map& other) { M::merge(static_cast<M&>(other)); }
@@ -58,21 +58,21 @@ public:
 		return {it->second,f};
 	}
 	template<typename L>
-	Opt<T&> find( L&& k ) & {
+	Opt<T&> gets( L&& k ) & {
 		if( auto it = M::find(std::forward<L>(k)); it != end() ) {
 			return it->second;
 		}
 		return {};
 	}
 	template<typename L>
-	Opt<T const&> find( L&& k ) const & {
+	Opt<T const&> gets( L&& k ) const & {
 		if( auto it = M::find(std::forward<L>(k)); it != end() ) {
 			return it->second;
 		}
 		return {};
 	}
-	Opt<T&> find( K const& k ) & { return find<K const&>(k); }
-	Opt<T const&> find( K const& k ) const & { return find<K const&>(k); }
+	Opt<T&> gets( K const& k ) & { return gets<K const&>(k); }
+	Opt<T const&> gets( K const& k ) const & { return gets<K const&>(k); }
 	void merge(OrdMap& other) { M::merge(static_cast<M&>(other)); }
 	void merge(OrdMap&& other) { M::merge(static_cast<M&&>(other)); }
 };

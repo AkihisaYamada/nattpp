@@ -224,9 +224,9 @@ public:
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
 	void iter_nexts( N src, std::function<void(N)> const& f ) const& override {
-		if( auto const& nexts = _body.find(src) ) {
-			for( auto const& next : *nexts ) f(next);
-		}
+		_body.find(src) >>= [&]( auto const& nexts ){
+			for( auto const& next : nexts ) f(next);
+		};
 	}
 };
 template<typename N>
@@ -244,9 +244,9 @@ public:
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
 	void iter_nexts( N src, std::function<void(N)> const& f ) const& override {
-		if( auto const& nexts = _body.find(src) ) {
-			for( auto const& next : **nexts ) f(next);
-		}
+		_body.find(src) >>= [&]( auto const& nexts ){
+			for( auto const& next : *nexts ) f(next);
+		};
 	}
 };
 template<typename N>
@@ -264,9 +264,9 @@ public:
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
 	void iter_nexts( N src, std::function<void(N)> const& f ) const& override {
-		if( auto const& nexts = _body.find(src) ) {
-			for( auto const& next : **nexts ) f(next);
-		}
+		_body.find(src) >>= [&]( auto const& nexts ){
+			for( auto const& next : *nexts ) f(next);
+		};
 	}
 };
 template<typename N>
@@ -284,9 +284,9 @@ public:
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
 	void iter_nexts( N src, std::function<void(N)> const& f ) const& override {
-		if( auto const& nexts = _body.find(src) ) {
-			for( auto const& next : *nexts ) f(next);
-		}
+		_body.find(src) >>= [&]( auto const& nexts ){
+			for( auto const& next : nexts ) f(next);
+		};
 	}
 };
 template<typename N>
@@ -304,9 +304,9 @@ public:
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
 	void iter_nexts( N src, std::function<void(N)> const& f ) const& override {
-		if( auto const& nexts = _body.find(src) ) {
-			for( auto const& next : *nexts ) f(next);
-		}
+		_body.find(src) >>= [&]( auto const& nexts ){
+			for( auto const& next : nexts ) f(next);
+		};
 	}
 };
 template<typename N>
@@ -365,15 +365,15 @@ public:
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
 	void iter_nexts( N src, std::function<void(N)> const& f ) const& override {
-		if( auto const& nexts = _body.find(src) ) {
-			for( auto const& next : *nexts ) f(next);
-		}
+		_body.find(src) >>= [&]( auto const& nexts ){
+			for( auto const& next : nexts ) f(next);
+		};
 	}
 	bool erase_node( N node ) & override {
 		return _body.erase(node);
 	}
 	bool erase_edges( N src, std::function<bool(N)> const& test ) & override {
-		return _body.find(src) && [&]( Set<N>& nexts )->bool{ return nexts.erase_if(test); };
+		return _body.find(src) && [&]( Set<N>& nexts ){ return nexts.erase_if(test); };
 	}
 };
 template<typename N>
@@ -396,15 +396,15 @@ public:
 		for( auto const& [node,nexts] : _body ) f(node);
 	}
 	void iter_nexts( N src, std::function<void(N)> const& f ) const& override {
-		if( auto const& nexts = _body.find(src) ) {
-			for( auto const& next : *nexts ) f(next);
-		}
+		_body.find(src) >>= [&]( auto const& nexts ){
+			for( auto const& next : nexts ) f(next);
+		};
 	}
 	bool erase_node( N node ) & override {
 		return _body.erase(node);
 	}
 	bool erase_edges( N src, std::function<bool(N)> const& test ) & override {
-		return _body.find(src) && [&]( Set<N>& nexts )->bool{ return nexts.erase_if(test); };
+		return _body.find(src) && [&]( Set<N>& nexts ){ return nexts.erase_if(test); };
 	}
 };
 template<typename N>
@@ -416,66 +416,65 @@ Graph<N>::Graph( Map<N,Set<N>>& map ) :
 template<typename N>
 struct ConstGraphInterface<N>::_SccMaker {
 	ConstGraphInterface<N> const& g;
-	static constexpr unsigned OPEN = 1u << 31;
-	static bool is_closed( unsigned s ) { return !( s & OPEN ); }
 	/** Node status table
 	 * OPEN bit = 0: represents the node's SCC, which is already closed
 	 * OPEN bit = 1: represents the farthest depth the node can reach back
 	 */
-	Map<N,unsigned>& table;
+	Map<N,uint32_t>& table;
+	static constexpr uint32_t OPEN = 1u << 31;
+	static bool complete( uint32_t s ) { return !( s & OPEN ); }
 	/** Stack of nodes with backlinks */
 	std::stack<N> node_stack;
 	/** Stack containing adjacent SCCs */
-	std::stack<unsigned> scc_stack;
+	std::stack<uint32_t> scc_stack;
 	std::vector<typename ConstGraph<N>::Scc>& sccs;
-	std::vector<Set<unsigned>>& scc_dag;
-	unsigned depth = ~0u;// 1...111
+	std::vector<Set<uint32_t>>& scc_dag;
+	uint32_t depth = ~0u;// 1...111
 
-	int visit( N u ) {
+	int32_t visit( N const& u ) {
 		auto const [state,fl] = table.emplace(u,depth);
 		if( !fl ) {// already visited
 			return state;
 		}
 		bool loop = false, back = false;
+		// remember how many nodes/SCCs were stacked
+		auto node_stack_size = node_stack.size(), scc_stack_size = scc_stack.size();
 		depth--;
-		assert( depth & OPEN );
-		// remember how many nodes were stacked
-		unsigned node_stack_size = node_stack.size();
-		unsigned scc_stack_size = scc_stack.size();
-		g.iter_nexts( u, [&]( auto v ){
+		g.iter_nexts( u, [&]( auto const& v ){// iterate over next nodes v of u
 			auto vstate = visit(v);
-			if( is_closed(vstate) ) {// v's SCC is known
-				scc_stack.emplace(vstate);// remember the SCC
-			} else if( state < vstate ) {// v goes further
+			if( complete(vstate) ) {// v's SCC is known
+				scc_stack.emplace(vstate);// current SCC will be connected to v's SCC
+			} else if( state < vstate ) {// v goes further back
 				state = vstate;// u can go back as far as v can
 				back = true;
-			} else if( state == vstate ) {
+			} else if( state == vstate ) {// detected a loop
 				loop = true;
 			}
 		} );
-		if( back ) {// u constitute a bigger SCC
+		if( back ) {// u belong to a bigger SCC
 			node_stack.emplace(u);
 			return state;
 		}
 		// u was the entry point of the (possibly trivial) SCC
-		state = sccs.size();// remember this SCC index
+		state = sccs.size();// register this SCC index
+		if( loop ) {// detected a nontrivial SCC
+			Set<N> scc = {u};
+			while( node_stack.size() != node_stack_size ) {// nodes pushed after u belongs to the SCC
+				auto v = node_stack.top();
+				node_stack.pop();
+				scc.emplace(v);
+				table[v] = state;// mark the SCC index for v
+			}
+			sccs.emplace_back(std::move(scc));
+		} else {
+			sccs.emplace_back(u);// trivial SCC
+		}
+		// building node in SCC DAG
 		auto& scc_node = scc_dag.emplace_back();
 		while( scc_stack.size() != scc_stack_size ) {// connect SCCs
 			auto next = scc_stack.top();
 			scc_stack.pop();
 			scc_node.emplace(next);
-		}
-		if( loop ) {// nontrivial
-			auto& scc = *sccs.emplace_back(Set<N>{}).template ref<Set<N>>();
-			scc.emplace(u);
-			while( node_stack.size() != node_stack_size ) {// things pushed after u belongs to the SCC
-				auto v = node_stack.top();
-				node_stack.pop();
-				scc.emplace(v);
-				*ASSERTED(table.find(v)) = state;
-			}
-		} else {
-			sccs.emplace_back(u);// trivial SCC
 		}
 		return state;
 	}
